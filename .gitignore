@@ -22,6 +22,7 @@ __pycache__/
 *.log
 mlruns/
 docs/data_probe_report.md
+!docs/data_probe_report_2026-09-01.md
 docs/ablation_report.md
 
 # LaTeX derleme ciktilari

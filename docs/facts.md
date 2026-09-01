@@ -131,11 +131,31 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | T07 | Iletisim: Discord "PRC Data Challenge 2026" sunucusu, challenge@opensky-network.org | ayni e-posta | 2026-09-01 | ✅ |
 | T08 | **Cloudflare WARP acikken OSN'ye erisilemiyor** (DNS'i WARP yonetiyor, TLS kesiliyor); Discord ise WARP'siz engelli | kendi teshisimiz | 2026-09-01 | ✅ ikisi ayni anda calismiyor |
 
+## GERCEK VERI (2026-09-01, indirildi ve olculdu)
+
+| # | Gerçek | Kaynak | Kontrol | Durum |
+|---|--------|--------|---------|-------|
+| R01 | **Veri setinde 10 havalimani var, 11 degil. LTAI (Antalya) YOK.** Ne egitimde ne siralamada tek satiri var | kendi olcumumuz | 2026-09-01 | ✅ **yarisma sayfasi 11 diyor, veri 10** (E03 ile tutarli: LTAI performans semasinda degil) |
+| R02 | **`ADEP_mvt` hareketin havalimani DEGIL, ucusun kalkis havalimani.** Hareket havalimani = DEP ise `ADEP_mvt`, ARR ise `ADES_mvt`. Egitimde 1.582 farkli `ADEP_mvt` var | kendi olcumumuz | 2026-09-01 | 🔴 **kodda hata: varis turevli tum oznitelikler yanlis havalimaninda gruplaniyordu** |
+| R03 | **Siralama setinde Temmuz'da yalnizca 3 havalimani var: EDDF, EGLL, EHAM.** Ocak'ta 10'unun hepsi | kendi olcumumuz | 2026-09-01 | 🔴 **dogrulama semasi bunu yansitmali** |
+| R04 | Siralama seti: Ocak 152.719 kalkis (10 apt) + Temmuz 63.157 kalkis (3 apt) = **215.876**. Ocak toplam satirlarin **%71'i** | kendi olcumumuz | 2026-09-01 | ✅ RMSE'yi Ocak domine ediyor |
+| R05 | Egitim tam **4.167.797** hareket (yayimlanan sayiyla birebir), 2.085.047'si kalkis | kendi olcumumuz | 2026-09-01 | ✅ |
+| R06 | Kimlik `MVT_TIME − BLOCK_TIME == TAXITIME` **tam tutuyor** (oran 1,0000, azami sapma 0 sn) | probe §2 | 2026-09-01 | ✅ TAXITIME turetilmis, zaman damgalari tutarli |
+| R07 | Zaman damgalari **saniye hassasiyetinde** (saniyesi sifir olan oran %1,6-%8,4) — HH:MM sorunu YOK | probe §3 | 2026-09-01 | ✅ M14 endisesi gecersiz |
+| R08 | **`AOBT_3_flt` siralama setinde %98,52 dolu**; naif `MVT − AOBT_3` tahmincisi **RMSE 384,9 sn** (MAE 238, medyan mutlak hata 175, yanlilik +17) | probe §5 | 2026-09-01 | ✅ **cozum degil, guclu ozellik** (kendi esigim >200 sn idi) |
+| R09 | Naif AOBT_3 havalimani bazinda: EDDF 255 · LSZH 268 · LEMD 276 · LEBL 311 · EHAM 330 · EDDM 349 · LFPG 380 · EGLL 419 · **LTFM 531 · LIRF 557** | probe §5 | 2026-09-01 | ✅ LTFM ve LIRF en zor |
+| R10 | **Hedef olcegi yayimlanan gostergeyle birebir ortusuyor:** EGLL ort 1364 sn (22,7 dk), LSZH 740 sn (12,3 dk) — E02'de resmi seri 22,7 ve 11,9 dk demisti | probe §6 | 2026-09-01 | ✅ dis veri calismasi dogrulandi |
+| R11 | **LIRF uc deger yuvasi:** std 1332 sn, p99 4019 sn, %0,30'u 120 dakikayi asiyor. LSZH'de %0,22 **negatif** taxi suresi var | probe §6 | 2026-09-01 | ✅ kirpma degil modelleme karari |
+| R12 | En yuksek varyansli aylar **Temmuz (std 745) ve Ocak (605)** — siralama aylari en zor iki ay | probe §6 | 2026-09-01 | ✅ |
+| R13 | Kombo (apt, stand, pist) ortalamasi taban modeli: **RMSE 628,4 sn**; havalimani ortalamasi 660,0; genel ortalama 686,6 | probe §7 | 2026-09-01 | ✅ ilk gonderim seviyesi |
+| R14 | Soguk baslangic dusuk: siralama kombolarinin **%99,46'si** egitimde gorulmus; stand/pist bos oran 0 | probe §7 | 2026-09-01 | ✅ |
+| R15 | Kalkis gecikmesi (gercek blok − planlanan) std **2238 sn**, %24,2'si erken. `MVT − SCHED` naif tahmincisi RMSE **2412,7** | probe §8 | 2026-09-01 | ✅ SCHED, AOBT_3'ten cok daha zayif tutamak |
+
 ## Açık sorular
 
 | # | Soru | Nasıl kapanır |
 |---|------|---------------|
 | Q01 | Günlük/toplam gönderim limiti var mı? | Discord'da sor. P04 dolaylı kanıt: 2025 birincisi ~18 gönderimlik ablation yapmış, sıkı bir limit yok görünüyor |
-| Q02 | `AOBT_3_flt` ranking.parquet'te dolu mu, doluysa ne kadar iyi? | Veri iner inmez `scripts/probe_ranking.py` |
+| Q02 | ~~`AOBT_3_flt` ne kadar iyi?~~ | **KAPANDI (R08):** %98,52 dolu, naif RMSE 384,9 sn. Guclu ozellik, cozum degil |
 | Q03 | Leaderboard canlı mı, skor ne zaman görünüyor? | İlk gönderimde ölç |
 | Q04 | ~~Takım adı ne olacak?~~ | **KAPANDI:** `vibrant-lollipop` atandı (T01) |
