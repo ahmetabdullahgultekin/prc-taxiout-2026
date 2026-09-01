@@ -78,7 +78,7 @@ $PY -m taxiout.adapters.airports --raw-dir D:/prc-taxiout-2026/00_raw
 $PY scripts/probe_data.py     --data-dir D:/prc-taxiout-2026   # veri tanisi
 $PY scripts/train_baseline.py --data-dir D:/prc-taxiout-2026   # mevsimsel dogrulama
 $PY scripts/run_ablation.py   --data-dir D:/prc-taxiout-2026   # oznitelik ailesi tablosu
-$PY scripts/make_submission.py --data-dir D:/prc-taxiout-2026 --team <takim-adi>
+$PY scripts/make_submission.py --data-dir D:/prc-taxiout-2026 --team vibrant-lollipop
 
 $PY -m pytest tests -q
 ```

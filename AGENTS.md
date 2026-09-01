@@ -73,8 +73,11 @@ $PY -m pytest tests/unit -q
 $PY -m ruff check src tests scripts
 ```
 
-Veri seti indirmesi (anahtarlar gelince): `mc` istemcisi `~/bin/mc.exe` altinda kurulu.
-Gonderim de ayni bucket'a yapiliyor (P02).
+Takim adi **`vibrant-lollipop`**, gonderim bucket'i **`prc-2026-vibrant-lollipop`**,
+dosya adi `vibrant-lollipop_vN.parquet`. `mc` istemcisi `~/bin/mc.exe` altinda kurulu.
+
+**Ag tuzagi:** Cloudflare WARP acikken OSN'ye erisilemiyor. Veri indirmeden once
+`warp-cli disconnect`.
 
 `make` bu makinede kurulu degil — Makefile yok, dogrudan python cagriliyor.
 

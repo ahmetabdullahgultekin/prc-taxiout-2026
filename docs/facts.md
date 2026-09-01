@@ -118,6 +118,19 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | O02 | **Park pozisyonu olaylari yalnizca LSZH ve EDDF'te var**; EHAM/LIRF/LTAI/LTFM'de **sifir**. Sebep: OPDI bu olaylari OSM park pozisyonu poligonlarindan turetiyor, o poligonlar cogu havalimaninda yok | kendi olcumumuz, 10 gunluk dosya | 2026-09-01 | ✅ **ELENDI** (docs/opdi_negative_result.md) |
 | O03 | **LTFM ve LTAI'de acik ADS-B yer kapsamasi neredeyse sifir** (10 gunde 25 ve 119 pist girisi) — ADS-B tabanli her yaklasim tam da iki Turk havalimaninda cokerdi | kendi olcumumuz | 2026-09-01 | ✅ |
 
+## Takım onaylandı (2026-09-01 13:45)
+
+| # | Gerçek | Kaynak | Kontrol | Durum |
+|---|--------|--------|---------|-------|
+| T01 | **Takım adı: `vibrant-lollipop`** (otomatik atandi, P01 dogrulandi) | hello-noreply@opensky-network.org | 2026-09-01 | ✅ |
+| T02 | **Gonderim bucket'i: `prc-2026-vibrant-lollipop`** | ayni e-posta | 2026-09-01 | ✅ |
+| T03 | Gonderim dosya adi: `vibrant-lollipop_vN.parquet` | ayni e-posta | 2026-09-01 | ✅ `submission.py` deseniyle uyumlu |
+| T04 | Giris **SSO ile**: konsolda "Other Authentication Methods" → "Login with SSO" → Keycloak → OpenSky kimlik bilgileri | ayni e-posta | 2026-09-01 | ✅ |
+| T05 | Gonderimden kisa sure sonra bucket'ta bir **sonuc dosyasi** olusuyor → her gonderim icin geri bildirim var | ayni e-posta | 2026-09-01 | ✅ leaderboard beklemeye gerek yok |
+| T06 | 2024'te uc nokta `https://s3.opensky-network.org/`, alias `mc alias set dc24 <uc> ACCESS SECRET` | dc2024/data.html | 2026-09-01 | ⏳ 2026 konsol URL'si e-postadaki baglantida |
+| T07 | Iletisim: Discord "PRC Data Challenge 2026" sunucusu, challenge@opensky-network.org | ayni e-posta | 2026-09-01 | ✅ |
+| T08 | **Cloudflare WARP acikken OSN'ye erisilemiyor** (DNS'i WARP yonetiyor, TLS kesiliyor); Discord ise WARP'siz engelli | kendi teshisimiz | 2026-09-01 | ✅ ikisi ayni anda calismiyor |
+
 ## Açık sorular
 
 | # | Soru | Nasıl kapanır |
@@ -125,4 +138,4 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | Q01 | Günlük/toplam gönderim limiti var mı? | Discord'da sor. P04 dolaylı kanıt: 2025 birincisi ~18 gönderimlik ablation yapmış, sıkı bir limit yok görünüyor |
 | Q02 | `AOBT_3_flt` ranking.parquet'te dolu mu, doluysa ne kadar iyi? | Veri iner inmez `scripts/probe_ranking.py` |
 | Q03 | Leaderboard canlı mı, skor ne zaman görünüyor? | İlk gönderimde ölç |
-| Q04 | ~~Takım adı ne olacak?~~ | **KAPANDI (P01):** otomatik atanıyor |
+| Q04 | ~~Takım adı ne olacak?~~ | **KAPANDI:** `vibrant-lollipop` atandı (T01) |
