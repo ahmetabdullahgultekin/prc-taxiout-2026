@@ -92,15 +92,20 @@ $PY -m ruff check src tests scripts
 $PY -m pytest tests -q          # or: $PY scripts/verify.py, which runs every CI check
 ```
 
-`.github/workflows/ci.yml` runs the same two checks on every push, then drives the whole
-documented pipeline over synthetic data: fixture, probe, training and a submission file.
-That last step is the one worth having, because it checks the commands in this README
-work from a clean checkout.
+`scripts/verify.py` is the real check runner here. It runs lint, the tests, and then the
+whole documented pipeline over synthetic data (fixture, probe, training, a submission
+file), which is the step worth having, because it proves the commands in this README work
+from a clean checkout. Install it as a pre-push hook with `--install-hook`.
 
-Note that GitHub Actions is currently blocked on this account for a billing reason, so
-the workflow is present and correct but does not execute here. It runs normally in a
-fork. Until that is resolved, verification is the two commands above, run locally before
-every commit.
+`.github/workflows/ci.yml` holds the same steps and is set to manual trigger. Not because
+it is broken: **GitHub Actions cannot start on this account at all.** Every run ends in
+three seconds having executed zero steps, with *"the job was not started because your
+account is locked due to a billing issue"*. A wall of red crosses would read as broken
+code, which is the opposite of what it means, so the automatic triggers are commented out
+and a fork with working Actions restores them by uncommenting two lines.
+
+`tests/unit/test_verify_matches_ci.py` compares the two step lists, so the local runner
+cannot fall behind the workflow while looking like it covers it.
 
 ## Documents
 
