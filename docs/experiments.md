@@ -27,3 +27,23 @@ Yani gonderimlerimiz ayar denemesi degil, **tasarlanmis bir deney** olmali.
 | E05 | METAR var / yok, ozellikle Ocak | LSZH/EHAM/EDDM/LTFM Ocak'ta %10-18 de-icing kosulunda (W03) | METAR dosyasi gizlenerek |
 | E06 | Havalimani bazli model vs global | LTFM/LTAI ile LSZH ayni davranmaz | — |
 | E07 | Mevsimsel uzmanlasma (kis/yaz) | Siralama seti iki mevsimsel uc | — |
+| E08 | `SCHED_TIME` tutamagi var / yok | `MVT − SCHED = taxi + gecikme`; degeri gecikmenin dagilimina bagli (A01-A03) | `run_ablation.py` (`atfm` ailesi) |
+| E09 | Tohum ortalamasi (5 model) | 2024 birincisinin yontemi: ayni veri, ayni hiperparametre, farkli tohum | `--seeds 5` |
+
+## Ablation nasil kosulur
+
+```bash
+PY=D:/prc-taxiout-2026/.venv/Scripts/python.exe
+$PY scripts/run_ablation.py --data-dir D:/prc-taxiout-2026 --rounds 1200 --seeds 3
+$PY scripts/run_ablation.py --data-dir D:/prc-taxiout-2026 --causal      # makale icin
+$PY scripts/run_ablation.py --data-dir D:/prc-taxiout-2026 --raw-target  # E02 karsilastirmasi
+```
+
+Her aile icin bir kosu; cikti `docs/ablation_report.md` (git'e girmez, her kosuda
+yeniden uretilir). Negatif Δ o aileyi cikarmanin RMSE'yi **dusurdugu** anlamina gelir —
+yani aile zarar veriyordur ve bu da raporlanacak bir sonuctur.
+
+**Uyari.** Sentetik fixture uzerindeki ablation sayilari anlamsizdir; yalnizca borularin
+calistigini gosterir. Fixture'in kendi uretim sureci bazi aileleri yapay olarak baskin
+gosterir (ornegin `SCHED_TIME` sabit ofsetliyken `atfm` ailesi hedefi birebir
+sizdiriyordu — 2026-09-01'de duzeltildi).

@@ -111,8 +111,9 @@ def apply_reference(df: pl.DataFrame, tables: dict[str, pl.DataFrame]) -> pl.Dat
         # kombo ne kadar iyi gozlemlenmis: modelin referansa ne kadar guvenecegini soyler
         referans_ornek=pl.col("n_apt_stand_rwy").fill_null(0).cast(pl.Int32),
     ).drop(
-        [c for s, _ in LEVELS for c in (f"p10_{s}", f"n_{s}", f"alti_{s}", f"gecerli_{s}")
-         if c != "n_apt_stand_rwy"]
+        # `referans_ornek` n_apt_stand_rwy'yi zaten tasiyor; ham ara kolonlarin hicbiri
+        # disari sizmamali, yoksa oznitelik ailesi kaydinin disinda kalirlar.
+        [c for s, _ in LEVELS for c in (f"p10_{s}", f"n_{s}", f"alti_{s}", f"gecerli_{s}")]
     )
 
 

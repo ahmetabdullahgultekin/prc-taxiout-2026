@@ -77,6 +77,9 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | W02 | IEM verisi **kamu mali**, atif takdir ediliyor | mesonet.agron.iastate.edu/disclaimer.php | 2026-09-01 | ✅ odul sartini karsiliyor |
 | W03 | Ocak 2026 de-icing kosulu orani: **LSZH %18,0 · EHAM %13,4 · EDDM %11,2 · LTFM %9,9 · EDDF %8,3**; LTAI/LEBL/LIRF **%0** | kendi METAR analizimiz | 2026-09-01 | ✅ **Ocak hatasi bu bes havalimaninda toplanacak; LTAI'de de-icing yok** |
 | W04 | De-icing vekili mevsimsel saglamayi geciyor: 2025-01 %2,3 → 2026-07 %0,04 | kendi METAR analizimiz | 2026-09-01 | ✅ |
+| A01 | `SCHED_TIME_UTC_mvt` siralama setinde **bosaltilmamis** → `MVT_TIME − SCHED_TIME = taxi_out + kalkis_gecikmesi` kimligi kullanilabilir | dc2026/data.html D05 + kendi turetmemiz | 2026-09-01 | ✅ ikinci mesru tutamak |
+| A02 | Blok saatine **iki bagimsiz tutamak** var: NM'in `AOBT_3_flt` olcumu ve planlanan `SCHED_TIME`. Problemin cekirdegi bu ikisini uzlastirip artik belirsizligi modellemek | kendi analizimiz | 2026-09-01 | ⏳ ikisinin RMSE'si `probe_data.py` §5 ve §8'de olculecek |
+| A03 | Indirgenemez belirsizligin buyuk kismi **kalkis gecikmesinin** (gercek blok − planlanan blok) dagiliminda; std'si taxi-out'un kendi std'siyle kiyaslanmali | kendi analizimiz | 2026-09-01 | ⏳ §8 |
 
 ## Açık sorular
 

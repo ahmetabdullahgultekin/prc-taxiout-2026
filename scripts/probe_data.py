@@ -8,6 +8,7 @@ Veri iner inmez calistir. Cevapladigi sorular (bkz. docs/facts.md):
   D10        NM ucus eslesme orani ne?
   --         Soguk baslangic: siralama setindeki (stand, pist) kombolari egitimde var mi?
   --         Onemsiz temel modellerin RMSE tabani ne?
+  --         Kalkis gecikmesi ne kadar genis dagiliyor (indirgenemez belirsizlik)?
 
 Kullanim:
     python scripts/probe_data.py [--data-dir D:/prc-taxiout-2026]
@@ -346,6 +347,52 @@ def check_baselines(train: pl.LazyFrame, rank: pl.LazyFrame) -> None:
     table(cold)
 
 
+def check_schedule_handle(train: pl.LazyFrame) -> None:
+    section("8. Ikinci tutamak: planlanan blok saati (SCHED_TIME)")
+    say("Kimlik: `MVT_TIME - SCHED_TIME = taxi_out + kalkis_gecikmesi`.")
+    say("`SCHED_TIME_UTC_mvt` siralama setinde bosaltilmamis (D05), yani bu da mesru bir")
+    say("ozniteliktir. Degeri tamamen **kalkis gecikmesinin ne kadar ongorulebilir**")
+    say("olduguna bagli: gecikme dar dagilirsa hedefi neredeyse verir, genis dagilirsa")
+    say("yalnizca bir ust sinir olur.")
+    say()
+    dep = train.filter(
+        (pl.col("PHASE_mvt") == "DEP")
+        & pl.col("TAXITIME_SEC_mvt").is_not_null()
+        & pl.col("SCHED_TIME_UTC_mvt").is_not_null()
+        & pl.col("BLOCK_TIME_UTC_mvt").is_not_null()
+    ).with_columns(
+        gecikme=secs("BLOCK_TIME_UTC_mvt", "SCHED_TIME_UTC_mvt"),
+        sched_naif=secs("MVT_TIME_UTC_mvt", "SCHED_TIME_UTC_mvt"),
+    )
+    g = pl.col("gecikme")
+    say("**Kalkis gecikmesi (gercek blok - planlanan blok), saniye:**")
+    say()
+    table(
+        dep.select(
+            n=pl.len(),
+            ort=g.mean(),
+            std=g.std(),
+            p10=g.quantile(0.10),
+            p50=g.median(),
+            p90=g.quantile(0.90),
+            erken_oran=(g < 0).mean(),
+        ).collect()
+    )
+    say()
+    say("**`MVT - SCHED` naif tahmincisi (gecikmeyi sifir sayar):**")
+    say()
+    table(
+        dep.select(
+            rmse=rmse(pl.col("sched_naif"), pl.col("TAXITIME_SEC_mvt")),
+            yanlilik=(pl.col("sched_naif") - pl.col("TAXITIME_SEC_mvt")).mean(),
+        ).collect()
+    )
+    say()
+    say("Karsilastir: 5. bolumdeki AOBT_3 naif tahmincisi. Iki tutamaktan hangisi daha")
+    say("dar, ikisi birlikte ne kadar kaliyor — mimari karari budur. Gecikmenin std'si")
+    say("bu problemde **indirgenemez belirsizligin buyuk kismini** olusturuyor olabilir.")
+
+
 # --------------------------------------------------------------------------- giris
 
 
@@ -381,6 +428,7 @@ def main() -> int:
     check_aobt_strength(train)
     check_target(train)
     check_baselines(train, rank)
+    check_schedule_handle(train)
 
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text("\n".join(_lines) + "\n", encoding="utf-8")

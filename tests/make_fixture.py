@@ -63,7 +63,12 @@ def build(start: datetime, days: int, per_day: int, seed: int) -> pl.DataFrame:
             "PHASE_mvt": phase,
             "MVT_TIME_UTC_mvt": list(mvt),
             "BLOCK_TIME_UTC_mvt": list(block),
-            "SCHED_TIME_UTC_mvt": [b - timedelta(minutes=10) for b in block],
+            # gercek veride kalkis gecikmesi degiskendir; sabit ofset kullanmak
+            # plan_sapmasi_sn ozniteligini hedefin birebir kopyasi yapardi
+            "SCHED_TIME_UTC_mvt": [
+                b - timedelta(seconds=int(d))
+                for b, d in zip(block, rng.normal(600, 900, n).clip(-1800, 7200), strict=True)
+            ],
             "AIRCRAFT_TYPE_mvt": actype,
             "RUNWAY_mvt": rwy,
             "STAND_mvt": stand,

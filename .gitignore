@@ -22,3 +22,4 @@ __pycache__/
 *.log
 mlruns/
 docs/data_probe_report.md
+docs/ablation_report.md
