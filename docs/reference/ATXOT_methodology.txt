@@ -1,0 +1,838 @@
+
+===== PAGE 1 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page i 
+ 
+ 
+ 
+ 
+Additional taxi-out time 
+performance indicator 
+document 
+Technical documentation on the methodology for the calculation of the additional taxi -
+out time indicator  
+ 
+Overview 
+The Additional Taxi-Out Time addresses  the operational inefficiencies associated with the techniques 
+used to manage runway utilisation for the departure flow. This is reflected by the accumulated (i.e. 
+additional) time spent in the departure queue during taxi operations on the apron and taxiway sys tem, 
+including queuing at the runway threshold. 
+This document describes the conceptual, logical and implementation independent model of the additional 
+taxi-out time performance indicator. 
+This version is a draft for consultation purposes. 
+ 
+ 
+ 
+ 
+Edition Number:  01.00 
+Edition Date:   16-03-2023 
+Status:   Final version after consultation 
+Intended For:  External 
+Category:   Performance Monitoring and Reporting  
+ 
+ 
+ 
+European Organization for Safety of Air Navigation 
+European Organisation for the Safety of Air Navigation 
+
+===== PAGE 2 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page i 
+ 
+TITLE 
+Additional taxi-out time performance indicator 
+document 
+Publications Reference:  
+ ISBN Number:  
+Document Identifier Edition Number: 01.00 
+ Edition Date: 16-03-2023 
+Abstract 
+This document describes the conceptual, logical and implementation independent model of the 
+additional taxi-out time performance indicator. 
+Keywords 
+Performance indicator 
+Additional taxi-out time 
+Contact: E-mail: sara.meson-mancha@eurocontrol.int   
+    
+    
+Authority Name Unit 
+Document Author Sara Mesón-Mancha EGSD/AIU/OPS 
+Contributor Thierry de Lange EGSD/AIU/OPS 
+Document Reviewer Rainer Koelle EGSD/AIU/OPS 
+External Reviewers Members of Working Group on Additional 
+times 
+ 
+Document Approver Denis Huet EGSD/AIU 
+ 
+ 
+  
+
+===== PAGE 3 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page ii 
+Table of Contents 
+1 INTRODUCTION ................................................................................................................... 4 
+1.1 General .............................................................................................................................. 4 
+1.2 Purpose of the document ................................................................................................... 4 
+1.3 Scope ................................................................................................................................. 4 
+1.4 Summary of the performance indicator information .......................................................... 5 
+1.5 Acronyms and terminology ................................................................................................ 6 
+2 CONCEPTUAL MODEL ........................................................................................................ 7 
+2.1 What we ideally would like to measure .............................................................................. 7 
+2.2 Concept of runway optimisation ........................................................................................ 7 
+2.3 Conceptual approach ......................................................................................................... 8 
+3 METHODOLOGY ................................................................................................................ 10 
+3.1 Approach and assumptions ............................................................................................. 10 
+3.2 Grouping of flights ............................................................................................................ 10 
+3.3 Overview of the logical model of the Additional and Reference Taxi-Out Times ............ 12 
+3.4 Calculation of the Additional Taxi-Out Time .................................................................... 13 
+3.5 Calculation of the Reference ASMA Times ..................................................................... 13 
+4 ERROR DESCRIPTION ...................................................................................................... 15 
+5 FACTORS NOT CONSIDERED .......................................................................................... 15 
+6 IMPLEMENTATION AND REGULAR MONITORING ......................................................... 15 
+6.1 Implementation of the monitoring of additional times ...................................................... 16 
+6.2 Evolution of the taxi-out reference times ......................................................................... 16 
+6.3 Share of flights without a valid reference transit time ...................................................... 16 
+6.4 Special cases ................................................................................................................... 17 
+7 SOURCE DATA ................................................................................................................... 17 
+7.1 Main and secondary data sources ................................................................................... 17 
+8 QUALITY MANAGEMENT................................................................................................... 18 
+8.1 The Airport Operator Data Flow process ......................................................................... 18 
+8.2 Quality Assurance Framework......................................................................................... 19 
+8.3 Data Quality Checks ........................................................................................................ 19 
+9 REFERENCES .................................................................................................................... 20 
+10 REVISION HISTORY ........................................................................................................... 20 
+ 
+
+===== PAGE 4 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page iii 
+List of Figures 
+Figure 1: Outbound and Inbound Traffic Queues from a Flight Phase Perspective .......................................... 7 
+Figure 2: Performance Measurement Approach ............................................................................................... 8 
+Figure 3: Flight phase temporal mapping (left) and performance indicator definition (right)  ........................... 10 
+Figure 5: Logical steps for the monthly Additional Taxi-Out Time calculation ................................................. 12 
+Figure 6: Steps of the Reference Taxi-Out Times calculation ......................................................................... 14 
+Figure 7: Reference as the 10th percentile of the transit times ........................................................................ 14 
+Figure 8: Incremental increase of the size of the reference sample until reaching 1 year  .............................. 16 
+Figure 9: Airport Data Flow process scheme including activities and actors involved.  ................................... 18 
+Figure 10: Quality Performance Areas and corresponding Quality Indicators.  ............................................... 19 
+ 
+List of Tables 
+Table 1: Performance Indicator summary ......................................................................................................... 5 
+Table 2: Acronyms and terminology .................................................................................................................. 6 
+Table 3: Data Sources ..................................................................................................................................... 17 
+
+===== PAGE 5 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 4 
+1 Introduction 
+1.1 General 
+This document describes the conceptual, informational, and implementation independent model of the 
+additional taxi-out time performance indicator. 
+This document focuses on the analysis of additional taxi-out time. A separate document is available regarding 
+the analysis of additional ASMA time [1] and the additional taxi-in time [2]. 
+1.2 Purpose of the document 
+The purpose of this document is twofold: 
+• to present the concept, and underlying logical and mathematical modelling of the indicator; and  
+• to document the processing and use of data for the calculation of the indicator.  
+1.3 Scope 
+This document provides a technical description on the methodology used in the analysis of the additional taxi-
+out time performance indicator. The present methodology is the result of a complete review of the previous 
+methodology for this same indicator. This review was per formed by a specific working group created for this 
+purpose and participated by several internal and external  members between November 2021 and October 
+2022. 
+The calculation of this performance indicator by EUROCONTROL makes use of the data collected through the 
+Airport Operator Data Flow according to the specification EUROCONTROL-SPEC-175 for data collection and 
+processing, under the responsibility of the airports team in the OPS section of the Aviation Intelligence Unit. 
+For the calculation of the indicator, the Airport Operator Data Flow is combined with trajectory data provided 
+by the Network Manager. 
+The objective of the methodology is to measure and observe additional time spent in the taxi-out phase without 
+highlighting specific reasons for the observed behav iour. More detailed case studies are needed to find out 
+reasons for particular observations. 
+While this document focuses on the methodology itself, results for a number of airports across Europe are 
+available in regular publications at www.ansperformance.eu  
+
+===== PAGE 6 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 5 
+1.4 Summary of the performance indicator information 
+Additional taxi-out time: Summary 
+Current version 
+status Monitoring   
+Version status and 
+evolution 
+Conceptual Phase 2008 Phase completed 
+Technical Development 2008 
+2022 (review) 
+Phase completed 
+Prototyping / Validation 2008-2011 
+2022 (review) 
+Ongoing 
+Monitoring 2009-today Active 
+Target Setting  N/A 
+Phase Out   N/A 
+Context 
+KPA (SES II Performance Scheme): Environment (RP2 and RP3) / Capacity 
+(RP1)  
+KPA (PRC) : Efficiency  
+Focus Area: Ai rport impact on flight duration, punctuality, fuel burn and CO 2 
+emissions. 
+Trade Offs: throughput and ATC local pre-departure delay.  
+Originator: ATMAP project . Methodology reviewed in the Working Group for 
+Additional Times 
+Description 
+This indicator provides an approximate measure of the average departure 
+runway queuing time on the outbound traffic flow, during times that the 
+airport is congested. 
+Formula and Metrics 
+This indicator is calculated on the basis of data availability for Actual Off 
+Block Time (AOBT) and Actual Take-Off Time (ATOT). The additional taxi-
+out time is the difference between the actual taxi-out transit time and a 
+reference taxi-out transit time for the group of similar flights. The taxi-out 
+additional time for the airport is the average additional taxi-out values for all 
+flights. 
+Unit Minutes per departure 
+Used in 
+This indicator as calculated with the previous methodology is used in SES 
+(IR691/2010 & IR390/2013 &IR317/2019): Annual Performance Report; SES 
+eDashboard  
+EUROCONTROL: Performance Review Report 
+Table 1: Performance Indicator summary 
+
+===== PAGE 7 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 6 
+1.5 Acronyms and terminology 
+Term Definition 
+AIU Aviation Intelligence Unit 
+APDF Airport Operator Data Flow 
+ARWY Arrival Runway 
+ASMA Arrival Sequencing and Metering Area 
+ATFM Air Traffic Flow Management 
+ATM Air Traffic Management 
+ATMAP ATM Airport Performance project 
+CODA Central Office for Delay Analysis 
+CPR Correlated Position Reports 
+CTFM Current Tactical Flight Model 
+DRWY Departure Runway 
+IR691 COMMISSION REGULATION (EU) No 691/2010 
+IR390 COMMISSION REGULATION (EU) No 390/2013 
+IR317 COMMISSION REGULATION (EU) No 317/2019 
+KPA Key Performance Area 
+KPI Key Performance Indicator 
+LT Local Time 
+PI Performance Indicator 
+PRISME Pan European Repository of Information Supporting the Management of EATM  
+PRU Performance Review Unit 
+QoS Quality of Service 
+RWY Runway 
+SES Single European Sky 
+TMA Terminal Manoeuvring Area 
+Table 2: Acronyms and terminology 
+  
+
+===== PAGE 8 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 7 
+2 Conceptual model 
+2.1 What we would like to measure 
+This conceptual indicator has been selected to measure the operational inefficiencies associated with the 
+techniques used to manage (i.e.  maximise) runway utilisation for the departure flow. This is reflected by the 
+accumulated (i.e. additional) time spent in the departure queue during taxi operations on the apron and taxiway 
+system, including queuing at the runway threshold. 
+2.2 Concept of runway optimisation 
+When aircraft cannot fly unimpeded 4D trajectories, there are generally three places at which queuing  takes 
+place, as illustrated in Figure 1: 
+• At the departure stand (pre-departure queuing to optimise network performance) 
+• At the departure runway (take-off queuing, e.g. runway holding) 
+• In the arrival terminal airspace (arrival queuing in the Arrival Sequencing and Metering Area or ASMA, 
+using speed control, stacks, holding, extension of approach path etc.) 
+ 
+Figure 1: Outbound and Inbound Traffic Queues from a Flight Phase Perspective 
+Uncertainty of approach conditions (e.g. pilot performance, landing clearan ce time, approach speed, wind 
+conditions) makes traffic supply to runways a stochastic phenomenon.  
+In order to  ensure continuous traffic demand at runways and maximise runway usage, a minimum level of 
+queuing is required. A certain amount of departure runway queuing is necessary to allow for an optimisation 
+of departure (and arrival) management in terms of runway utilisation when demand is at or near operational 
+capacity. 
+However, additional time in holding or queuing is detrimental to operations efficiency, fuel consumption and  
+the environment. Therefore, a trade-off exists between approach efficiency and runway throughput. 
+
+
+===== PAGE 9 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 8 
+ 
+Optimisation of runway utilisation may require: 
+1. Re-sequencing the take-off (and landing) order at the runway; and 
+Buffering a sufficient number of aircraft in the queue to be able to fine tune the metering and the runway 
+throughput (to optimise the separation of aircraft released from the queue to the runway). In both cases some 
+aircraft will suffer a certain penalty in terms of queuing time. Higher runway utilisation targets  may require 
+higher levels of departure (take-off) queuing in the manoeuvring area and arrival queuing in airspace. This 
+effect can be reduced if aircraft are already delivered to the queue in the right sequence  and at the required 
+time intervals. 
+To reduce cost and environmental impact, the departure and arrival queui ng time should be kept to the 
+minimum needed to achieve the selected runway utilisation objectives. If possible, any departure and arrival 
+delay that is needed for other reasons than sequencing and metering should therefore be absorbed at the 
+departure sta nd through ATFM delays and local ATC pre -departure delay. If this is done properly, then 
+measuring outbound and inbound queuing time allows assessing the “operational cost” associated with 
+sequencing and metering in function of the selected runway utilisation objectives. 
+Accordingly, measuring outbound queuing time in terms of additional taxi-out time makes it possible to assess 
+the efficiency of the departure process (i.e. management of departure queue, runway utilisation) and, thus, the 
+operational cost associated with queuing or congestion during taxi-out. 
+2.3 Conceptual approach 
+The additional taxi-out time indicator aims to provide a measure of the average departure runway queuing time 
+and inefficiencies on the apron and taxiway system during the taxi-out phase. The additional taxi-out time is a 
+proxy for the level of efficiency (i.e. inefficiency) of the local operations during the taxi -out phase of a flight. 
+Performance in terms of additional taxi-out time is monitored on the basis of regular reporting in comparison 
+to a nominal reference. Based on regular reporting, metrics are derived for the respective reporting month. 
+The current measurements are compared to a nominal reference to address the level of efficiency. The 
+reference is derived from the statis tical analysis of a reference period sample. This approach is depicted in 
+Figure 2. 
+ 
+Figure 2: Performance Measurement Approach 
+The indicator is defined as the difference between the taxi-out transit time (actual taxi-out time) and the 
+reference taxi-out transit time. 
+𝐴𝑐𝑡𝑢𝑎𝑙 𝑇𝑎𝑥𝑖𝑂𝑢𝑡 𝑇𝑖𝑚𝑒 =  𝑅𝑒𝑓𝑒𝑟𝑒𝑛𝑐𝑒 𝑇𝑎𝑥𝑖𝑂𝑢𝑡 𝑇𝑖𝑚𝑒 +  𝐴𝑑𝑑𝑖𝑡𝑖𝑜𝑛𝑎𝑙 𝑇𝑎𝑥𝑖𝑂𝑢𝑡 𝑇𝑖𝑚𝑒 
+
+
+===== PAGE 10 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 9 
+The reference time s intend to reflect the required time to perform the taxi-out procedures assuming no 
+inefficiency (i.e. no holding during the taxi-out or no departure queue before the runway ) and are determined 
+based on a statistical analysis of historic data observed at the airport (last 12 months), for groupings of similar 
+flights expected to have similar taxi-out times. The additional taxi-out time is a measure for the extent of which 
+the actual taxi-out time exceeds the reference. 
+  
+
+===== PAGE 11 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 10 
+3 Methodology 
+This section describes the underlying logical modelling and drives the implementation of the additional taxi-out 
+time algorithm. 
+3.1 Approach and assumptions 
+The purpose of the additional taxi-out time indicator is to provide an approximate measure of the average 
+outbound queuing time  on the departure traffic flow, usually observed during times that the airport is 
+congested. 
+Considering the temporal efficiency during the departure phase of a flight distinct, sub-phases can be identified 
+as depicted in Figure 3. Taking into account the timestamp data available, taxi -out time is defined as the time 
+elapsing between the Actual Off-Block Time (AOBT) and the Actual Take-Off Time (ATOT). This time envelope 
+covers both systemic durations (e.g. time spans for certain procedures, queuing at runway to ensure flight 
+demand) as well as additional time aspects linked to the actual performance of the opera tions. This systemic 
+duration of the taxi-out time is captured using statistical analysis, referred to as Reference Taxi-Out Time 
+ 
+ 
+Figure 3: Flight phase temporal mapping (left) and performance indicator definition (right)  
+Systemic factors are assumed to be captured in the nominal reference; they do not significantly influence the 
+metric: including: 
+▪ the runway occupancy time during the take-off roll 
+▪ the time in push-back operations 
+This indicator excludes influence of runway in use or departure stand: a separate reference is calculated for 
+each combination of these factors, so they are included in both the transit times of the flights under analysis 
+and the flights used to calculate the reference transit times;  therefore this does not show up in the additional 
+time which is the difference between each flight under analysis and the corresponding reference time.  
+3.2 Grouping of flights 
+The reference taxi -out times are, as mentioned in 3.1, statistically determined based on actual taxi -in times 
+recorded for the flights departing from  an airport during a certain reference period. Each reference time 
+calculation requires then a sample of flights for analysis. Th is sample is obtained by establishing groups of 
+flights that are expected to follow similar taxi-out routes and therefore have similar optimal transit times. . This 
+is done through groups with the same combination of departure runway and departure stand. 
+Actual Taxi-Out Time
+Reference Additional DEPARTURE &
+Taxi-Out Time Taxi-Out Time EN-ROUTE
+AOBT
+Actual
+Off Block Time
+ATOT
+Actual
+Take Off Time
+
+===== PAGE 12 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 11 
+The aircraft class or aircraft type could also have an impact on the taxi speeds and therefore the transit times. 
+Nevertheless this additional factor breaks down the sample into more groups, reducing consequently the 
+sample size for each group, but not having major impact in the results.  
+Since the sample size is key for the calculation of realistic reference times, the aircraft class is not used as a 
+factor in the grouping of the flights. 
+For each airport, flights are then grouped by combos with the same dep arture stand and departure runway. 
+Each grouping of flights with the same combo will have a reference transit time associated.  
+ 
+
+===== PAGE 13 =====
+Additional taxi-out time performance indicator document – Edition 01.0000 Page 12 
+ 
+ 
+3.3 Overview of the logical model of the Additional and Reference Taxi-Out Times 
+This section focuses on the algorithm for the calculation of the additional taxi-out time indicator from a logical point of view. The additional taxi-out time 
+calculation for a given airport in a given “month i” is depicted below and explained in the next section 3.4. 
+ 
+Figure 4: Logical steps for the monthly Additional Taxi-Out Time calculation 
+Filtered Flight
+Data
+Month i
+Month i-1
+Month i-2
+Month i-3
+Month i-4
+Month i-5
+Month i-6
+Month i-7
+Month i-8
+Month i-9
+Month i-10
+Month i-11
+Loaded Flight
+Data
+Month i
+Month i-1
+Month i-2
+Month i-3
+Month i-4
+Month i-5
+Month i-6
+Month i-7
+Month i-8
+Month i-9
+Month i-10
+Month i-11
+Filter out flights:
+• - Taxi-out time
+• > 120min
+• - No data
+• - De-icing after 
+AOBT
+• - Helicopters
+Select flights:
+• - Based on Local 
+Take-Off Time
+Calculate reference 
+times per combo
+STAND - DRWY
+• - 10th percentile (P10)
+• - min number of flights with 
+taxi-out time ≤ P10 = 10
+Reference Taxi-Out 
+times for each
+APT-STAND-DRWY 
+combination in 
+month i
+Calculate additional Taxi-Out time 
+per flight in month i:
+Additional Taxi-Out time (fc) =
+Actual TXOT (fc) - Reference TXOT (c)
+Calculate 
+Actual Taxi-Out Time 
+per flight:
+Actual taxi-out time (f) = 
+ATOT (f) – AOBT (f)
+Additional Taxi-Out 
+time for each flight 
+in month i
+Additional Taxi-Out 
+time per airport
+in month i
+Month i
+flights and 
+taxi out times
+1 Year 
+flights and 
+taxi out times
+REFERENCE CALCULATION
+Calculate 
+average for all 
+flights
+1
+2
+3
+4
+5
+6
+
+===== PAGE 14 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 13 
+ 
+3.4 Calculation of the Additional Taxi-Out Time 
+The computation of the indicator for a given airport is based on six consecutive steps as shown in Figure 4: 
+1. Starting with all the loaded flight data in the system, filter  out the flights with some missing data (e.g. no 
+runway information, no stand information or no off-block time), flights with taxi-out time longer than 120 min, 
+helicopters and flights with de-icing after the off-block time (i.e. during the taxi-out phase). 
+2. For the analysis of month i, select the departures of the last year based on the runway time in local time, that 
+is [month i-11:month i] (e.g. for month Nov-22, take all departures taking-off between 01-Dec-21-00:00:00 until 
+30-Nov-22-23:59:59 inclusive, in local time). 
+For the month i+1 we will recalculate again the reference taxi-out times based on the last year- through a new 
+selection of the flights. 
+3. Calculate, for each departure flight f, the taxi-out time, as the time between the actual off block time (AOBT (f)) 
+and the take off time (ATOT(f)). 
+𝑇𝑎𝑥𝑖𝑂𝑢𝑡 𝑡𝑖𝑚𝑒 (𝑓) = 𝐴𝑇𝑂𝑇 (𝑓) − 𝐴𝑂𝐵𝑇 (𝑓) 
+4. The reference times are calculated based on the entire year of data as obtained in step 1 , 2 and 3. One 
+reference value is calculated for each group of similar flights (same combo stand - departure runway) in a 
+separate process that is explained in the next section. 
+5. Calculation of the additional time for each flight  based on the reference time of similar flights (that is, the 
+reference calculated for the combo STAND - DRWY to which this flight belongs) . Therefore, for a flight fc 
+using a combo c with a certain STAND - DRWY through subtraction of the combo’s reference time from 
+the actual taxi-out time of each flight. 
+𝐴𝑑𝑑𝑖𝑡𝑖𝑜𝑛𝑎𝑙 𝑇𝑎𝑥𝑖𝑂𝑢𝑡 𝑡𝑖𝑚𝑒 (𝑓𝑐) = 𝑇𝑎𝑥𝑖𝑂𝑢𝑡 𝑡𝑖𝑚𝑒 (𝑓𝑐) −  𝑇𝑎𝑥𝑖𝑂𝑢𝑡 𝑟𝑒𝑓𝑒𝑟𝑒𝑛𝑐𝑒 𝑡𝑖𝑚𝑒 (𝑐) 
+As explained in the next section, the sample size might not allow  to calculate a reference time for certain 
+combos. In that case, it will not be possible to calculate the additional taxi-out time for the flights using 
+those combos STAND – DRWY and these flights will not be taken into account in the final computation. 
+6. Calculation of the average additional taxi-out time for the airport in month i as the average of the additional 
+taxi-out times of all n flights f (regardless of their combo) from month i with a valid calculated additional 
+time. [min/departure]. 
+𝐴𝑣𝑒𝑟𝑎𝑔𝑒 𝑎𝑑𝑑𝑖𝑡𝑖𝑜𝑛𝑎𝑙 𝑇𝑎𝑥𝑖𝑂𝑢𝑡 𝑡𝑖𝑚𝑒 (𝑚𝑜𝑛𝑡ℎ 𝑖) =  
+∑ 𝐴𝑑𝑑𝑖𝑡𝑖𝑜𝑛𝑎𝑙 𝑇𝑎𝑥𝑖𝑂𝑢𝑡 𝑡𝑖𝑚𝑒 (𝑓)𝑛
+𝑓=1
+𝑛  
+3.5 Calculation of the Reference Taxi-Out Times 
+The objective of the reference times is to identify what would be the optimal while possible time to taxi-out from a 
+given stand to a given runway without any holding, i.e. if the operation was unimpeded.  
+The calculation of these reference times is done as an approximation via a statistical analysis of a reference 
+sample. This referen ce sample is specific for each airport and each month . As shown in Figure 4, the period 
+considered as the sample for the reference calculation  is the last year of traffic departing from that airport up to 
+and including the month of operations under analysis.  The reference sample is therefore dynamic: a rolling year 
+of traffic data, filtered and selected according to local time.  
+The computation of the reference times for a given airport in a given month is based on step 4 as shown in Figure 
+4 which includes steps 4a and 4b as depicted in Figure 5: 
+
+===== PAGE 15 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 14 
+ 
+ 
+Figure 5: Steps of the Reference Taxi-Out Times calculation 
+Starting with the full set of data for the year, and after steps 1 to 3 in Figure 4, we obtain the sample of 1 year of 
+departing flights with their taxi-out times (TXOT) with their stand and departure runway.  
+4.a This sample is then broken-down into the different samples with flights and taxi-out times for each 
+possible combo at the airport given its runways and stands (step 4a in Figure 6).  
+4.b For each one of these samples of flights, the reference time for that combo STAND—ARWY is 
+calculated as the 10th percentile of those taxi-out times: 
+𝑇𝑎𝑥𝑖𝑂𝑢𝑡 𝑅𝑒𝑓𝑒𝑟𝑒𝑛𝑐𝑒 𝑡𝑖𝑚𝑒𝑐𝑜𝑚𝑏𝑜 𝑗 = 10𝑡ℎ 𝑝𝑒𝑟𝑐𝑒𝑛𝑡𝑖𝑙𝑒 (𝑇𝑎𝑥𝑖𝑂𝑢𝑡 𝑡𝑖𝑚𝑒𝑠)𝑐𝑜𝑚𝑏𝑜 𝑗 
+The 10th percentile is estimated to provide the best approach to the optimal (while possible) transit times 
+in the distribution of all taxi-out times for a given combo (Figure 6). 
+ 
+Figure 6: Reference as the 10th percentile of the transit times 
+Filtered Flight
+Data
+Month i
+Month i-1
+Month i-2
+Month i-3
+Month i-4
+Month i-5
+Month i-6
+Month i-7
+Month i-8
+Month i-9
+Month i-10
+Month i-11
+Calculate 
+Actual Taxi-Out Time 
+per flight:
+Actual taxi-out time (fci) = 
+ATOT (fci) – AOBT (fci)
+1 Year 
+taxi-out 
+times
+REFERENCE CALCULATION
+3
+COMBO 1: 
+Flights and 
+taxi-out times 
+COMBO 2: 
+Flights and 
+taxi-out times 
+COMBO 3: 
+Flights and 
+taxi-out times 
+COMBO n: 
+Flights and 
+taxi-out times 
+Group per same COMBO STAND — DRWY
+Reference 
+Taxi-Out 
+times for each
+APT-STAND-
+DRWY 
+combination  
+Month i
+4a 4bCalculate reference times per combo STAND — DRWY
+- 10th percentile (P10)
+- min number of flights with taxi-out  time ≤ P10 = 10
+10th percentile
+
+===== PAGE 16 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 15 
+ 
+For a calculated reference time to be considered valid and representative the optimal while possible taxi-out times 
+for a certain combo STAND—ARWY, there must be at least  10 flights in the sample with a taxi-out time equal or 
+shorter than the calculated reference time. 
+(Minimum number of flights with TaxiOut time ≤ 10th percentile)𝑐𝑜𝑚𝑏𝑜 𝑗 = 10 
+Combos where the sample size is too small and this condition is not met will not have any taxi-out reference time 
+assigned. 
+4 Error description 
+The error in the results depends on the accuracy and precision of the available data. The time stamps used for the 
+calculation use the format HH:MM:SS, so the highest precision is seconds. Nevertheless, in some cases the data 
+provided might be limited to a HH:MM format, so in those cases the precision is lower. 
+The precision in the collection of the AOBT (Actual Off -Block Time) is key in the calculation of the taxi -out times. 
+This event should reflect as much as possible when the aircraft starts moving on the apron. 
+5 Factors not considered 
+There are other factors in addition to the specific taxi-out procedure that can have an impact on the taxi-out times. 
+These factors are inherently included in both the reference sample and the flights unde r analysis in month i, but 
+they are not considered in the grouping of the flights, so there is no specific reference time calculated for the 
+different conditions resulting from these factors.  
+- Different taxi-out routes. The data does not include the path followed by the aircraft during the taxi -out 
+phase. The reference is therefore calculated assuming always the same or similar path  from the stand to 
+the runway. 
+- Aircraft taxiing speed. The data does not include the speed at which the aircraft is taxii ng out. The 
+reference is calculated for all flights for a given combo stand-runway regardless of their actual speed. 
+- Special events affecting the taxi-out procedures, which might require a specific reference sample  (e.g. 
+construction works on certain apron areas).  
+The reason for not considering these factors is  the lack of the required information in the dataset. However, even 
+if the dataset would inform about the taxi-route or the speed, the number of factors to be considered in the combos 
+should be kept to a minimum in order to keep a reasonable sample size that would allow for a more reliable result 
+from the statistical analysis based on a percentile approach.  
+Considering more factors would increase the possible combinations and therefore reduce the num ber of flights in 
+each combination, which would have a detrimental effect in the reliability of the statistical result.  
+6 Implementation and regular monitoring 
+In the implementation of the regular calculation of the additional taxi-out times it is required to establish in parallel 
+a monitoring routine of certain elements to ensure the quality of the result.  
+
+===== PAGE 17 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 16 
+ 
+6.1 Implementation of the monitoring of additional times 
+This methodology requires as described in Figure 4 a complete year of data, i.e. rolling 12 months up to and 
+including the month of operations under analysis. Nevertheless, during the first year of data provision the reference 
+sample cannot reach the  required 12 months. In that case the reference sample to be used is the traffic sample 
+available to date. Figure 7 illustrates an example where the data provision starts in May, and the reference sample 
+would increase from 1 to 12 months in the first year, and then continue the rolling year.  
+ 
+ 
+Figure 7: Incremental increase of the size of the reference sample until reaching 1  year 
+6.2 Evolution of the taxi-out reference times 
+The taxi-out reference times, as described in 3.4. are calculated every month based on the past rolling year traffic 
+sample. The reason to implement a rolling reference sample is to automatically adapt to changing situations and 
+keep in this way  an up to date reference. Nevertheless it is necessary to monitor the evolution of the reference 
+times to identify possible issues in the data provision and calculations. 
+6.3 Share of flights without a valid reference transit time 
+As observed in section 3.5, t he calculated taxi-out reference time for a given combo STAND—DRWY is not 
+considered valid when the size of the traffic sample using that combo in the reference year is not big enough to 
+show at least 10 flights with a transit time equal or shorter than the 10th percentile. 
+Flights belonging to combos for which there is no  valid reference will consequently have neither reference nor 
+additional time and will not be considered in the analysis . The share of these flights in comparison with the total 
+number of flights under analysis  (that is, the second data set of Month i after the filtering and selection done in 
+steps 1 and 2) should be monitored to identify possible issues in the data provisio n (e.g. a change in the naming 
+of the stands) and possible needs for specific action. 
+
+
+===== PAGE 18 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 17 
+ 
+6.4 Special cases 
+In some cases the analysis for a given airport must be adapted to its specific conditions or events.  The following 
+are only example of possible special cases: 
+- Runway denomination change: when a runway denomination changes, the data using the previous 
+runway denomination can be combined with the new data to extend the reference sample. This way, 
+both runway denominations can be considered in the same combos and increase the sample size . 
+- Special events: in case of special events affecting the normal operation at the airport (works on the 
+apron, trials, implementation periods, new runway, closure of runways and/or aprons, etc) a focused 
+analysis may use a specific reference sample or filter of the flights/dates to be considered. This is more 
+intended for deep-dive analysis than for regular monitoring. 
+Any deviation from the standard filtering or choice of reference sample (as described in Figure 4) should be 
+published together with the results of the analysis to ensure transparency and reproducibility. 
+7 Source data 
+7.1 Main and secondary data sources 
+The additional taxi-out time indicator is calculated  by AIU/OPS in EUROCONTROL using data provided by the 
+airport operators and the Network Manager: 
+• The airport operators provide , through the APDF (Airport Operator Data Flow: EUROCONTROL-
+SPEC-175) the actual off-block times, the actual take-off times, the runways and the stands used by 
+the departures. 
+ 
+Name Source Alternative 
+Source 
+Departure airport Airports (APDF) ANSPs 
+Actual take-off time Airports (APDF) ANSPs or 
+Network Manager 
+Actual Off-block time Airports (APDF)  
+Departure Runway Airports (APDF)  
+Departure Stand Airports (APDF)  
+Table 3: Data Sources 
+Note: The Network Manager data flow also provides the actual take off  times. Given the quality assurance 
+measures defined for the airport operator data flow, Network Manager data flow based timestamps will only be 
+used for complementing the airport operator data flow. 
+
+===== PAGE 19 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 18 
+ 
+8 Quality management 
+8.1 The Airport Operator Data Flow process 
+The airport operator data flow (APDF) comprises all data collection, processing, and performance indicator 
+calculation sub-processes. Reporting entities (i.e. airport operators) submit their data  to EUROCONTROL on a 
+monthly basis and in compliance with the APDF data specification. 
+Several activities are performed in the data flow process, involving different actors, until performance reports are 
+published. As a summary, a high level overview of the activities can be found below  (Figure 8): 
+ 
+Figure 8: Airport Data Flow process scheme including activities and actors involved.  
+The airport operator data flow can be conceptualised as stages or sub-processes: 
+▪ APDF_1 – Data Collection 
+▪ APDF_2 – Data Validation 
+▪ APDF_3 – Data Extraction, Transformation and Loading 
+▪ APDF_4 – Data Merging 
+▪ APDF_5 – Pre-Computation of performance parameters 
+▪ APDF_6 – Calculation of Performance Indicators 
+ 
+Each of the sub -processes are governed by quality assurance measures. The AIU/OPS assumes responsibility 
+for the whole flow in terms of quality assurance. Data collection and initial validation is also performed by AIU/OPS. 
+Once the data is loaded, the dat a processes within the EUROCONTROL data warehouse are managed  by 
+PRISME. In the final stage, AIU/OPS  extracts the relevant data and computes the performance metrics and 
+indicators. 
+APDF related documentation is available in EUROCONTROL-SPEC-175. 
+  
+ADF_1
+Data submission
+and collection
+ADF_2
+Data Quality
+Assessment
+ADF_3
+Extract and Load
+Data
+ADF_4
+Merge and Load
+Data
+ADF_5
+Pre-computation
+of performance
+Parameters
+ADF_6
+KPI/PI
+Calculation
+AIU/OPSPRISMECODA
+Performance
+indicators
+Flight data
+The Reporting Entity
+for each airport
+sends data in
+accordance with the
+Data Specification
+for Airports on a
+monthly basis.
+The set of data for
+each airport
+undergoes quality
+checks aimed at
+Validation of the
+data. As a result, a
+Validation Report is
+produced.
+Conversion of
+external information
+into internal
+information. New
+variables include
+airport, date, time,
+and type of
+operation.
+Assembly of arrivals
+and departures data
+from all the airports,
+and minor
+transformations
+such as time
+reference changes
+and normalisations.
+Pre-computation of
+metrics with airport,
+airline operator data
+and/or NM data.
+Regular calculation
+of performance
+indicators is done in
+the AIU/OPS.
+
+===== PAGE 20 =====
+ 
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 19 
+ 
+8.2 Quality Assurance Framework 
+Quality assessment on airport data flow process is focused towards implementing a Quality Assurance Framework 
+based on the ISO 9001 standard. The airport operator data flow process includes several data processing 
+activities, starting from the moment flight information is provided  by the reporting entity until performance reports 
+are released. 
+Standard Operating Procedures for all these sub-processes have been established and is quality controlled. 
+8.3 Data Quality Checks 
+For the APDF the following quality areas have been identified. Quality controls in support of these quality areas 
+are implemented and regularly monitored as part of the aforementioned APDF sub -processes (Figure 9). 
+ 
+ 
+ 
+ 
+ 
+Figure 9: Quality Performance Areas and corresponding Quality Indicators. 
+More detail on these quality checks can be found in the Airport Data Flow Data Specifications (EUROCONTROL-
+SPEC-175). 
+ 
+ 
+Mapping Mapping consists of checking the format of submitted data and ensuring that the data to be 
+stored in PRISME follow the same coding convention 
+ 
+Completeness This process checks the number of operated flights, and the amount of not null values for the 
+main fields in the airport data (e.g., OOOI, STA, STD) 
+ 
+Matching 
+ 
+A set of filters is applied to search among flights submitted by the airport operators/air carriers 
+and find the exact flight matches in the NM database 
+ 
+Data Accuracy 
+Validation 
+This quality check mainly assesses the quality of OOOI data (Off Block, Take Off, Landing, 
+In Block) through a set of acceptability criteria. 
+
+===== PAGE 21 =====
+ 
+Additional taxi-out time performance indicator document – Edition 01.00  Page 20 
+ 
+9 References 
+ 
+[1]  EUROCONTROL, “Additional ASMA time performance indicator document,” 2023.  
+[2]  EUROCONTROL, “Additional taxi-in time performance indicator document,” 2023. 
+ 
+ 
+10 Revision History 
+Edition Description Comment 
+00-01 New draft – all pages New document 
+01-00 Final draft after consultation Minor editorial changes 
+   
+   
+   
+   
+ 
