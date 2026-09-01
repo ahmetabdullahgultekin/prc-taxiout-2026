@@ -13,7 +13,7 @@ should have been negative it came back as 4,294,967,295.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import polars as pl
 import pytest
@@ -25,7 +25,7 @@ def _mvt(rows: list[tuple[str, str, str, int, int, int | None]]) -> pl.DataFrame
     """(phase, airport, runway, off-block minute, take-off minute, taxi seconds)."""
 
     def at(minute: int) -> datetime:
-        return datetime(2025, 3, 1, 8, 0, tzinfo=timezone.utc).replace(
+        return datetime(2025, 3, 1, 8, 0, tzinfo=UTC).replace(
             minute=minute % 60, hour=8 + minute // 60
         )
 
