@@ -1,9 +1,9 @@
-"""Tikaniklik ozniteliklerinin dogrulanmasi.
+"""Validation of the congestion features.
 
-Pencere sayimi bu boru hattinin en hataya acik kismi: bir kayma ya da yanlis
-pencere siniri, modeli sessizce bozar ve RMSE'de gorunmez. Bu yuzden vektorize
-uygulama, ayni seyi apacik ama yavas hesaplayan kaba kuvvet referansiyla
-karsilastirilir.
+Window counting is the most error-prone part of this pipeline: an off-by-one or a wrong
+window boundary breaks the model silently and never shows up in the RMSE. So the
+vectorised implementation is compared against a brute-force reference that computes the
+same thing in the obvious but slow way.
 """
 
 from __future__ import annotations
@@ -39,9 +39,9 @@ def _sample(n: int = 400, seed: int = 7) -> pl.DataFrame:
 
 
 def _brute_count(rows, i, group_cols, minutes, forward):
-    """Apacik referans: docstring'deki yari-acik tanimi dogrudan uygular, O(n^2).
+    """The obvious reference: applies the half-open definition from the docstring, O(n^2).
 
-    geri:  (t - W, t]   ileri: (t, t + W]
+    backward:  (t - W, t]   forward: (t, t + W]
     """
     t = rows[i]["MVT_TIME_UTC_mvt"]
     key = tuple(rows[i][c] for c in group_cols)
@@ -72,7 +72,7 @@ def test_counts_in_window_matches_brute_force(minutes: int, forward: bool) -> No
 
 
 def test_forward_and_backward_are_not_identical() -> None:
-    """Yon karistirilirsa test sessizce gecmesin diye negative_share kontrol."""
+    """A negative control, so the test does not pass silently if the direction is mixed up."""
     df = _sample().filter(pl.col("PHASE_mvt") == "DEP")
     group = ["apt_mvt", "RUNWAY_mvt"]
     back = congestion._counts_in_window(df, df, group, 15, False, "n").sort("MVT_ID_mvt")["n"]
@@ -89,16 +89,16 @@ def test_build_produces_one_row_per_departure() -> None:
 
 
 def test_build_has_no_target_column() -> None:
-    """Oznitelik tablosu hedefi tasimamali; sizinti bu sekilde girer."""
+    """The feature table must not carry the target; that is how leakage gets in."""
     out = congestion.build(_sample())
     leaky = {"BLOCK_TIME_UTC_mvt"}
     assert not leaky & set(out.columns)
 
 
 def test_taxi_in_pressure_is_available_without_departure_targets() -> None:
-    """Siralama setinin kurgusu: DEP taxi sureleri bos, ARR dolu.
+    """The setup of the ranking set: DEP taxi times are empty, ARR ones are filled.
 
-    Bu ozniteligin tum degeri o kosulda hesaplanabiliyor olmasindan geliyor.
+    The whole value of this feature comes from being computable under that condition.
     """
     mvt = _sample()
     blanked = mvt.with_columns(
@@ -114,17 +114,17 @@ def test_taxi_in_pressure_is_available_without_departure_targets() -> None:
 
 @pytest.mark.parametrize("forward", [False, True])
 def test_counts_are_correct_when_timestamps_are_minute_rounded(forward: bool) -> None:
-    """HH:MM hassasiyeti: ayni dakikada onlarca hareket. Duzeltilen hata tam buydu.
+    """HH:MM precision: dozens of movements in the same minute. This was the bug we fixed.
 
-    Satir sirasina dayali bir sayac esit zaman damgalari arasinda tutarsiz sonuc
-    verir ve bu gercek veride istisna degil, bazi havalimanlarinda kural (M14).
+    A counter that relies on row order gives inconsistent results across equal timestamps,
+    and in the real data that is not the exception but the rule at some airports (M14).
     """
     import numpy as np
 
     rng = np.random.default_rng(3)
     n = 300
     start = datetime(2025, 3, 1)
-    # saniyeleri sifirla: yogun esitlik uret
+    # zero out the seconds: produce a lot of ties
     offs = np.sort(rng.integers(0, 120, n) * 60)
     df = pl.DataFrame(
         {
@@ -135,7 +135,7 @@ def test_counts_are_correct_when_timestamps_are_minute_rounded(forward: bool) ->
             "MVT_TIME_UTC_mvt": [start + timedelta(seconds=int(s)) for s in offs],
         }
     )
-    # esitlik gercekten var mi (testin kendi oncululunu dogrula)
+    # are there really ties (verify the test's own premise)
     assert df["MVT_TIME_UTC_mvt"].n_unique() < n
 
     group = ["apt_mvt", "RUNWAY_mvt"]
@@ -146,7 +146,7 @@ def test_counts_are_correct_when_timestamps_are_minute_rounded(forward: bool) ->
 
 
 def _sample_with_block(n: int = 400, seed: int = 5) -> pl.DataFrame:
-    """Blok saati de olan ornek: nedensel mod bunu gerektirir."""
+    """A sample that also has the block time: causal mode needs it."""
     import numpy as np
 
     df = _sample(n, seed)
@@ -159,37 +159,37 @@ def _sample_with_block(n: int = 400, seed: int = 5) -> pl.DataFrame:
 
 
 def test_causal_mode_emits_no_forward_looking_features() -> None:
-    """Nedensel modelin tek anlami bu: gelecege dair hicbir sey bilmemesi.
+    """This is the only thing a causal model means: it knows nothing about the future.
 
-    Ileriye bakan bir kolon sizarsa model 'gercek zamanli' iddiasini kaybeder ve
-    makaledeki karsilastirma anlamsizlasir. Bu yuzden kolon adlarindan denetlenir.
+    If a forward-looking column leaks in, the model loses its 'real time' claim and the
+    comparison in the paper becomes meaningless. So it is audited from the column names.
     """
     out = congestion.build(_sample_with_block(), causal=True)
     forward = [c for c in out.columns if "_next_" in c]
-    assert forward == [], f"nedensel modda ileriye bakan kolonlar var: {forward}"
+    assert forward == [], f"forward-looking columns in causal mode: {forward}"
 
 
 def test_retrospective_mode_does_emit_forward_features() -> None:
-    """Negatif kontrol: bayrak gercekten bir sey degistiriyor mu."""
+    """Negative control: does the flag actually change anything."""
     out = congestion.build(_sample_with_block(), causal=False)
     assert [c for c in out.columns if "_next_" in c]
 
 
 def test_causal_counts_are_anchored_at_pushback_not_takeoff() -> None:
-    """Nedensel sayimlar blok cozulme anina baglanmali.
+    """Causal counts must be anchored at the off-block instant.
 
-    Ayni satir icin iki mod farkli sayilar vermeli; ayni cikarsa cipa uygulanmamis
-    demektir ve test sessizce gecerdi.
+    The two modes must give different counts for the same row; if they come out the same
+    the anchor was not applied and the test would have passed silently.
     """
     mvt = _sample_with_block()
     col = "rwy_dep_prev_30m"
-    geri = congestion.build(mvt, causal=True).select("MVT_ID_mvt", col).sort("MVT_ID_mvt")
-    ileri = congestion.build(mvt, causal=False).select("MVT_ID_mvt", col).sort("MVT_ID_mvt")
-    assert geri[col].to_list() != ileri[col].to_list()
+    causal = congestion.build(mvt, causal=True).select("MVT_ID_mvt", col).sort("MVT_ID_mvt")
+    retro = congestion.build(mvt, causal=False).select("MVT_ID_mvt", col).sort("MVT_ID_mvt")
+    assert causal[col].to_list() != retro[col].to_list()
 
 
 def test_causal_window_counts_only_takeoffs_before_pushback() -> None:
-    """Elle kurulmus vaka: blok cozulme anindan onceki kalkislar sayilmali."""
+    """A hand-built case: only take-offs before the off-block instant may be counted."""
     start = datetime(2025, 6, 1, 12, 0)
     mvt = pl.DataFrame(
         {
@@ -198,7 +198,7 @@ def test_causal_window_counts_only_takeoffs_before_pushback() -> None:
             "RUNWAY_mvt": ["18"] * 3,
             "STAND_mvt": ["A1"] * 3,
             "PHASE_mvt": ["DEP"] * 3,
-            # 0 ve 1 erken kalkti; 2 ise 12:20'de blok cozup 12:40'ta kalkiyor
+            # 0 and 1 took off early; 2 goes off block at 12:20 and takes off at 12:40
             "MVT_TIME_UTC_mvt": [
                 start, start + timedelta(minutes=10), start + timedelta(minutes=40)
             ],
@@ -211,6 +211,6 @@ def test_causal_window_counts_only_takeoffs_before_pushback() -> None:
         }
     )
     out = congestion.build(mvt, causal=True).sort("MVT_ID_mvt")
-    # id=2 icin: blok cozulme 12:20, geriye 30 dk -> (11:50, 12:20] araligindaki
-    # kalkislar: 12:00 (id=0) ve 12:10 (id=1) = 2. Kendi kalkisi 12:40, sayilmamali.
+    # for id=2: off block at 12:20, 30 min back -> take-offs in (11:50, 12:20] are
+    # 12:00 (id=0) and 12:10 (id=1) = 2. Its own take-off at 12:40 must not be counted.
     assert out.filter(pl.col("MVT_ID_mvt") == 2)["rwy_dep_prev_30m"][0] == 2

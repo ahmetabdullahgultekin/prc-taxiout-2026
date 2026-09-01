@@ -29,6 +29,54 @@ donusumun carpikligi azaltmasiydi; burada ise ATXOT referansi zaten agacin ilk
 bolunmelerinde ogrendigi bir sabit ve cikarmak bilgi eklemiyor. Raporlanacak negative_share
 sonuc.
 
+## Hedef parametrelendirmesi: uc deneme, ucu de basarisiz
+
+Ayni holdout, ayni 90 oznitelik, 400 tur:
+
+| yapilandirma | RMSE | Ocak | Temmuz |
+|---|---:|---:|---:|
+| naif (modelsiz, MVT − AOBT_3) | 531,40 | — | — |
+| **ham hedef** | **377,84** | 422,42 | 240,63 |
+| referans artigi (ATXOT P10) | 379,73 | 424,87 | 240,43 |
+| NM artigi (naif tahmin taban) | 382,74 | 427,05 | 247,22 |
+
+2025 birincisinin en buyuk kazanci hedefi yeniden parametrelendirmekti (yakit tuketimi →
+yakit akisi, 220,56 → 201,04). Burada **iki ayri taban denendi ve ikisi de zarar verdi**.
+Ham hedef kazaniyor. Muhtemel sebep, oradaki donusumun carpikligi azaltmasiydi; burada
+her iki taban da agacin ilk bolunmelerinde zaten ogrendigi bir sey ve cikarmak bilgi
+eklemiyor, aksine artik hedefin dagilimini bozuyor.
+
+Ayni tabloda dikkat cekici olan baska bir sey: **model, naif tahmine gore 154 saniye
+kazandiriyor** (531 → 378). Kazanc dagilimi tikaniklik ozniteliklerini neredeyse degersiz
+gosterse de, modelin kendisi acikca isini yapiyor.
+
+## Kazanc dagilimi: tezimi yanlisliyor
+
+| aile | kazanc | oznitelik sayisi |
+|---|---:|---:|
+| atfm | %36,8 | 5 |
+| geometry | %31,5 | 9 |
+| nm_aobt | %10,4 | 2 |
+| runway_configuration | %5,9 | 3 |
+| atfm_daily | %3,7 | 6 |
+| aircraft | %2,8 | 5 |
+| routing | %2,0 | 5 |
+| weather | %1,8 | 14 |
+| **runway_queue** | **%1,6** | **13** |
+| **airport_flow** | **%1,4** | **21** |
+| stand_turnaround | %1,0 | 1 |
+| calendar | %0,6 | 4 |
+| taxi_in_pressure | %0,5 | 2 |
+
+Tasarimin gerekcesi Idris ve ark.'nin kuyruk degiskeninin burada **gozlenebilir** olmasiydi;
+o gozlenebilirligin avantaj saglayacagini varsaymistim. 34 pencere sayimi toplam kazancin
+%3'unu tasiyor. Tek basina `reference_sec` %18,8.
+
+Olasi aciklama: `sched_offset_sec` ve `eobt_offset_sec` gecikme durumunu zaten kodluyor ve
+tikanikligi dolayli tasiyor; ayri sayimlar bilgi eklemiyor. Bu, gozlenebilirlik tezinin
+yanlis oldugu anlamina gelmiyor, ama **bu oznitelik bicimiyle** karsiligini vermedigini
+gosteriyor.
+
 ## Hatanin nerede oldugu (2026-09-01)
 
 Toplam RMSE 378,80 ama **iki havalimani domine ediyor**:

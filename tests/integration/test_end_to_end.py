@@ -1,11 +1,12 @@
-"""Uctan uca: sentetik veriden valid bir gonderim dosyasina.
+"""End to end: from synthetic data to a valid submission file.
 
-Bu test tek tek modullerin dogrulugunu degil, **zincirin kopmadigini** kontrol eder.
-Birim testleri her parcayi ayri dogruluyor; buradaki risk baska: bir kolon adi degisir,
-bir birlestirme sessizce satir dusurur ve gonderim reddedilir. Yarismada bunun bedeli
-bir gonderim turudur.
+This test does not check that the individual modules are correct, it checks that **the
+chain does not break**. The unit tests verify each part on its own; the risk here is
+different: a column gets renamed, a join silently drops rows, and the submission is
+rejected. In the competition that costs a submission round.
 
-Fixture kucuk tutuldu; amac hiz degil, borularin gercekten uctan uca aktigi.
+The fixture is kept small; the point is not speed but that the pipes really do carry
+through from one end to the other.
 """
 
 from __future__ import annotations
@@ -28,8 +29,8 @@ REPO = Path(__file__).resolve().parents[2]
 
 @pytest.fixture(scope="module")
 def raw_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Kucuk bir sentetik veri seti uretir (12 month_num egitim + siralama + sablon)."""
-    out = tmp_path_factory.mktemp("veri") / "00_raw"
+    """Produces a small synthetic data set (12 months of training + ranking + template)."""
+    out = tmp_path_factory.mktemp("data") / "00_raw"
     subprocess.run(  # noqa: S603
         [sys.executable, str(REPO / "tests" / "make_fixture.py"),
          "--out", str(out), "--per-day", "40"],
@@ -39,25 +40,27 @@ def raw_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 def test_fixture_reproduces_the_ranking_set_shape(raw_dir: Path) -> None:
-    """Fixture gercek kurguyu taklit etmeli, yoksa test yanlis seyi dogrular."""
+    """The fixture must imitate the real setup, or the test verifies the wrong thing."""
     rank = pl.read_parquet(raw_dir / "ranking.parquet")
     dep = rank.filter(pl.col("PHASE_mvt") == "DEP")
     arr = rank.filter(pl.col("PHASE_mvt") == "ARR")
-    assert dep["BLOCK_TIME_UTC_mvt"].null_count() == dep.height, "DEP blok saati bos olmali"
-    assert dep["TAXITIME_SEC_mvt"].null_count() == dep.height, "DEP taxi suresi bos olmali"
-    assert arr["TAXITIME_SEC_mvt"].null_count() == 0, "ARR taxi suresi dolu olmali"
-    assert dep["MVT_TIME_UTC_mvt"].null_count() == 0, "DEP kalkis saati dolu olmali"
+    assert dep["BLOCK_TIME_UTC_mvt"].null_count() == dep.height, "DEP block time must be empty"
+    assert dep["TAXITIME_SEC_mvt"].null_count() == dep.height, "DEP taxi time must be empty"
+    assert arr["TAXITIME_SEC_mvt"].null_count() == 0, "ARR taxi time must be filled"
+    assert dep["MVT_TIME_UTC_mvt"].null_count() == 0, "DEP take-off time must be filled"
 
 
 def test_features_are_producible_on_the_ranking_set(raw_dir: Path) -> None:
-    """Egitimde uretilen her oznitelik siralama setinde de uretilebilmeli.
+    """Every feature produced in training must also be producible on the ranking set.
 
-    Uretilemeyen bir oznitelik, modelin egitimde ogrenip tahminde kaybettigi bilgidir;
-    sessizce olursa RMSE'yi bozar ve nedeni gorunmez.
+    A feature that cannot be produced is information the model learns in training and
+    loses at prediction time; if that happens silently it hurts the RMSE and the cause
+    stays invisible.
 
-    Dis veriler iki tarafa da **ayni sekilde** verilmeli. Testin ilk hali bunu
-    yapmiyordu ve gercek bir hatayi kacirdi: `make_submission.py` siralama tarafina
-    gunluk ATFM tablosunu gecirmiyordu, 11 oznitelik sessizce dusuyordu.
+    The external data must be handed to **both** sides in the same way. The first version
+    of this test did not do that and missed a real bug: `make_submission.py` was not
+    passing the daily ATFM table to the ranking side, and 11 features were dropped
+    silently.
     """
     inputs = pipeline.load_inputs(raw_dir)
     fit = pipeline.build_features(inputs)
@@ -65,16 +68,17 @@ def test_features_are_producible_on_the_ranking_set(raw_dir: Path) -> None:
         pl.read_parquet(raw_dir / "ranking.parquet")))
     rank = pipeline.build_features(rank_inputs)
 
-    eksik = set(pipeline.feature_columns(fit)) - set(rank.columns)
-    assert eksik == set(), f"siralama setinde uretilemeyen oznitelikler: {sorted(eksik)}"
+    missing = set(pipeline.feature_columns(fit)) - set(rank.columns)
+    assert missing == set(), f"features not producible on the ranking set: {sorted(missing)}"
 
 
 def test_holdout_mirrors_the_ranking_set_shape(raw_dir: Path) -> None:
-    """Dogrulama parcasi siralama setinin seklini tasimali.
+    """The validation split must carry the shape of the ranking set.
 
-    Siralama seti simetrik degil: Ocak'ta 10 havalimani, Temmuz'da yalnizca uc tanesi
-    (docs/facts.md R03). Dogrulama bunu taklit etmezse Temmuz'u oldugundan onemli
-    sanip yanlis modeli seceriz. Temmuz'un diger havalimanlari bilerek egitimde kalir.
+    The ranking set is not symmetric: 10 airports in January, only three in July
+    (docs/facts.md R03). If the validation does not imitate that, we treat July as more
+    important than it is and pick the wrong model. July's other airports are deliberately
+    left in training.
     """
     inputs = pipeline.load_inputs(raw_dir)
     split = pipeline.seasonal_split(pipeline.build_features(inputs), inputs.movements)
@@ -82,38 +86,40 @@ def test_holdout_mirrors_the_ranking_set_shape(raw_dir: Path) -> None:
     month_num = pl.col("MVT_TIME_UTC_mvt").dt.month()
     assert set(split.val.select(month_num.unique()).to_series().to_list()) == {1, 7}
 
-    temmuz_apt = set(
+    july_apt = set(
         split.val.filter(month_num == 7)[pipeline.APT].unique().to_list()
     )
-    ocak_apt = set(split.val.filter(month_num == 1)[pipeline.APT].unique().to_list())
-    assert temmuz_apt <= set(pipeline.JULY_AIRPORTS), f"Temmuz'da fazladan havalimani: {temmuz_apt}"
-    assert len(ocak_apt) > len(temmuz_apt), "Ocak daha genis olmali"
+    january_apt = set(split.val.filter(month_num == 1)[pipeline.APT].unique().to_list())
+    assert july_apt <= set(pipeline.JULY_AIRPORTS), f"extra airports in July: {july_apt}"
+    assert len(january_apt) > len(july_apt), "January must be the wider month"
 
-    # satirlar kesismemeli
-    ortak = set(split.fit["MVT_ID_mvt"].to_list()) & set(split.val["MVT_ID_mvt"].to_list())
-    assert ortak == set(), "ayni hareket hem egitimde hem dogrulamada olamaz"
+    # the rows must not overlap
+    shared = set(split.fit["MVT_ID_mvt"].to_list()) & set(split.val["MVT_ID_mvt"].to_list())
+    assert shared == set(), "the same movement cannot be in training and in validation"
 
-    # Temmuz'un dogrulamada olmayan havalimanlari egitimde kalmali
-    egitim_temmuz = set(split.fit.filter(month_num == 7)[pipeline.APT].unique().to_list())
-    assert egitim_temmuz, "Temmuz'un diger havalimanlari egitimde olmali"
-    assert not (egitim_temmuz & temmuz_apt)
+    # July airports that are not in validation must stay in training
+    july_in_fit = set(split.fit.filter(month_num == 7)[pipeline.APT].unique().to_list())
+    assert july_in_fit, "the other July airports must be in training"
+    assert not (july_in_fit & july_apt)
 
 
 def test_reference_is_fitted_without_the_validation_months(raw_dir: Path) -> None:
-    """Sizinti kontrolu: referans dogrulama aylarini gormemeli.
+    """Leakage check: the reference must not see the validation months.
 
-    Gorseydi OOF sayilari yalanci sekilde iyilesir ve board'da geri alinamazdi.
+    If it did, the OOF numbers would improve dishonestly and the board would not give
+    that back.
     """
     inputs = pipeline.load_inputs(raw_dir)
     month_num = pl.col("MVT_TIME_UTC_mvt").dt.month()
-    sadece_ocak_temmuz = inputs.movements.filter(month_num.is_in(pipeline.HOLDOUT_MONTHS))
-    kalan = inputs.movements.filter(~month_num.is_in(pipeline.HOLDOUT_MONTHS))
+    holdout_only = inputs.movements.filter(month_num.is_in(pipeline.HOLDOUT_MONTHS))
+    rest = inputs.movements.filter(~month_num.is_in(pipeline.HOLDOUT_MONTHS))
 
-    t_kalan = reference.fit_reference(kalan)["apt"]
-    t_hepsi = reference.fit_reference(inputs.movements)["apt"]
-    assert sadece_ocak_temmuz.height > 0
-    # aylar cikarilinca ornek sayisi dusmeli: tablo gercekten farkli veriden uretiliyor
-    assert t_kalan["n_apt"].sum() < t_hepsi["n_apt"].sum()
+    t_rest = reference.fit_reference(rest)["apt"]
+    t_all = reference.fit_reference(inputs.movements)["apt"]
+    assert holdout_only.height > 0
+    # taking the months out must lower the sample count: the table really is built from
+    # different data
+    assert t_rest["n_apt"].sum() < t_all["n_apt"].sum()
 
 
 def test_full_run_produces_a_valid_submission(raw_dir: Path, tmp_path: Path) -> None:
@@ -130,8 +136,8 @@ def test_full_run_produces_a_valid_submission(raw_dir: Path, tmp_path: Path) -> 
     split = pipeline.Split(fit=fit, val=rank, columns=cols)
     pred = pipeline.train_predict(split, cols, rounds=30)
 
-    assert np.isfinite(pred).all(), "tahminlerde NaN/sonsuz olmamali"
-    assert (pred >= 0).all(), "negative_share taxi suresi fiziksel olarak imkansiz"
+    assert np.isfinite(pred).all(), "predictions must hold no NaN or infinity"
+    assert (pred >= 0).all(), "a negative taxi time is physically impossible"
 
     template = pl.read_parquet(raw_dir / "submitting.parquet")
     pred_df = rank.select("MVT_ID_mvt").with_columns(
@@ -148,7 +154,7 @@ def test_full_run_produces_a_valid_submission(raw_dir: Path, tmp_path: Path) -> 
 
 
 def test_causal_run_also_completes(raw_dir: Path) -> None:
-    """Nedensel varyant makale icin gerekli; kirilirsa sessizce kaybolmasin."""
+    """The causal variant is needed for the paper; do not let it break unnoticed."""
     inputs = pipeline.load_inputs(raw_dir)
     feats = pipeline.build_features(inputs, causal=True)
     split = pipeline.seasonal_split(feats, inputs.movements)
@@ -159,15 +165,15 @@ def test_causal_run_also_completes(raw_dir: Path) -> None:
 
 
 def test_submission_script_drops_no_features(raw_dir: Path, tmp_path: Path) -> None:
-    """Uretim betigini gercekten calistirir ve hicbir ozniteligin dusmedigini dogrular.
+    """Actually runs the production script and verifies that no feature is dropped.
 
-    Bu testin var olma nedeni somut: `make_submission.py` `Inputs`'u konumsal
-    argumanlarla kuruyordu; `Inputs`'a gunluk ATFM alani eklendiginde siralama tarafi
-    sessizce onsuz kaldi ve 11 oznitelik dustu. Boru hatti fonksiyonlarini test etmek
-    bunu yakalamiyor cunku hata betigin kendi kurulumundaydi — bu yuzden betik
-    bir alt surec olarak calistiriliyor.
+    This test exists for a concrete reason: `make_submission.py` was constructing `Inputs`
+    with positional arguments, and when the daily ATFM field was added to `Inputs` the
+    ranking side silently ended up without it and 11 features were dropped. Testing the
+    pipeline functions does not catch that, because the bug was in the script's own setup.
+    That is why the script is run as a subprocess.
     """
-    data_dir = tmp_path / "veri"
+    data_dir = tmp_path / "data"
     (data_dir / "00_raw").mkdir(parents=True)
     for f in raw_dir.iterdir():
         (data_dir / "00_raw" / f.name).write_bytes(f.read_bytes())
@@ -179,10 +185,10 @@ def test_submission_script_drops_no_features(raw_dir: Path, tmp_path: Path) -> N
         check=True, cwd=REPO, capture_output=True, text=True,
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
-    assert "UYARI: siralama setinde uretilemeyen" not in result.stdout, (
-        "gonderim yolunda oznitelik dusuyor:\n" + result.stdout
+    assert "features that cannot be produced on the ranking set" not in result.stdout, (
+        "features are being dropped on the submission path:\n" + result.stdout
     )
     written = list((data_dir / "04_submissions").glob("keen-hamburger_v*.parquet"))
-    assert len(written) == 1, f"tam bir gonderim dosyasi beklendi, bulunan: {written}"
+    assert len(written) == 1, f"expected exactly one submission file, found: {written}"
     template = pl.read_parquet(raw_dir / "submitting.parquet")
     assert pl.read_parquet(written[0]).height == template.height

@@ -1,14 +1,13 @@
-"""Hareket havalimaninin dogru turetildigini dogrular.
+"""Verifies that the movement airport is derived correctly.
 
-Bu testlerin var olma nedeni somut bir hata. `ADEP_mvt` uzun sure "hareketin
-havalimani" sanildi; gercekte **ucusun kalkis havalimani** ve varis satirlarinda
-ucagin GELDIGI yeri gosteriyor (egitim setinde 1.582 farkli deger). Sonuc: bir
-kalkisin cevresindeki inisleri sayarken, o havalimanina inenler yerine o
-havalimanindan kalkmis olan uzak inisler sayiliyordu.
+These tests exist because of a concrete bug. `ADEP_mvt` was taken to mean "the airport of
+the movement" for a long time; it is in fact **the departure airport of the flight**, and
+on arrival rows it names the place the aircraft CAME FROM (1,582 distinct values in the
+training set). The result: when counting the arrivals around a departure, we were counting
+distant arrivals that had departed from that airport instead of the ones landing there.
 
-Sentetik fixture o donemde `ADEP_mvt`'yi her satirda yarisma havalimani yaptigi
-icin hicbir test bunu goremedi. Fixture duzeltildi, bu testler de duzeltmeyi
-yerinde tutuyor.
+At the time the synthetic fixture made `ADEP_mvt` a competition airport on every row, so no
+test could see it. The fixture was fixed, and these tests hold the fix in place.
 """
 
 from __future__ import annotations
@@ -22,13 +21,13 @@ from taxiout.features import congestion
 
 
 def _frame() -> pl.DataFrame:
-    """EDDF'te bir kalkis, EDDF'e LTFM'den bir inis, LTFM'de bir kalkis."""
+    """A departure at EDDF, an arrival at EDDF from LTFM, a departure at LTFM."""
     t0 = datetime(2025, 5, 1, 10, 0)
     return pl.DataFrame({
         "MVT_ID_mvt": [1, 2, 3],
         "PHASE_mvt": ["DEP", "ARR", "DEP"],
-        "ADEP_mvt": ["EDDF", "LTFM", "LTFM"],   # ucusun kalkis havalimani
-        "ADES_mvt": ["LTFM", "EDDF", "EGLL"],   # ucusun varis havalimani
+        "ADEP_mvt": ["EDDF", "LTFM", "LTFM"],   # departure airport of the flight
+        "ADES_mvt": ["LTFM", "EDDF", "EGLL"],   # arrival airport of the flight
         "RUNWAY_mvt": ["07L", "07R", "34L"],
         "STAND_mvt": ["A1", "B2", "C3"],
         "MVT_TIME_UTC_mvt": [t0, t0 - timedelta(minutes=5), t0],
@@ -43,10 +42,10 @@ def test_movement_airport_is_adep_for_departures_and_ades_for_arrivals() -> None
 
 
 def test_arrivals_are_counted_at_the_airport_they_landed_at() -> None:
-    """Asil hata buydu: inis, geldigi havalimaninda degil indigi havalimaninda sayilmali.
+    """This was the bug: an arrival counts at the airport it landed at, not the one it left.
 
-    Ornekteki inis LTFM'den kalkip EDDF'e inmis. EDDF'teki kalkisin cevresinde
-    sayilmali, LTFM'dekinin cevresinde degil.
+    The arrival in the example departed from LTFM and landed at EDDF. It must be counted
+    around the EDDF departure, not around the LTFM one.
     """
     mvt = pipeline.prepare_movements(_frame())
     dep = congestion.runway_features(mvt)
@@ -55,18 +54,18 @@ def test_arrivals_are_counted_at_the_airport_they_landed_at() -> None:
     )
     eddf = out.filter(pl.col(pipeline.APT) == "EDDF")["apt_arr_prev_15m"][0]
     ltfm = out.filter(pl.col(pipeline.APT) == "LTFM")["apt_arr_prev_15m"][0]
-    assert eddf == 1, "EDDF'e inen aircraft EDDF kalkisinin cevresinde sayilmali"
-    assert ltfm == 0, "o inis LTFM'de sayilmamali, oradan yalnizca kalkmis"
+    assert eddf == 1, "an aircraft landing at EDDF counts around the EDDF departure"
+    assert ltfm == 0, "that arrival must not count at LTFM, it only departed from there"
 
 
 def test_grouping_on_adep_would_give_the_wrong_answer() -> None:
-    """Negatif kontrol: eski (hatali) gruplama farkli bir sonuc uretiyor mu.
+    """Negative control: does the old (wrong) grouping produce a different answer.
 
-    Uretmiyorsa bu test hicbir seyi korumuyor demektir.
+    If it does not, this test protects nothing.
     """
     mvt = pipeline.prepare_movements(_frame())
-    dogru = mvt.filter((pl.col("PHASE_mvt") == "ARR") & (pl.col(pipeline.APT) == "EDDF")).height
-    hatali = mvt.filter((pl.col("PHASE_mvt") == "ARR") & (pl.col("ADEP_mvt") == "EDDF")).height
-    assert dogru == 1
-    assert hatali == 0
-    assert dogru != hatali
+    right = mvt.filter((pl.col("PHASE_mvt") == "ARR") & (pl.col(pipeline.APT) == "EDDF")).height
+    wrong = mvt.filter((pl.col("PHASE_mvt") == "ARR") & (pl.col("ADEP_mvt") == "EDDF")).height
+    assert right == 1
+    assert wrong == 0
+    assert right != wrong

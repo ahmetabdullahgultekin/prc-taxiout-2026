@@ -1,7 +1,7 @@
-"""Gonderim dogrulayicisinin testleri.
+"""Tests for the submission validator.
 
-Buradaki her test, gercekten yapilabilecek ve bir gonderim turunu bosa
-harcayacak bir hataya karsilik gelir.
+Every test here stands for a mistake that could really be made and that would waste a
+submission round.
 """
 
 from __future__ import annotations
@@ -64,14 +64,14 @@ def test_nan_predictions_are_rejected() -> None:
 
 
 def test_implausible_mean_warns_but_does_not_block() -> None:
-    """Sert kural degil: engelleme, ama sessizce de gecme."""
+    """Not a hard rule: do not block, but do not pass it over in silence either."""
     warnings = submission.validate(_pred(value=50.0), _template())
     assert any("below 60 seconds" in w for w in warnings)
 
 
 def test_filename_convention_is_enforced(tmp_path: Path) -> None:
     with pytest.raises(SubmissionError, match="filename does not follow"):
-        submission.write(_pred(), _template(), tmp_path / "gonderim.parquet")
+        submission.write(_pred(), _template(), tmp_path / "submission.parquet")
     submission.write(_pred(), _template(), tmp_path / "keen-hamburger_v1.parquet")
 
 
@@ -89,6 +89,6 @@ def test_next_version_increments(tmp_path: Path) -> None:
     for v in (1, 2, 7):
         (tmp_path / f"keen-hamburger_v{v}.parquet").touch()
     assert submission.next_version(tmp_path, "keen-hamburger") == 8
-    # baska takimin dosyalari sayilmaz
+    # another team's files do not count
     (tmp_path / "other-team_v99.parquet").touch()
     assert submission.next_version(tmp_path, "keen-hamburger") == 8

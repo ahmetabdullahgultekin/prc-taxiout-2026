@@ -1,8 +1,8 @@
-"""Yonlendirme ozniteliklerinin dogrulanmasi.
+"""Validation of the routing features.
 
-Kerteriz ve mesafe formulleri sessizce yanlis olabilir: isaret hatasi ya da
-derece/radyan karisikligi makul gorunen ama tamamen yanlis sayilar uretir. Bu yuzden
-polars ifadeleri, ayni formulun bagimsiz saf-python uygulamasiyla karsilastirilir.
+Bearing and distance formulas can be wrong silently: a sign error or a degree/radian mix-up
+produces numbers that look plausible and are completely wrong. So the polars expressions
+are compared against an independent pure-python implementation of the same formula.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import pytest
 
 from taxiout.features import routing
 
-# OurAirports'tan gercek koordinatlar
+# real coordinates from OurAirports
 COORDS = pl.DataFrame(
     {
         "icao": ["EDDF", "EGLL", "LTFM", "LTAI", "EHAM"],
@@ -26,7 +26,7 @@ COORDS = pl.DataFrame(
 
 
 def _ref_bearing(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Bagimsiz referans: standart buyuk-daire baslangic kerterizi."""
+    """Independent reference: the standard great-circle initial bearing."""
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dl = math.radians(lon2 - lon1)
     y = math.sin(dl) * math.cos(p2)
@@ -61,19 +61,22 @@ def test_bearing_and_distance_match_reference_implementation(origin: str, dest: 
     out = routing.attach_bearing(_dep([(origin, dest)]), COORDS)
     row = COORDS.filter(pl.col("icao") == origin).row(0, named=True)
     row2 = COORDS.filter(pl.col("icao") == dest).row(0, named=True)
-    expected_b = _ref_bearing(row["latitude"], row["longitude"], row2["latitude"], row2["longitude"])
-    expected_d = _ref_distance_km(row["latitude"], row["longitude"], row2["latitude"], row2["longitude"])
+    lat1, lon1 = row["latitude"], row["longitude"]
+    lat2, lon2 = row2["latitude"], row2["longitude"]
+    expected_b = _ref_bearing(lat1, lon1, lat2, lon2)
+    expected_d = _ref_distance_km(lat1, lon1, lat2, lon2)
     assert out["departure_bearing"][0] == pytest.approx(expected_b, abs=0.01)
     assert out["flight_distance_km"][0] == pytest.approx(expected_d, rel=1e-4)
 
 
 def test_bearing_directions_are_physically_sensible() -> None:
-    """Yon duygusu kontrolu: formul dogru ama eksen ters olsaydi bu test yakalardi."""
+    """A sense-of-direction check: if the formula were right but the axis flipped, this
+    test would catch it."""
     out = routing.attach_bearing(_dep([("EDDF", "EGLL"), ("LTFM", "LTAI")]), COORDS)
     frankfurt_to_london = out["departure_bearing"][0]
     istanbul_to_antalya = out["departure_bearing"][1]
-    assert 260 < frankfurt_to_london < 310, "Londra Frankfurt'un batisinda"
-    assert 130 < istanbul_to_antalya < 200, "Antalya Istanbul'un guneyinde"
+    assert 260 < frankfurt_to_london < 310, "London is west of Frankfurt"
+    assert 130 < istanbul_to_antalya < 200, "Antalya is south of Istanbul"
 
 
 def test_sector_is_in_range() -> None:
@@ -85,16 +88,17 @@ def test_sector_is_in_range() -> None:
 
 
 def test_unknown_destination_yields_null_not_crash() -> None:
-    """Varis havalimani referans tablosunda yoksa satir yine de uretilmeli."""
+    """If the arrival airport is missing from the reference table the row must still be
+    produced."""
     out = routing.attach_bearing(_dep([("EDDF", "ZZZZ")]), COORDS)
     assert out.height == 1
     assert out["departure_bearing"][0] is None
 
 
 def test_sector_congestion_counts_only_same_direction() -> None:
-    """Ayni yone giden komsular sayilmali, farkli yone gidenler sayilmamali."""
+    """Neighbours going the same way must count, ones going elsewhere must not."""
     start = datetime(2025, 5, 1, 8, 0)
-    # ucu de EDDF'ten: ikisi Londra'ya (ayni sektor), biri Antalya'ya (farkli sektor)
+    # all three from EDDF: two to London (same sector), one to Antalya (different sector)
     dep = pl.DataFrame(
         {
             "MVT_ID_mvt": [0, 1, 2],
@@ -105,9 +109,9 @@ def test_sector_congestion_counts_only_same_direction() -> None:
     )
     out = routing.attach_bearing(dep, COORDS)
     counts = routing.sector_congestion(out).sort("MVT_ID_mvt")
-    # son flights (id=2) Londra yonunde; 15 dk geriye bakinca kendisi + id=0 = 2
+    # the last flight (id=2) heads for London; looking 15 min back gives itself + id=0 = 2
     assert counts.filter(pl.col("MVT_ID_mvt") == 2)["sector_dep_prev_15m"][0] == 2
-    # Antalya ucusu (id=1) tek basina kendi sektorunde
+    # the Antalya flight (id=1) is alone in its own sector
     assert counts.filter(pl.col("MVT_ID_mvt") == 1)["sector_dep_prev_15m"][0] == 1
 
 
@@ -130,7 +134,7 @@ def test_stand_turnaround_measures_time_since_previous_arrival() -> None:
         }
     )
     out = routing.stand_turnaround(mvt, dep)
-    # en son varis 40. dakikada geldi, kalkis 50. dakikada -> 10 dk = 600 sn
+    # the last arrival came in at minute 40, the departure is at minute 50 -> 10 min = 600 s
     assert out["stand_turnaround_sec"][0] == pytest.approx(600.0)
 
 
@@ -145,5 +149,5 @@ def test_atfm_drift_is_signed_difference() -> None:
         }
     )
     out = routing.atfm_pressure(dep)
-    assert out["atfm_drift_sec"][0] == pytest.approx(720.0)  # 12 dk geri itilmis
+    assert out["atfm_drift_sec"][0] == pytest.approx(720.0)  # pushed back by 12 min
     assert out["lobt_anchor_gap_sec"][0] == pytest.approx(480.0)

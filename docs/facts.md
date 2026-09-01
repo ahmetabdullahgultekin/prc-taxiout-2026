@@ -166,6 +166,17 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | P09 | JOAS 2025 yarismasi icin **ozel sayi** cikardi (Vol. 4 No. 3, 2026: "EUROCONTROL PRC 2025 Data Challenge") — makale icin hazir bir yayin yolu | journals.open.tudelft.nl/joas/issue/view/1058 | 2026-09-01 | ✅ |
 | P10 | 2026 sayfasi odulun **ilk 3 arasinda nasil bolundugunu yazmiyor**; 2025'te 2500/1750/750 idi. Odeme yontemi ve tarihi de yazmiyor | dc2026/index.html | 2026-09-01 | ⚠️ gerekirse challenge@opensky-network.org'a sorulur |
 
+## Model bulgulari (2026-09-01 olcumleri)
+
+| # | Gerçek | Kaynak | Kontrol | Durum |
+|---|--------|--------|---------|-------|
+| M20 | Model **328. turda** en iyi (RMSE 377,28); 500 turda 379,04'e kotulesiyor. v1 gonderimi 800 turdu, yani **asiri ogrenmis** | erken durdurma kosusu | 2026-09-01 | ✅ tur sayisi dusurulecek |
+| M21 | **Kazanc dagilimi:** atfm %36,8 · geometry %31,5 · nm_aobt %10,4 · runway_configuration %5,9 · weather %1,8 · **runway_queue %1,6** · **airport_flow %1,4** | LightGBM gain | 2026-09-01 | 🔴 **tikaniklik oznitelikleri (34 tane) toplam %3** |
+| M22 | En guclu tekil oznitelikler: `reference_sec` %18,8 · `eobt_offset_sec` %16,0 · `sched_offset_sec` %15,4 · `nm_naive_taxi_sec` %10,4 · `STAND_mvt` %7,5 | LightGBM gain | 2026-09-01 | ✅ |
+| M23 | **Blok saati tutamaklari, naif RMSE:** AOBT_3 385 · EOBT_1 677 · IOBT 740 · LOBT 740 · SCHED 2413. Hepsinin kapsamasi ayni (%98,92) | kendi olcumumuz | 2026-09-01 | ✅ AOBT_3 acik ara en iyi, gizli tutamak yok |
+| M24 | `LOBT_flt` adina ragmen **gercek blok saati degil**, IOBT ile neredeyse ayni (740 vs 740) — planlanan bir zaman | kendi olcumumuz | 2026-09-01 | ✅ |
+| M25 | Holdout'ta **naif tahmin 531,40**, model 377,84. Model naif tahmine gore **154 sn kazandiriyor** | kendi olcumumuz | 2026-09-01 | ✅ modelleme emegi karsiligini veriyor |
+
 ## Açık sorular
 
 | # | Soru | Nasıl kapanır |

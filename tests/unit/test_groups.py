@@ -1,9 +1,9 @@
-"""Oznitelik ailesi kaydinin butunlugu.
+"""Integrity of the feature family registry.
 
-Buradaki asil test `test_every_produced_feature_has_a_group`. Amaci sadece bir
-tutarlilik kontrolu degil: bir oznitelik aileye yazilmazsa ablation tablosunda
-gorunmez, yani hicbir deneyle sinanmadan modelde kalir. Test kirilarak bunu
-imkansiz kilar.
+The test that matters here is `test_every_produced_feature_has_a_group`. It is not just a
+consistency check: a feature that is not written into a family never appears in the
+ablation table, so it stays in the model without a single experiment testing it. Breaking
+the test makes that impossible.
 """
 
 from __future__ import annotations
@@ -12,8 +12,8 @@ import pytest
 
 from taxiout.features import groups
 
-# Boru hattinin urettigi kolonlar (fixture uzerinde uctan uca kosudan alindi) +
-# referans modulunun sonradan ekledikleri.
+# The columns the pipeline produces (taken from an end-to-end run over the fixture) plus
+# the ones the reference module adds afterwards.
 PRODUCED = [
     "apt_mvt", "AIRCRAFT_OPERATOR_flt", "AIRCRAFT_TYPE_flt", "AIRCRAFT_TYPE_mvt",
     "MARKET_SEGMENT_flt", "RUNWAY_mvt", "STAND_mvt", "WK_TBL_CAT_flt", "active_runway_count",
@@ -38,13 +38,13 @@ PRODUCED = [
     "sector_dep_prev_15m", "sector_dep_prev_30m", "temperature_c", "fog",
     "next_dep_gap_sec", "stand_turnaround_sec", "ceiling_m", "flight_distance_km",
     "arr_taxi_median_sec", "arr_taxi_count", "precip_mm", "diverted",
-    # airport_state.attach ciktilari (EUROCONTROL gunluk)
+    # airport_state.attach outputs (EUROCONTROL daily)
     "atfm_regulated_share", "atfm_slot_late_share", "atfm_slot_early_share",
     "daily_departures", "daily_arrivals", "arr_atfm_delay_min",
     "arr_delay_weather_min", "arr_delay_atc_capacity_min",
     "arr_delay_aerodrome_capacity_min", "arr_delay_atc_staffing_min",
     "arr_delay_atc_equipment_min",
-    # reference.apply_reference ciktilari
+    # reference.apply_reference outputs
     "reference_sec", "reference_level", "reference_sample",
 ]
 
@@ -52,12 +52,12 @@ PRODUCED = [
 def test_every_produced_feature_has_a_group() -> None:
     orphans = [c for c in PRODUCED if groups.group_of(c) is None]
     assert orphans == [], (
-        f"su oznitelikler hicbir aileye ait degil, ablation'da gorunmezler: {orphans}"
+        f"these features belong to no family, they will not appear in the ablation: {orphans}"
     )
 
 
 def test_no_feature_falls_into_two_groups() -> None:
-    """Kolon birden fazla ailenin desenine uyarsa ablation sonucu yaniltici olur."""
+    """If a column matches more than one family pattern, the ablation result misleads."""
     import re
 
     for c in PRODUCED:
@@ -65,14 +65,14 @@ def test_no_feature_falls_into_two_groups() -> None:
             name for name, pats in groups.GROUPS.items()
             if any(re.compile(p).match(c) for p in pats)
         ]
-        assert len(matches) == 1, f"{c} birden cok aileye uyuyor: {matches}"
+        assert len(matches) == 1, f"{c} matches more than one family: {matches}"
 
 
 def test_every_group_is_non_empty() -> None:
-    """Bos bir aile, yeniden adlandirilmis ama guncellenmemis bir desendir."""
+    """An empty family is a pattern that was renamed but not updated."""
     assigned = groups.assign(PRODUCED)
     empty = [name for name in groups.GROUPS if not assigned[name]]
-    assert empty == [], f"bos oznitelik ailesi: {empty}"
+    assert empty == [], f"empty feature family: {empty}"
 
 
 def test_select_drops_exactly_the_named_group() -> None:
@@ -85,10 +85,10 @@ def test_select_drops_exactly_the_named_group() -> None:
 
 def test_select_rejects_unknown_group_instead_of_silently_ignoring() -> None:
     with pytest.raises(KeyError, match="unknown feature family"):
-        groups.select(PRODUCED, drop={"hava_durumu"})
+        groups.select(PRODUCED, drop={"weather_conditions"})
 
 
 def test_unknown_columns_are_kept_not_dropped() -> None:
-    """Kayitta olmayan bir kolon ablation tarafindan sessizce dusurulmemeli."""
-    kept = groups.select([*PRODUCED, "yepyeni_oznitelik"], drop={"weather"})
-    assert "yepyeni_oznitelik" in kept
+    """A column that is not in the registry must not be dropped silently by the ablation."""
+    kept = groups.select([*PRODUCED, "brand_new_feature"], drop={"weather"})
+    assert "brand_new_feature" in kept
