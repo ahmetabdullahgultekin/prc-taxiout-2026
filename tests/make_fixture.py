@@ -97,7 +97,7 @@ def build(
         "PHASE_mvt": phase,
         "MVT_TIME_UTC_mvt": mvt,
         "BLOCK_TIME_UTC_mvt": block,
-        # kalkis gecikmesi degisken; sabit ofset plan_sapmasi_sn'yi hedefin kopyasi yapardi
+        # kalkis gecikmesi degisken; sabit ofset sched_offset_sec'yi hedefin kopyasi yapardi
         "SCHED_TIME_UTC_mvt": [b - timedelta(seconds=int(d)) for b, d in
                                zip(block, rng.normal(600, 900, n).clip(-1800, 7200), strict=True)],
         "AIRCRAFT_TYPE_mvt": actype,
@@ -143,13 +143,13 @@ def external_data(out: Path) -> None:
     pl.concat([
         pl.DataFrame({
             "station": [a] * n, "valid": saatler,
-            "sicaklik_c": rng.normal(12, 9, n), "cig_noktasi_c": rng.normal(7, 8, n),
-            "gorus_km": rng.gamma(4, 3, n).clip(0.1, 20), "ruzgar_ms": rng.gamma(2, 3, n),
-            "ruzgar_yon": rng.uniform(0, 360, n), "yagis_mm": rng.gamma(0.4, 1.0, n),
-            "tavan_m": rng.gamma(3, 400, n), "wxcodes": [""] * n, "skyc1": ["FEW"] * n,
-            "donma_yagisi": rng.random(n) < 0.01, "kar": rng.random(n) < 0.01,
-            "sis": rng.random(n) < 0.05, "gok_gurultusu": rng.random(n) < 0.02,
-            "deicing_vekili": rng.random(n) < 0.02, "dusuk_gorus": rng.random(n) < 0.05,
+            "temperature_c": rng.normal(12, 9, n), "dewpoint_c": rng.normal(7, 8, n),
+            "visibility_km": rng.gamma(4, 3, n).clip(0.1, 20), "wind_ms": rng.gamma(2, 3, n),
+            "wind_dir_deg": rng.uniform(0, 360, n), "precip_mm": rng.gamma(0.4, 1.0, n),
+            "ceiling_m": rng.gamma(3, 400, n), "wxcodes": [""] * n, "skyc1": ["FEW"] * n,
+            "freezing_precip": rng.random(n) < 0.01, "snow": rng.random(n) < 0.01,
+            "fog": rng.random(n) < 0.05, "thunderstorm": rng.random(n) < 0.02,
+            "deicing_proxy": rng.random(n) < 0.02, "low_visibility": rng.random(n) < 0.05,
         })
         for a in AIRPORTS
     ]).write_parquet(out / "metar.parquet")
@@ -157,34 +157,34 @@ def external_data(out: Path) -> None:
     k = len(AIRPORTS)
     pl.DataFrame({
         "icao": AIRPORTS + OUTSIDE,
-        "enlem": rng.uniform(36, 53, k + len(OUTSIDE)),
-        "boylam": rng.uniform(-1, 31, k + len(OUTSIDE)),
-        "yukseklik_ft": rng.uniform(0, 1500, k + len(OUTSIDE)),
+        "latitude": rng.uniform(36, 53, k + len(OUTSIDE)),
+        "longitude": rng.uniform(-1, 31, k + len(OUTSIDE)),
+        "elevation_ft": rng.uniform(0, 1500, k + len(OUTSIDE)),
     }).write_parquet(out / "airport_coords.parquet")
 
     pl.DataFrame({
         "icao": AIRPORTS,
-        "pist_sayisi": rng.integers(2, 7, k).astype("int8"),
-        "en_uzun_pist_ft": rng.uniform(10000, 14000, k),
-        "ort_pist_ft": rng.uniform(9000, 13000, k),
+        "runway_count": rng.integers(2, 7, k).astype("int8"),
+        "longest_runway_ft": rng.uniform(10000, 14000, k),
+        "mean_runway_ft": rng.uniform(9000, 13000, k),
     }).write_parquet(out / "airport_runways.parquet")
 
     gunler = pl.date_range(date(2025, 1, 1), date(2026, 8, 1), eager=True, closed="left")
     g = len(gunler)
     pl.concat([
         pl.DataFrame({
-            "apt": [a] * g, "gun": gunler,
-            "atfm_duzenlenen_oran": rng.beta(2, 20, g),
-            "atfm_slot_gec_oran": rng.beta(2, 30, g),
-            "atfm_slot_erken_oran": rng.beta(2, 30, g),
-            "gunluk_kalkis": rng.uniform(200, 800, g),
-            "varis_atfm_gecikme_dk": rng.gamma(2, 1.5, g),
-            "gunluk_inis": rng.uniform(200, 800, g),
-            "varis_gecikme_hava_dk": rng.gamma(1.5, 1.0, g),
-            "varis_gecikme_atc_kapasite_dk": rng.gamma(1.2, 0.5, g),
-            "varis_gecikme_meydan_kapasite_dk": rng.gamma(1.2, 0.6, g),
-            "varis_gecikme_atc_personel_dk": rng.gamma(1.0, 0.3, g),
-            "varis_gecikme_atc_ekipman_dk": rng.gamma(1.0, 0.2, g),
+            "apt": [a] * g, "day": gunler,
+            "atfm_regulated_share": rng.beta(2, 20, g),
+            "atfm_slot_late_share": rng.beta(2, 30, g),
+            "atfm_slot_early_share": rng.beta(2, 30, g),
+            "daily_departures": rng.uniform(200, 800, g),
+            "arr_atfm_delay_min": rng.gamma(2, 1.5, g),
+            "daily_arrivals": rng.uniform(200, 800, g),
+            "arr_delay_weather_min": rng.gamma(1.5, 1.0, g),
+            "arr_delay_atc_capacity_min": rng.gamma(1.2, 0.5, g),
+            "arr_delay_aerodrome_capacity_min": rng.gamma(1.2, 0.6, g),
+            "arr_delay_atc_staffing_min": rng.gamma(1.0, 0.3, g),
+            "arr_delay_atc_equipment_min": rng.gamma(1.0, 0.2, g),
         })
         for a in AIRPORTS
     ]).write_parquet(out / "eurocontrol_atfm_daily.parquet")

@@ -25,7 +25,7 @@ Ezberden kural veya kolon adi soyleme — sicilde yoksa dogrula ve sicile ekle.
    **tasinmali**, yoksa ayni kategori iki tarafta farkli koda duser ve model sessizce bozulur.
 3. **Kayip fonksiyonu L2.** RMSE'nin optimal tahmincisi kosullu ortalamadir. Huber/MAE/quantile
    veya duzeltmesiz log-hedef sistematik sapma yaratir. Denenirse `docs/experiments.md`'ye
-   negatif sonuc olarak yazilir.
+   negative_share sonuc olarak yazilir.
 4. **Rastgele K-fold yasak.** Dogrulama: 2025'ten Ocak ve Temmuz cikarilir, model kalan 10 ayla
    egitilir, o iki ayda **ayri ayri** raporlanir. Havalimani bazinda RMSE her zaman yazilir.
 5. **Her deney `docs/experiments.md`'ye islenir** — ise yaramayanlar dahil.

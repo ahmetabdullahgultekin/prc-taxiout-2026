@@ -16,7 +16,7 @@ Additional(f, combo)  = TaxiOut(f) - Reference(combo)           (s.13, adim 5)
 
 - **combo = (havalimani, kalkis STAND, kalkis PISTI).** Baska hicbir degisken yok.
 - Referans ornegi: **kayan 12 ay**, yerel saatle kalkis zamanina gore secilir (s.13, adim 2).
-- **Gecerlilik sarti:** komboda taxi-out suresi P10'a esit veya daha kisa olan **en az 10 ucus**
+- **Gecerlilik sarti:** komboda taxi-out suresi P10'a esit veya daha kisa olan **en az 10 flights**
   bulunmali. Saglanmazsa o komboya referans atanmaz ve o ucuslar gostergeden **tamamen dusurulur** (s.15).
 
 ## Resmi filtreler (s.13, adim 1)
@@ -39,7 +39,7 @@ atamayiz, modellemek zorundayiz.** Ocak 2026 hatasinin buyuk kismi burada olacak
 | **Taxi rotasi** (s.15, §5) | Veride rota yok | Bizde de yok; stand-pist ciftiyle vekillenir |
 | **Taxi hizi** (s.15, §5) | Veride hiz yok | Ucak tipi + operator ile kismen vekillenir |
 | **Ozel olaylar** (apron calismasi vb.) | Ozel ornek gerektirir | Zaman-trendi ve havalimani x ay etkilesimi ile kismen yakalanir |
-| **Kuyruk** | Zaten olculen buyukluk (additional time = kuyruk) | Bizim hedefimiz toplam sure — kuyrugu **acikca modelleyecegiz** |
+| **Kuyruk** | Zaten olculen buyukluk (additional time = kuyruk) | Bizim hedefimiz total sure — kuyrugu **acikca modelleyecegiz** |
 
 PRC ayrica push-back suresini ve kalkis kosusu pist isgal suresini "sistemik" sayip
 referansin icine gomuyor (s.10, §3.1).
@@ -57,7 +57,7 @@ Tablo 3 (s.17):
 Cikarim: yarisma verisindeki `BLOCK_TIME_UTC_mvt` APDF kaynakli AOBT'dir; `AOBT_3_flt` ise
 **Network Manager M3 yorungesinin** blok saatidir. Ayni fiziksel olayin **iki farkli olcumu** —
 korele ama ozdes degil. Bu bir sizinti degil, gercek operasyonel durumun yansimasi:
-NM her ucus icin kestirim tutar, APDF ise yalnizca veri paylasan havalimanlarinda vardir.
+NM her flights icin kestirim tutar, APDF ise yalnizca veri paylasan havalimanlarinda vardir.
 
 **Olculecek (Q02):** 2025 verisinde `MVT_TIME_UTC_mvt - AOBT_3_flt` ile gercek `TAXITIME_SEC_mvt`
 arasindaki RMSE nedir? Bu sayi yarismanin zorluk tabanini belirler.

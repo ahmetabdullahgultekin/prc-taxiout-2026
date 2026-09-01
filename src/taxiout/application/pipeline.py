@@ -1,13 +1,13 @@
-"""Ortak boru hatti: veri yukleme, oznitelik uretimi, egitim, degerlendirme.
+"""Shared pipeline: loading, feature building, training, evaluation.
 
-`scripts/train_baseline.py` ve `scripts/run_ablation.py` bunu kullanir; mantik tek
-yerde durur. Betikler yalnizca komut satiri ve raporlama yapar.
+`scripts/train_baseline.py` and `scripts/run_ablation.py` both use this, so the logic
+lives in one place and the scripts only handle their command line and reporting.
 
-Dogrulama semasi (AGENTS.md kural 4): 2025'ten **Ocak ve Temmuz cikarilir**, model
-kalan 10 ayla egitilir, o iki ayda ayri ayri degerlendirilir. Rastgele K-fold burada
-yalan soyler: siralama seti Ocak + Temmuz 2026, yani iki mevsimsel uc ve bir yillik
-kayma. 2025 duzenleyicileri de bu zorlugu acikca raporladi: bazi takimlar bir ayda
-yukselip digerinde dustu.
+Validation scheme (AGENTS.md rule 4): the holdout mirrors the shape of the ranking set
+rather than holding out both months everywhere. Random k-fold would lie here, because
+the ranking set is January and July 2026, two seasonal extremes plus a year of drift.
+The 2025 organisers reported the same difficulty: teams moved up in one month and down
+in the other.
 """
 
 from __future__ import annotations
@@ -24,38 +24,41 @@ from taxiout.features import airport_state, congestion, groups, routing, weather
 
 TARGET = "TAXITIME_SEC_mvt"
 MVT = "MVT_TIME_UTC_mvt"
-# Hareketin GERCEKLESTIGI havalimani. `ADEP_mvt` bu degildir: o, ucusun kalkis
-# havalimanidir ve varis satirlarinda ucagin GELDIGI yeri gosterir (egitim setinde
-# 1.582 farkli deger aliyor). Hareket havalimani = DEP ise ADEP, ARR ise ADES.
+# The airport the movement HAPPENED at. `ADEP_mvt` is not that: it is the origin of the
+# flight, so on an arrival row it names where the aircraft came from (the training set
+# has 1,582 distinct values for it). Movement airport = ADEP for DEP, ADES for ARR.
 APT = "apt_mvt"
 HOLDOUT_MONTHS = (1, 7)
 
-# Siralama seti iki ayinda ayni havalimanlarini icermiyor: Ocak'ta 10'unun hepsi,
-# Temmuz'da yalnizca bu ucu (gercek veriden olculdu, docs/facts.md R03). Ocak
-# satirlarin %71'i, yani metrigi o domine ediyor. Dogrulama bu sekli taklit etmezse
-# Temmuz performansini olmadigi kadar onemli sanip yanlis model seceriz.
+# The ranking set does not cover the same airports in both months: all ten in January,
+# only these three in July (measured from the data, docs/facts.md R03). January is 71
+# percent of the rows and so dominates the metric. A holdout that does not mirror this
+# would make July look far more important than it is and select the wrong model.
 JULY_AIRPORTS = ("EDDF", "EGLL", "EHAM")
 
 CATEGORICAL = {
     APT, "RUNWAY_mvt", "STAND_mvt", "AIRCRAFT_TYPE_mvt", "AIRCRAFT_TYPE_flt",
-    "WK_TBL_CAT_flt", "MARKET_SEGMENT_flt", "AIRCRAFT_OPERATOR_flt", "referans_seviye",
-    "kalkis_pistleri", "inis_pistleri",
+    "WK_TBL_CAT_flt", "MARKET_SEGMENT_flt", "AIRCRAFT_OPERATOR_flt", "reference_level",
+    "dep_runways_in_use", "arr_runways_in_use",
 }
 
-# Hedefi tasiyan ya da dogrudan veren kolonlar. `AOBT_3_flt` ve `BLOCK_TIME_UTC_mvt`
-# ham haliyle asla ozniteligie donmez; turevleri (naif_taxi_sn) acikca uretilir.
+# Columns that carry or directly give away the target. `AOBT_3_flt` and
+# `BLOCK_TIME_UTC_mvt` never become features in raw form; the derived
+# `nm_naive_taxi_sec` is built explicitly instead.
 EXCLUDED = {
     TARGET, "BLOCK_TIME_UTC_mvt", "MVT_ID_mvt", MVT, "SCHED_TIME_UTC_mvt",
     "FLIGHT_ID_mvt", "FLIGHT_mvt", "CALLSIGN_flt", "PHASE_mvt",
     "LOBT_flt", "IOBT_flt", "EOBT_1_flt", "ARVT_1_flt", "AOBT_3_flt", "ARVT_3_flt",
     "wxcodes", "skyc1", "ADES_mvt", "ADES_flt", "ADES_FILED_flt", "ADEP_flt",
-    # kalkis satirlarinda apt_mvt ile ozdes; ikisini birden vermek gereksiz
+    # Identical to apt_mvt on departure rows; giving the model both is redundant.
     "ADEP_mvt",
     "FLIGHT_RULE_mvt", "FLIGHT_RULE_flt", "FLIGHT_TYPE_flt",
 }
 
 LGB_PARAMS = {
-    "objective": "regression",  # L2: RMSE'nin optimal tahmincisi kosullu ortalamadir
+    # L2: the optimal predictor under RMSE is the conditional mean, so no Huber,
+    # no MAE, no log target without a correction.
+    "objective": "regression",
     "metric": "rmse",
     "learning_rate": 0.05,
     "num_leaves": 127,
@@ -63,7 +66,7 @@ LGB_PARAMS = {
     "feature_fraction": 0.8,
     "bagging_fraction": 0.8,
     "bagging_freq": 1,
-    "max_bin": 127,  # 16 GB RAM'de bellek yarilanir, dogruluk kaybi ihmal edilebilir
+    "max_bin": 127,  # halves memory on a 16 GB machine at negligible accuracy cost
     "verbosity": -1,
     "num_threads": 0,
 }
@@ -74,12 +77,12 @@ def month(col: str = MVT) -> pl.Expr:
 
 
 def prepare_movements(mvt: pl.DataFrame) -> pl.DataFrame:
-    """Kanonik `apt_mvt` kolonunu ekler.
+    """Add the canonical `apt_mvt` column.
 
-    Her hareket cercevesi (egitim ve siralama) bu fonksiyondan gecmeli. Aksi halde
-    varis turevli tikaniklik oznitelikleri yanlis havalimaninda gruplanir: bir
-    kalkisin cevresindeki inisleri sayarken, o havalimanina inenleri degil, o
-    havalimanindan KALKMIS olan uzak inisleri saymis oluruz.
+    Every movement frame, training and ranking alike, must pass through here.
+    Otherwise arrival-derived congestion features group on the wrong airport: counting
+    the arrivals around a departure would count distant landings of flights that had
+    departed this airport, instead of aircraft that landed here.
     """
     return mvt.with_columns(
         pl.when(pl.col("PHASE_mvt") == "DEP")
@@ -89,12 +92,12 @@ def prepare_movements(mvt: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-# --------------------------------------------------------------------------- veri
+# --------------------------------------------------------------------------- data
 
 
 @dataclass
 class Inputs:
-    """Ham girdiler. Dis veri yoksa None kalir; boru hatti yine calisir."""
+    """Raw inputs. External sources stay None if absent; the pipeline still runs."""
 
     movements: pl.DataFrame
     metar: pl.DataFrame | None = None
@@ -106,7 +109,7 @@ class Inputs:
 def load_inputs(raw: Path) -> Inputs:
     files = sorted(raw.glob("training_*.parquet"))
     if not files:
-        raise SystemExit(f"egitim dosyasi bulunamadi: {raw}")
+        raise SystemExit(f"no training files found in {raw}")
     mvt = prepare_movements(
         pl.concat([pl.read_parquet(f) for f in files], how="vertical_relaxed")
     )
@@ -124,35 +127,37 @@ def load_inputs(raw: Path) -> Inputs:
     )
 
 
-# --------------------------------------------------------------------------- oznitelik
+# --------------------------------------------------------------------------- features
 
 
 def build_features(inputs: Inputs, causal: bool = False, aobt3: bool = True) -> pl.DataFrame:
-    """Kalkis satirlari icin tam oznitelik tablosu. Referans SONRA eklenir."""
+    """Full feature table for departure rows. The reference is applied afterwards."""
     mvt = inputs.movements
     anchor = congestion.BLOCK if causal else MVT
 
     feats = congestion.build(mvt, causal=causal)
     feats = feats.with_columns(
-        saat=pl.col(anchor).dt.hour().cast(pl.Int8),
-        hafta_gunu=pl.col(anchor).dt.weekday().cast(pl.Int8),
-        ay=month().cast(pl.Int8),
-        gun_dakikasi=(pl.col(anchor).dt.hour() * 60 + pl.col(anchor).dt.minute()).cast(pl.Int16),
-        plan_sapmasi_sn=(pl.col(anchor) - pl.col("SCHED_TIME_UTC_mvt")).dt.total_seconds()
+        hour=pl.col(anchor).dt.hour().cast(pl.Int8),
+        weekday=pl.col(anchor).dt.weekday().cast(pl.Int8),
+        month_num=month().cast(pl.Int8),
+        minute_of_day=(pl.col(anchor).dt.hour() * 60 + pl.col(anchor).dt.minute()).cast(pl.Int16),
+        sched_offset_sec=(pl.col(anchor) - pl.col("SCHED_TIME_UTC_mvt")).dt.total_seconds()
         .cast(pl.Float32),
     )
     if "EOBT_1_flt" in feats.columns:
         feats = feats.with_columns(
-            eobt_sapmasi_sn=(pl.col(anchor) - pl.col("EOBT_1_flt")).dt.total_seconds()
+            eobt_offset_sec=(pl.col(anchor) - pl.col("EOBT_1_flt")).dt.total_seconds()
             .cast(pl.Float32)
         )
     if aobt3 and not causal and "AOBT_3_flt" in feats.columns:
-        # NM M3 blok saati, APDF blok saatinin BAGIMSIZ bir olcumu (M13). Siralama
-        # setinde bosaltilmamis (D06), yani mesru bir ozniteliktir. Nedensel modda
-        # kalkis saatini gerektirdigi icin kullanilmaz.
+        # The NM M3 off-block time is an INDEPENDENT measurement of the same event as
+        # the airport feed block time. It is not blanked in the ranking set, so it is a
+        # legitimate feature. The causal variant cannot use it, being anchored on the
+        # take-off time.
         feats = feats.with_columns(
-            naif_taxi_sn=(pl.col(MVT) - pl.col("AOBT_3_flt")).dt.total_seconds().cast(pl.Float32),
-            nm_eslesti=pl.col("AOBT_3_flt").is_not_null(),
+            nm_naive_taxi_sec=(pl.col(MVT) - pl.col("AOBT_3_flt")).dt.total_seconds()
+            .cast(pl.Float32),
+            nm_matched=pl.col("AOBT_3_flt").is_not_null(),
         )
 
     feats = routing.build(mvt, feats, inputs.coords, anchor)
@@ -161,13 +166,13 @@ def build_features(inputs: Inputs, causal: bool = False, aobt3: bool = True) -> 
     if inputs.metar is not None:
         feats = weather.attach(feats, inputs.metar, anchor)
     if inputs.atfm_daily is not None and not causal:
-        # gun boyunun toplami; nedensel modelde kullanilamaz (bkz. airport_state)
+        # Whole-day totals, unusable by a real-time model (see airport_state).
         feats = airport_state.attach(feats, inputs.atfm_daily, anchor)
     return feats
 
 
 def feature_columns(df: pl.DataFrame) -> list[str]:
-    """Modellenebilir kolonlar: hedefi verenler ve zaman tipleri disarida."""
+    """Modellable columns: target-bearing and time-typed columns are excluded."""
     keep = []
     for name, dtype in zip(df.columns, df.dtypes, strict=True):
         if name in EXCLUDED or dtype in (pl.Datetime, pl.Date, pl.Duration, pl.Object):
@@ -176,7 +181,7 @@ def feature_columns(df: pl.DataFrame) -> list[str]:
     return keep
 
 
-# --------------------------------------------------------------------------- bolme
+# --------------------------------------------------------------------------- splitting
 
 
 @dataclass
@@ -187,11 +192,11 @@ class Split:
 
 
 def holdout_mask() -> pl.Expr:
-    """Siralama setinin seklini taklit eden dogrulama maskesi.
+    """The validation mask, shaped like the ranking set.
 
-    Ocak: tum havalimanlari. Temmuz: yalnizca `JULY_AIRPORTS`. Kalan her sey egitim,
-    Temmuz'un diger havalimanlari dahil (gercek modelde de 2025'in tamamiyla
-    egitiliyor).
+    January: every airport. July: only `JULY_AIRPORTS`. Everything else trains,
+    including July at the other airports, which is also what the final model does since
+    it trains on all of 2025.
     """
     return (month() == 1) | ((month() == 7) & pl.col(APT).is_in(JULY_AIRPORTS))
 
@@ -199,16 +204,16 @@ def holdout_mask() -> pl.Expr:
 def seasonal_split(
     feats: pl.DataFrame, movements: pl.DataFrame, max_train_sec: float | None = None
 ) -> Split:
-    """Dogrulama parcasini ayirir; referansi SADECE egitim parcasindan uretir.
+    """Split off the validation slice; fit the reference on the training slice ONLY.
 
-    `max_train_sec` verilirse hedefi bu esigi asan satirlar **yalnizca egitimden**
-    cikarilir; dogrulama kumesi hep tam kalir, cunku board da tam olacak.
+    `max_train_sec` drops rows whose target exceeds the threshold **from training
+    only**; validation always stays complete, because the board is complete.
 
-    Gerekcesi olculdu: 2 saati asan 584 kalkisin NM eslesmesi olanlarinda %94,2'sinde
-    NM blok saati makul (medyan 18 dk) ama APDF 2,3 saat diyor. Yani bunlar taxi
-    suresi degil, **etiket hatasi**. Sayilari cok az (%0,028) ama LIRF'te en ust %1
-    varyansin %88'ini tasiyor, dolayisiyla L2 kaybi onlari kovaliyor. PRC kendi resmi
-    gostergesinde de 120 dakikayi asanlari eliyor (ATXOT s.13).
+    Measured, and it does not help. The 584 departures above two hours are label errors,
+    since the NM off-block time is plausible in 94 percent of matched cases, yet
+    removing them made RMSE worse in proportion to how many were dropped. They are wrong
+    but they still teach the model that the tail exists. Kept as an experiment switch,
+    off by default; see `docs/experiments.md`.
     """
     labelled = feats.filter(pl.col(TARGET).is_not_null())
     is_val = holdout_mask()
@@ -228,11 +233,11 @@ def seasonal_split(
 def to_matrix(
     df: pl.DataFrame, cols: list[str], levels: dict[str, pl.Series] | None = None
 ) -> tuple[np.ndarray, list[int], dict[str, pl.Series]]:
-    """polars -> (float32 numpy, kategorik indeksler, seviye sozlugu).
+    """polars -> (float32 numpy, categorical indices, level dictionary).
 
-    pandas KULLANILMAZ (AGENTS.md kural 2). Seviye sozlugu egitimde uretilip
-    dogrulamaya aynen tasinir; yoksa ayni kategori iki tarafta farkli koda duser ve
-    model sessizce bozulur.
+    pandas is deliberately not used (AGENTS.md rule 2). The level dictionary is built on
+    the training side and carried to validation unchanged; otherwise the same category
+    would map to different codes on the two sides and the model would break silently.
     """
     levels = {} if levels is None else levels
     arrays, cat_idx = [], []
@@ -267,19 +272,20 @@ def train_predict(
     residual: bool = True,
     seeds: tuple[int, ...] = (1,),
 ) -> np.ndarray:
-    """Egitir ve dogrulama kumesi icin tahmin dondurur.
+    """Train and return predictions for the validation slice.
 
-    `residual=True` hedefi ATXOT P10 referansi uzerinden artik olarak ogrenir; 2025'te
-    en buyuk tekil kazanc bu turden bir yeniden parametrelendirmeydi (P05).
+    `residual=True` learns the target as a residual over the ATXOT P10 reference. That
+    kind of re-parameterisation was last year's single largest gain, which is why it is
+    measured here; on this data it made no difference.
 
-    `seeds` birden fazlaysa ayni veri ve hiperparametrelerle farkli tohumlarla egitilen
-    modellerin ortalamasi alinir — 2024 birincisinin yontemi buydu.
+    With more than one seed, models trained on the same data and hyperparameters with
+    different seeds are averaged, which is what the 2024 winner did.
     """
     x_fit, cat_idx, levels = to_matrix(split.fit, cols)
     x_val, _, _ = to_matrix(split.val, cols, levels)
 
-    ref_fit = split.fit["referans_sn"].fill_null(strategy="mean").to_numpy()
-    ref_val = split.val["referans_sn"].fill_null(strategy="mean").to_numpy()
+    ref_fit = split.fit["reference_sec"].fill_null(strategy="mean").to_numpy()
+    ref_val = split.val["reference_sec"].fill_null(strategy="mean").to_numpy()
     y = split.fit[TARGET].to_numpy().astype(np.float64)
     if residual:
         y = y - ref_fit
@@ -296,22 +302,22 @@ def train_predict(
     pred = np.mean(preds, axis=0)
     if residual:
         pred = pred + ref_val
-    return np.clip(pred, 0.0, None)  # negatif taxi suresi fiziksel olarak imkansiz
+    return np.clip(pred, 0.0, None)  # a negative taxi time is physically impossible
 
 
-# --------------------------------------------------------------------------- degerlendirme
+# --------------------------------------------------------------------------- evaluation
 
 
 def evaluate(split: Split, pred: np.ndarray) -> dict[str, float]:
-    """Toplam, Ocak, Temmuz ve havalimani bazinda RMSE."""
+    """RMSE overall, per holdout month, and per airport."""
     truth = split.val[TARGET].to_numpy()
     scored = split.val.with_columns(_p=pl.Series(pred))
-    out = {"toplam": rmse(pred, truth)}
+    out = {"total": rmse(pred, truth)}
     for m in HOLDOUT_MONTHS:
         sub = scored.filter(month() == m)
         if sub.height:
-            out[f"ay_{m}"] = rmse(sub["_p"].to_numpy(), sub[TARGET].to_numpy())
-            out[f"ay_{m}_n"] = float(sub.height)
+            out[f"month_{m}"] = rmse(sub["_p"].to_numpy(), sub[TARGET].to_numpy())
+            out[f"month_{m}_n"] = float(sub.height)
     per_apt = (
         scored.group_by(APT)
         .agg(r=((pl.col("_p") - pl.col(TARGET)) ** 2).mean().sqrt())
@@ -323,7 +329,7 @@ def evaluate(split: Split, pred: np.ndarray) -> dict[str, float]:
 
 
 def group_report(columns: list[str]) -> str:
-    """Aile basina kac oznitelik var — ablation tablosunun yanina yazilir."""
+    """How many features each family holds; printed beside the ablation table."""
     assigned = groups.assign(columns)
     lines = [f"  {name:<22} {len(cols):>3}" for name, cols in assigned.items() if cols]
     return "\n".join(lines)

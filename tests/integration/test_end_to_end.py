@@ -1,4 +1,4 @@
-"""Uctan uca: sentetik veriden gecerli bir gonderim dosyasina.
+"""Uctan uca: sentetik veriden valid bir gonderim dosyasina.
 
 Bu test tek tek modullerin dogrulugunu degil, **zincirin kopmadigini** kontrol eder.
 Birim testleri her parcayi ayri dogruluyor; buradaki risk baska: bir kolon adi degisir,
@@ -28,7 +28,7 @@ REPO = Path(__file__).resolve().parents[2]
 
 @pytest.fixture(scope="module")
 def raw_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Kucuk bir sentetik veri seti uretir (12 ay egitim + siralama + sablon)."""
+    """Kucuk bir sentetik veri seti uretir (12 month_num egitim + siralama + sablon)."""
     out = tmp_path_factory.mktemp("veri") / "00_raw"
     subprocess.run(  # noqa: S603
         [sys.executable, str(REPO / "tests" / "make_fixture.py"),
@@ -79,13 +79,13 @@ def test_holdout_mirrors_the_ranking_set_shape(raw_dir: Path) -> None:
     inputs = pipeline.load_inputs(raw_dir)
     split = pipeline.seasonal_split(pipeline.build_features(inputs), inputs.movements)
 
-    ay = pl.col("MVT_TIME_UTC_mvt").dt.month()
-    assert set(split.val.select(ay.unique()).to_series().to_list()) == {1, 7}
+    month_num = pl.col("MVT_TIME_UTC_mvt").dt.month()
+    assert set(split.val.select(month_num.unique()).to_series().to_list()) == {1, 7}
 
     temmuz_apt = set(
-        split.val.filter(ay == 7)[pipeline.APT].unique().to_list()
+        split.val.filter(month_num == 7)[pipeline.APT].unique().to_list()
     )
-    ocak_apt = set(split.val.filter(ay == 1)[pipeline.APT].unique().to_list())
+    ocak_apt = set(split.val.filter(month_num == 1)[pipeline.APT].unique().to_list())
     assert temmuz_apt <= set(pipeline.JULY_AIRPORTS), f"Temmuz'da fazladan havalimani: {temmuz_apt}"
     assert len(ocak_apt) > len(temmuz_apt), "Ocak daha genis olmali"
 
@@ -94,7 +94,7 @@ def test_holdout_mirrors_the_ranking_set_shape(raw_dir: Path) -> None:
     assert ortak == set(), "ayni hareket hem egitimde hem dogrulamada olamaz"
 
     # Temmuz'un dogrulamada olmayan havalimanlari egitimde kalmali
-    egitim_temmuz = set(split.fit.filter(ay == 7)[pipeline.APT].unique().to_list())
+    egitim_temmuz = set(split.fit.filter(month_num == 7)[pipeline.APT].unique().to_list())
     assert egitim_temmuz, "Temmuz'un diger havalimanlari egitimde olmali"
     assert not (egitim_temmuz & temmuz_apt)
 
@@ -105,9 +105,9 @@ def test_reference_is_fitted_without_the_validation_months(raw_dir: Path) -> Non
     Gorseydi OOF sayilari yalanci sekilde iyilesir ve board'da geri alinamazdi.
     """
     inputs = pipeline.load_inputs(raw_dir)
-    ay = pl.col("MVT_TIME_UTC_mvt").dt.month()
-    sadece_ocak_temmuz = inputs.movements.filter(ay.is_in(pipeline.HOLDOUT_MONTHS))
-    kalan = inputs.movements.filter(~ay.is_in(pipeline.HOLDOUT_MONTHS))
+    month_num = pl.col("MVT_TIME_UTC_mvt").dt.month()
+    sadece_ocak_temmuz = inputs.movements.filter(month_num.is_in(pipeline.HOLDOUT_MONTHS))
+    kalan = inputs.movements.filter(~month_num.is_in(pipeline.HOLDOUT_MONTHS))
 
     t_kalan = reference.fit_reference(kalan)["apt"]
     t_hepsi = reference.fit_reference(inputs.movements)["apt"]
@@ -131,7 +131,7 @@ def test_full_run_produces_a_valid_submission(raw_dir: Path, tmp_path: Path) -> 
     pred = pipeline.train_predict(split, cols, rounds=30)
 
     assert np.isfinite(pred).all(), "tahminlerde NaN/sonsuz olmamali"
-    assert (pred >= 0).all(), "negatif taxi suresi fiziksel olarak imkansiz"
+    assert (pred >= 0).all(), "negative_share taxi suresi fiziksel olarak imkansiz"
 
     template = pl.read_parquet(raw_dir / "submitting.parquet")
     pred_df = rank.select("MVT_ID_mvt").with_columns(
@@ -154,8 +154,8 @@ def test_causal_run_also_completes(raw_dir: Path) -> None:
     split = pipeline.seasonal_split(feats, inputs.movements)
     pred = pipeline.train_predict(split, split.columns, rounds=30)
     scores = pipeline.evaluate(split, pred)
-    assert scores["toplam"] > 0
-    assert not [c for c in split.columns if "sonraki" in c]
+    assert scores["total"] > 0
+    assert not [c for c in split.columns if "_next_" in c]
 
 
 def test_submission_script_drops_no_features(raw_dir: Path, tmp_path: Path) -> None:

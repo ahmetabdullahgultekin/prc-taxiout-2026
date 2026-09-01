@@ -1,4 +1,4 @@
-"""Siralama seti icin tahmin uretir ve gecerli bir gonderim dosyasi yazar.
+"""Siralama seti icin tahmin uretir ve valid bir gonderim dosyasi yazar.
 
 Onemli tasarim noktasi: **tikaniklik oznitelikleri her veri setinin kendi hareket
 akisindan uretilir.** Siralama seti Ocak + Temmuz 2026'nin tum hareketlerini icerir
@@ -58,7 +58,7 @@ def main() -> None:
     print(f"egitim hareketi: {inputs.movements.height:,}")
     fit_feats = pipeline.build_features(inputs).filter(pl.col(TARGET).is_not_null())
 
-    # referans TUM 2025'ten: siralama seti icin tutulacak bir ay yok
+    # referans TUM 2025'ten: siralama seti icin tutulacak bir month_num yok
     tables = reference.fit_reference(inputs.movements)
     fit = reference.apply_reference(fit_feats, tables)
 
@@ -121,7 +121,7 @@ def main() -> None:
     out_path = out_dir / f"{args.team}_v{version}.parquet"
     uyarilar = submission.write(pred_df, template, out_path)
 
-    print(f"\ntahmin ozeti: ort={np.mean(pred):,.0f} sn  medyan={np.median(pred):,.0f}  "
+    print(f"\ntahmin ozeti: mean={np.mean(pred):,.0f} sn  medyan={np.median(pred):,.0f}  "
           f"p99={np.percentile(pred, 99):,.0f}  min={np.min(pred):,.0f}")
     for u in uyarilar:
         print(f"  uyari: {u}")

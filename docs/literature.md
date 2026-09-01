@@ -53,7 +53,7 @@ regresyon öneriyor**. Bulguları:
   gerektiriyor ve genel performans analizine yetiyor.
 - Önerilen model mevcutları geçiyor çünkü **daha fazla açıklayıcı değişken** ekliyor:
   özellikle **uçakların birbirini geçmesi (passing/over-passing)** kuyruk uzunluğu
-  hesabına katılıyor, ayrıca **pist konfigürasyonu, ground delay programı ve hava
+  hesabına katılıyor, ayrıca **pist konfigürasyonu, ground delay programı ve weather
   durumu** modele giriyor.
 - Ana sonuç: **"taxiway sistemindeki kuyruk uzunluğu ve kuyruklar arası etkileşim uzun
   taxi-out sürelerinin başlıca katkı sağlayıcılarıdır."**
@@ -120,7 +120,7 @@ Using Machine Learning Techniques", AIAA ATIO. 53 atıf.**
 ([doi](https://doi.org/10.2514/6.2016-3910))
 
 Seçilen değişkenler: **terminal concourse, spot, pist, departure fix ve ağırlık sınıfı**;
-ayrıca farklı trafik akışı ve hava koşulları. Doğrusal regresyon ve rastgele orman en
+ayrıca farklı trafik akışı ve weather koşulları. Doğrusal regresyon ve rastgele orman en
 iyi RMSE'yi veriyor.
 
 > **Yeni öznitelik fikri buradan çıktı: departure fix.** Aynı çıkış noktasına/yönüne
@@ -139,10 +139,10 @@ benimseyip makalede atıfla kullanacağız:
 
 | Aile | Açılım | Bizdeki karşılığı |
 |------|--------|-------------------|
-| SIFI | surface **instantaneous** flow indices | `apt_kalkis_onceki_5dk`, `apt_inis_onceki_5dk` |
+| SIFI | surface **instantaneous** flow indices | `apt_dep_prev_5m`, `apt_arr_prev_5m` |
 | SCFI | surface **cumulative** flow indices | 30/60 dk pencereleri |
-| AQLI | aircraft **queue length** indices | `pist_kalkis_onceki_*`, `pist_servis_araligi_sn` |
-| SRDI | **slot resource demand** indices | `plan_sapmasi_sn`, ATFM sürüklenmesi (LOBT−IOBT) |
+| AQLI | aircraft **queue length** indices | `pist_kalkis_onceki_*`, `rwy_service_interval_sec` |
+| SRDI | **slot resource demand** indices | `sched_offset_sec`, ATFM sürüklenmesi (LOBT−IOBT) |
 
 Bir aylık örnekle eğitilen rastgele orman, bir günlükle eğitilenleri belirgin biçimde
 geçiyor — örnek boyutu kritik. Bizde bir yıl var.

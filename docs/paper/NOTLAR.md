@@ -45,7 +45,7 @@ Hakemlik **açık**: hakem ve yazar kimlikleri paylaşılıyor, değerlendirmele
 3. **Results** — `run_ablation.py` çıktısı zaten markdown tablo; LaTeX'e çevrilecek.
 4. **Related Work** — `docs/literature.md`'den; **tam metni okunmamış alıntılar
    temizlenecek** (o dosyanın son bölümünde listeli).
-5. **Discussion** — negatif sonuçlar burada, açıkça. 2025'te bir takım tam bunu yaptığı
+5. **Discussion** — negative_share sonuçlar burada, açıkça. 2025'te bir takım tam bunu yaptığı
    için övüldü.
 6. **Introduction** ve **Abstract** — en son.
 

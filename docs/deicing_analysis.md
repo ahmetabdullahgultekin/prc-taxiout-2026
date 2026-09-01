@@ -7,14 +7,14 @@ yayimladigi Taxi-Out Additional Time gostergesi. Kapsam: 180 havalimani-ay.
 ## Neden bu karsilastirma anlamli
 
 PRC resmi gostergesinde **AOBT sonrasi de-icing yapan ucuslari hesaptan atiyor**
-(ATXOT s.13, adim 1). Dolayisiyla gostergenin "gecerli referansi olmayan ucus orani"
+(ATXOT s.13, adim 1). Dolayisiyla gostergenin "valid referansi olmayan flights orani"
 alani, kis aylarinda buyuk olcude de-icing'i tasir. Bu, METAR'dan turettigimiz
-`deicing_vekili` alani icin **bagimsiz** bir olcumdur.
+`deicing_proxy` alani icin **bagimsiz** bir olcumdur.
 
 ## Sonuc: vekil calisiyor
 
 Tum veri uzerinde korelasyon **r = 0.757** (de-icing vekili ↔ referanssiz
-ucus orani). Havalimani icinde, aylar arasinda:
+flights orani). Havalimani icinde, aylar arasinda:
 
 | apt | ay_sayisi | r_referanssiz | r_ek_sure | ort_deicing | ort_referanssiz |
 |---|---|---|---|---|---|
@@ -50,7 +50,7 @@ De-icing vekili ile **ek taxi-out suresi** arasindaki korelasyon genelde
 | EGLL | -0.109 | 6.03 | 6.80 | -0.77 |
 | EHAM | 0.982 | 4.40 | 2.94 | 1.46 |
 
-**EHAM tek basina ayri duruyor.** Amsterdam'da referanssiz ucus orani yil boyunca
+**EHAM tek basina ayri duruyor.** Amsterdam'da referanssiz flights orani yil boyunca
 sabit (~%1) kaliyor ama ek taxi-out suresi kisin belirgin sekilde artiyor. EDDM ve
 LSZH'de ise tam tersi: kisin ucuslarin buyuk bolumu gostergeden **dusuyor**
 (Munih'te Ocak 2026'da %31), ek sure ise artmiyor.
@@ -64,7 +64,7 @@ Yorum: kis gecikmesinin **ne kadarinin taxi-out'un icine dustugu** havalimanina 
 degisiyor. Amsterdam'da icine dusuyor ve hedefi buyutuyor; Munih ve Zurih'te etkilenen
 ucuslar isaretlenip resmi hesaptan cikariliyor.
 
-Bu, kesin bir nedensellik iddiasi degil: elimizde de-icing kayitlari yok, yalnizca hava
+Bu, kesin bir nedensellik iddiasi degil: elimizde de-icing kayitlari yok, yalnizca weather
 kosulu vekili ile resmi gostergenin iki alani var. Ancak iki bagimsiz kaynagin ayni
 mevsimsel yapiyi gostermesi ve havalimanlarinin iki farkli desene ayrilmasi, yarisma
 verisi geldiginde **ilk sinanacak hipotezi** belirlemek icin yeterli.
@@ -73,12 +73,12 @@ verisi geldiginde **ilk sinanacak hipotezi** belirlemek icin yeterli.
 
 Biz **ham taxi-out'u** tahmin ediyoruz ve hicbir satiri atamayiz. Yani:
 
-- EHAM'da hava etkisi dogrudan hedefte gorunur ve ogrenilebilir.
+- EHAM'da weather etkisi dogrudan hedefte gorunur ve ogrenilebilir.
 - EDDM ve LSZH'de, resmi gostergenin **attigi** ucuslar bizim veri setimizde duruyor ve
   uc degerler olarak Ocak hatamizi domine edecek. Yayimlanmis hicbir taxi-out modeli bu
   ucuslari tahmin etmek zorunda kalmadi, cunku standart metodoloji onlari eliyor.
-- Hava etkisi **havalimanina gore degisiyor**; global bir hava katsayisi yerine
-  havalimani x hava etkilesimi (ya da havalimani bazli model) gerekiyor.
+- Hava etkisi **havalimanina gore degisiyor**; global bir weather katsayisi yerine
+  havalimani x weather etkilesimi (ya da havalimani bazli model) gerekiyor.
 
 ## Kapsam disi
 

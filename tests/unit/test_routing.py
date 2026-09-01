@@ -19,8 +19,8 @@ from taxiout.features import routing
 COORDS = pl.DataFrame(
     {
         "icao": ["EDDF", "EGLL", "LTFM", "LTAI", "EHAM"],
-        "enlem": [50.026706, 51.470748, 41.274874, 36.898701, 52.308601],
-        "boylam": [8.55835, -0.459909, 28.732136, 30.800501, 4.76389],
+        "latitude": [50.026706, 51.470748, 41.274874, 36.898701, 52.308601],
+        "longitude": [8.55835, -0.459909, 28.732136, 30.800501, 4.76389],
     }
 )
 
@@ -61,17 +61,17 @@ def test_bearing_and_distance_match_reference_implementation(origin: str, dest: 
     out = routing.attach_bearing(_dep([(origin, dest)]), COORDS)
     row = COORDS.filter(pl.col("icao") == origin).row(0, named=True)
     row2 = COORDS.filter(pl.col("icao") == dest).row(0, named=True)
-    expected_b = _ref_bearing(row["enlem"], row["boylam"], row2["enlem"], row2["boylam"])
-    expected_d = _ref_distance_km(row["enlem"], row["boylam"], row2["enlem"], row2["boylam"])
-    assert out["kalkis_kerterizi"][0] == pytest.approx(expected_b, abs=0.01)
-    assert out["ucus_mesafesi_km"][0] == pytest.approx(expected_d, rel=1e-4)
+    expected_b = _ref_bearing(row["latitude"], row["longitude"], row2["latitude"], row2["longitude"])
+    expected_d = _ref_distance_km(row["latitude"], row["longitude"], row2["latitude"], row2["longitude"])
+    assert out["departure_bearing"][0] == pytest.approx(expected_b, abs=0.01)
+    assert out["flight_distance_km"][0] == pytest.approx(expected_d, rel=1e-4)
 
 
 def test_bearing_directions_are_physically_sensible() -> None:
     """Yon duygusu kontrolu: formul dogru ama eksen ters olsaydi bu test yakalardi."""
     out = routing.attach_bearing(_dep([("EDDF", "EGLL"), ("LTFM", "LTAI")]), COORDS)
-    frankfurt_to_london = out["kalkis_kerterizi"][0]
-    istanbul_to_antalya = out["kalkis_kerterizi"][1]
+    frankfurt_to_london = out["departure_bearing"][0]
+    istanbul_to_antalya = out["departure_bearing"][1]
     assert 260 < frankfurt_to_london < 310, "Londra Frankfurt'un batisinda"
     assert 130 < istanbul_to_antalya < 200, "Antalya Istanbul'un guneyinde"
 
@@ -80,7 +80,7 @@ def test_sector_is_in_range() -> None:
     out = routing.attach_bearing(
         _dep([("EDDF", "EGLL"), ("LTFM", "LTAI"), ("EHAM", "LTFM"), ("LTAI", "EDDF")]), COORDS
     )
-    sectors = out["kalkis_sektoru"].to_list()
+    sectors = out["departure_sector"].to_list()
     assert all(0 <= s < routing.SECTORS for s in sectors)
 
 
@@ -88,7 +88,7 @@ def test_unknown_destination_yields_null_not_crash() -> None:
     """Varis havalimani referans tablosunda yoksa satir yine de uretilmeli."""
     out = routing.attach_bearing(_dep([("EDDF", "ZZZZ")]), COORDS)
     assert out.height == 1
-    assert out["kalkis_kerterizi"][0] is None
+    assert out["departure_bearing"][0] is None
 
 
 def test_sector_congestion_counts_only_same_direction() -> None:
@@ -105,10 +105,10 @@ def test_sector_congestion_counts_only_same_direction() -> None:
     )
     out = routing.attach_bearing(dep, COORDS)
     counts = routing.sector_congestion(out).sort("MVT_ID_mvt")
-    # son ucus (id=2) Londra yonunde; 15 dk geriye bakinca kendisi + id=0 = 2
-    assert counts.filter(pl.col("MVT_ID_mvt") == 2)["sektor_kalkis_onceki_15dk"][0] == 2
+    # son flights (id=2) Londra yonunde; 15 dk geriye bakinca kendisi + id=0 = 2
+    assert counts.filter(pl.col("MVT_ID_mvt") == 2)["sector_dep_prev_15m"][0] == 2
     # Antalya ucusu (id=1) tek basina kendi sektorunde
-    assert counts.filter(pl.col("MVT_ID_mvt") == 1)["sektor_kalkis_onceki_15dk"][0] == 1
+    assert counts.filter(pl.col("MVT_ID_mvt") == 1)["sector_dep_prev_15m"][0] == 1
 
 
 def test_stand_turnaround_measures_time_since_previous_arrival() -> None:
@@ -131,7 +131,7 @@ def test_stand_turnaround_measures_time_since_previous_arrival() -> None:
     )
     out = routing.stand_turnaround(mvt, dep)
     # en son varis 40. dakikada geldi, kalkis 50. dakikada -> 10 dk = 600 sn
-    assert out["stand_donus_sn"][0] == pytest.approx(600.0)
+    assert out["stand_turnaround_sec"][0] == pytest.approx(600.0)
 
 
 def test_atfm_drift_is_signed_difference() -> None:
@@ -145,5 +145,5 @@ def test_atfm_drift_is_signed_difference() -> None:
         }
     )
     out = routing.atfm_pressure(dep)
-    assert out["atfm_suruklenme_sn"][0] == pytest.approx(720.0)  # 12 dk geri itilmis
-    assert out["lobt_cipa_farki_sn"][0] == pytest.approx(480.0)
+    assert out["atfm_drift_sec"][0] == pytest.approx(720.0)  # 12 dk geri itilmis
+    assert out["lobt_anchor_gap_sec"][0] == pytest.approx(480.0)

@@ -1,14 +1,13 @@
-"""Gonderim dosyasi uretimi ve dogrulamasi.
+"""Building and validating the submission file.
 
-Yarismanin dogrulama kurallari (F07, F08 - dc2026/ranking.html):
+The competition's validation rules (dc2026/ranking.html):
 
-- dosya adi ``<takim-adi>_v<artan tamsayi>.parquet``
-- ``submitting.parquet`` sablonundaki **tum** `MVT_ID_mvt` degerleri eslesmeli
-- eksik satir olamaz, fazla satir olamaz
+- the filename must be ``<team-name>_v<increasing integer>.parquet``
+- **every** `MVT_ID_mvt` in the ``submitting.parquet`` template must be matched
+- no missing rows, no extra rows
 
-Bu kontroller burada, gonderimden **once** yapilir. Hatali bir dosya yuklemek
-bir gonderim turunu ve saatlerce bekleme suresini bosa harcar; kontrol maliyeti
-sifira yakin.
+These checks run here, **before** upload. A malformed file costs a submission round and
+the wait that goes with it, while checking costs nothing.
 """
 
 from __future__ import annotations
@@ -23,79 +22,83 @@ TARGET = "TAXITIME_SEC_mvt"
 
 FILENAME_RE = re.compile(r"^[a-z0-9-]+_v\d+\.parquet$")
 
-# ATXOT'un resmi ust filtresi (s.13). Asan tahminler yasak degil ama neredeyse
-# kesinlikle bir hatanin isaretidir; sessizce gecmesin.
+# ATXOT's official upper filter. Predictions above it are not forbidden, but they are
+# almost certainly a mistake, so they should not pass unremarked.
 SANITY_MAX_SEC = 120 * 60
 
 
 class SubmissionError(ValueError):
-    """Gonderim gecerlilik kurallarindan biri saglanmadi."""
+    """One of the submission validity rules was not met."""
 
 
 def validate(pred: pl.DataFrame, template: pl.DataFrame) -> list[str]:
-    """Sert kurallari uygular; ihlalde hata firlatir. Uyarilari liste olarak dondurur."""
-    for name, frame in (("tahmin", pred), ("sablon", template)):
-        missing = {MVT_ID, TARGET} - set(frame.columns)
-        if name == "tahmin" and missing:
-            raise SubmissionError(f"{name} tablosunda eksik kolon: {sorted(missing)}")
+    """Enforce the hard rules, raising on violation. Returns warnings as a list."""
+    missing = {MVT_ID, TARGET} - set(pred.columns)
+    if missing:
+        raise SubmissionError(f"prediction table is missing columns: {sorted(missing)}")
 
     if pred.height != template.height:
         raise SubmissionError(
-            f"satir sayisi uyusmuyor: tahmin {pred.height:,}, sablon {template.height:,}"
+            f"row count mismatch: prediction {pred.height:,}, template {template.height:,}"
         )
 
     dup = pred.height - pred[MVT_ID].n_unique()
     if dup:
-        raise SubmissionError(f"{dup:,} tekrarli {MVT_ID} var")
+        raise SubmissionError(f"{dup:,} duplicate {MVT_ID} values")
 
     pred_ids = set(pred[MVT_ID].to_list())
     tmpl_ids = set(template[MVT_ID].to_list())
-    if eksik := tmpl_ids - pred_ids:
-        raise SubmissionError(f"{len(eksik):,} sablon satiri tahminde yok, orn: {list(eksik)[:5]}")
-    if fazla := pred_ids - tmpl_ids:
-        raise SubmissionError(f"{len(fazla):,} fazla satir var, orn: {list(fazla)[:5]}")
+    if absent := tmpl_ids - pred_ids:
+        raise SubmissionError(
+            f"{len(absent):,} template rows are not in the prediction, e.g. {list(absent)[:5]}"
+        )
+    if extra := pred_ids - tmpl_ids:
+        raise SubmissionError(f"{len(extra):,} extra rows, e.g. {list(extra)[:5]}")
 
     target = pred[TARGET]
     if n := target.is_null().sum():
-        raise SubmissionError(f"{n:,} bos tahmin var")
+        raise SubmissionError(f"{n:,} null predictions")
     if n := target.is_nan().sum():
-        raise SubmissionError(f"{n:,} NaN tahmin var")
+        raise SubmissionError(f"{n:,} NaN predictions")
     if n := target.is_infinite().sum():
-        raise SubmissionError(f"{n:,} sonsuz tahmin var")
+        raise SubmissionError(f"{n:,} infinite predictions")
     if n := (target < 0).sum():
-        raise SubmissionError(f"{n:,} negatif tahmin var - taxi suresi negatif olamaz")
+        raise SubmissionError(f"{n:,} negative predictions; a taxi time cannot be negative")
 
-    uyarilar: list[str] = []
+    warnings: list[str] = []
     if n := (target > SANITY_MAX_SEC).sum():
-        uyarilar.append(f"{n:,} tahmin 120 dakikayi asiyor (ATXOT ust filtresi)")
+        warnings.append(f"{n:,} predictions exceed 120 minutes (ATXOT upper filter)")
     if n := (target < 60).sum():
-        uyarilar.append(f"{n:,} tahmin 60 saniyenin altinda - fiziksel olarak supheli")
-    ort = target.mean()
-    if ort is not None and not 300 <= ort <= 1800:
-        uyarilar.append(f"ortalama tahmin {ort:,.0f} sn - beklenen 5-30 dk araliginin disinda")
-    return uyarilar
+        warnings.append(f"{n:,} predictions below 60 seconds, physically doubtful")
+    mean = target.mean()
+    if mean is not None and not 300 <= mean <= 1800:
+        warnings.append(
+            f"mean prediction {mean:,.0f} s, outside the expected 5 to 30 minute range"
+        )
+    return warnings
 
 
 def write(pred: pl.DataFrame, template: pl.DataFrame, out_path: Path) -> list[str]:
-    """Dogrular, sablon satir sirasini korur ve parquet yazar."""
+    """Validate, preserve the template row order, and write the parquet file."""
     if not FILENAME_RE.match(out_path.name):
         raise SubmissionError(
-            f"dosya adi kurala uymuyor: {out_path.name} "
-            "(beklenen '<takim-adi>_v<N>.parquet', orn 'keen-hamburger_v1.parquet')"
+            f"filename does not follow the convention: {out_path.name} "
+            "(expected '<team-name>_v<N>.parquet', e.g. 'keen-hamburger_v1.parquet')"
         )
-    uyarilar = validate(pred, template)
+    warnings = validate(pred, template)
     ordered = template.select(MVT_ID).join(
         pred.select(MVT_ID, TARGET), on=MVT_ID, how="left"
     )
-    if ordered[TARGET].is_null().any():  # validate'ten sonra olmamali; sessiz bozulmaya karsi
-        raise SubmissionError("birlestirmeden sonra bos deger olustu")
+    # Should be impossible after validate; guards against a silent corruption.
+    if ordered[TARGET].is_null().any():
+        raise SubmissionError("nulls appeared after the join")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     ordered.write_parquet(out_path)
-    return uyarilar
+    return warnings
 
 
 def next_version(directory: Path, team: str) -> int:
-    """Dizindeki en yuksek surumun bir fazlasi. Gonderimler artan tamsayi olmali (F07)."""
+    """One past the highest version present. Submissions must use increasing integers."""
     pattern = re.compile(rf"^{re.escape(team)}_v(\d+)\.parquet$")
     versions = [
         int(m.group(1))

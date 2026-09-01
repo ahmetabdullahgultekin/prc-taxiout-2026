@@ -1,11 +1,11 @@
-"""METAR gozlemlerini hareket kayitlarina baglar.
+"""Attaches METAR observations to movement records.
 
-Birlestirme **asof/backward**: her kalkis, kalkis anindan onceki en son gecerli
-gozlemi alir. Ileriye bakmak burada anlamsiz olurdu; hava durumu kalkis anindaki
-kosulu tarif eder.
+The join is **as-of, backward**: each departure takes the most recent valid observation
+before its anchor instant. Looking forward would make no sense here; the weather feature
+describes the conditions the aircraft actually faced.
 
-`gozlem_yasi_dk` bilerek disari verilir: yarim saatlik yayin arasinda kosullar
-degisebilir, model gozlemin ne kadar bayat oldugunu bilmelidir.
+`observation_age_min` is exposed deliberately. Reports are half-hourly, conditions can
+change between them, and the model should know how stale the observation is.
 """
 
 from __future__ import annotations
@@ -13,47 +13,47 @@ from __future__ import annotations
 import polars as pl
 
 MVT = "MVT_TIME_UTC_mvt"
-# Hareketin gerceklestigi havalimani; `pipeline.prepare_movements` ekler.
-# `ADEP_mvt` DEGIL: o, ucusun kalkis havalimani (varislarda gelinen yer).
+# The airport the movement happened at; added by `pipeline.prepare_movements`.
+# NOT `ADEP_mvt`, which on an arrival row names where the aircraft came from.
 APT = "apt_mvt"
 
 WEATHER_COLS = [
-    "sicaklik_c", "cig_noktasi_c", "gorus_km", "ruzgar_ms", "yagis_mm", "tavan_m",
-    "donma_yagisi", "kar", "sis", "gok_gurultusu", "deicing_vekili", "dusuk_gorus",
+    "temperature_c", "dewpoint_c", "visibility_km", "wind_ms", "precip_mm", "ceiling_m",
+    "freezing_precip", "snow", "fog", "thunderstorm", "deicing_proxy", "low_visibility",
 ]
 
 
 def attach(dep: pl.DataFrame, metar: pl.DataFrame, anchor: str = MVT) -> pl.DataFrame:
-    """`dep` satirlarina en son METAR gozlemini ekler.
+    """Add the latest METAR observation to each departure row.
 
-    Nedensel modda `anchor` blok cozulme anidir: kalkis anindaki havayi bilmek
-    gercek zamanli bir modelin elinde olmazdi.
+    In causal mode `anchor` is the off-block instant: knowing the weather at take-off
+    is not something a real-time model would have.
     """
-    # Yarisma verisinin zaman damgalari UTC-farkindalikli (datetime[us, UTC]);
-    # IEM arsivi naif UTC donuyor. Birlestirme oncesi hizalanmazsa polars
-    # dogrudan hata veriyor. Ayni anin iki gosterimi, kayma yok.
+    # Challenge timestamps are timezone-aware (datetime[us, UTC]) while the IEM archive
+    # returns naive UTC. Polars refuses the join outright unless they are aligned. Same
+    # instant, two representations, no shift.
     tz = dep.schema[anchor].time_zone
-    gozlem = pl.col("valid")
+    observed_at = pl.col("valid")
     if tz is not None:
-        gozlem = gozlem.dt.replace_time_zone(tz)
+        observed_at = observed_at.dt.replace_time_zone(tz)
     obs = (
-        metar.select("station", _gozlem_ani=gozlem, **{c: pl.col(c) for c in WEATHER_COLS})
-        .sort("_gozlem_ani")
+        metar.select("station", _observed_at=observed_at, **{c: pl.col(c) for c in WEATHER_COLS})
+        .sort("_observed_at")
     )
     joined = (
         dep.sort(anchor)
         .join_asof(
             obs,
             left_on=anchor,
-            right_on="_gozlem_ani",
+            right_on="_observed_at",
             by_left=APT,
             by_right="station",
             strategy="backward",
         )
     )
     return joined.with_columns(
-        gozlem_yasi_dk=((pl.col(anchor) - pl.col("_gozlem_ani")).dt.total_seconds() / 60.0)
+        observation_age_min=((pl.col(anchor) - pl.col("_observed_at")).dt.total_seconds() / 60.0)
         .cast(pl.Float32),
-        # cig noktasi farki: sifira yaklastikca sis/kirlanma riski artar
-        cig_farki_c=(pl.col("sicaklik_c") - pl.col("cig_noktasi_c")).cast(pl.Float32),
-    ).drop("_gozlem_ani", "station", strict=False)
+        # Dewpoint spread: the closer to zero, the higher the risk of fog and of icing.
+        dewpoint_spread_c=(pl.col("temperature_c") - pl.col("dewpoint_c")).cast(pl.Float32),
+    ).drop("_observed_at", "station", strict=False)

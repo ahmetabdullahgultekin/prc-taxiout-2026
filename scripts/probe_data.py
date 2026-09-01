@@ -5,7 +5,7 @@ Veri iner inmez calistir. Cevapladigi sorular (bkz. docs/facts.md):
   Q02 / D06  AOBT_3_flt ranking setinde duruyor mu, duruyorsa ne kadar iyi bir tahmin?
   D13        MVT_TIME - BLOCK_TIME == TAXITIME kimligi 2025'te tutuyor mu?
   M14        Zaman damgalari saniye hassasiyetinde mi, yoksa HH:MM mi?
-  D10        NM ucus eslesme orani ne?
+  D10        NM flights eslesme orani ne?
   --         Soguk baslangic: siralama setindeki (stand, pist) kombolari egitimde var mi?
   --         Onemsiz temel modellerin RMSE tabani ne?
   --         Kalkis gecikmesi ne kadar genis dagiliyor (indirgenemez belirsizlik)?
@@ -173,8 +173,8 @@ def check_precision(train: pl.LazyFrame) -> None:
         dep.group_by("ADEP_mvt")
         .agg(
             n=pl.len(),
-            mvt_saniye_sifir=(pl.col("MVT_TIME_UTC_mvt").dt.second() == 0).mean(),
-            blok_saniye_sifir=(pl.col("BLOCK_TIME_UTC_mvt").dt.second() == 0).mean(),
+            mvt_second_is_zero=(pl.col("MVT_TIME_UTC_mvt").dt.second() == 0).mean(),
+            block_second_is_zero=(pl.col("BLOCK_TIME_UTC_mvt").dt.second() == 0).mean(),
         )
         .sort("ADEP_mvt")
         .collect()
@@ -191,9 +191,9 @@ def check_nm_match(train: pl.LazyFrame, rank: pl.LazyFrame) -> None:
         cols = lf.collect_schema().names()
         aggs = {"n": pl.len()}
         if "FLIGHT_ID_mvt" in cols:
-            aggs["flight_id_dolu"] = pl.col("FLIGHT_ID_mvt").is_not_null().mean()
+            aggs["flight_id_filled"] = pl.col("FLIGHT_ID_mvt").is_not_null().mean()
         if "AOBT_3_flt" in cols:
-            aggs["aobt3_dolu"] = pl.col("AOBT_3_flt").is_not_null().mean()
+            aggs["aobt3_filled"] = pl.col("AOBT_3_flt").is_not_null().mean()
         df = (
             lf.filter(pl.col("PHASE_mvt") == "DEP")
             .group_by("ADEP_mvt")
@@ -226,8 +226,8 @@ def check_aobt_strength(train: pl.LazyFrame) -> None:
         n=pl.len(),
         rmse=rmse(pl.col("naive"), pl.col("TAXITIME_SEC_mvt")),
         mae=err.abs().mean(),
-        yanlilik=err.mean(),
-        medyan_mutlak_hata=err.abs().median(),
+        bias=err.mean(),
+        median_abs_error=err.abs().median(),
     ).collect()
     table(overall)
     say()
@@ -236,7 +236,7 @@ def check_aobt_strength(train: pl.LazyFrame) -> None:
         .agg(
             n=pl.len(),
             rmse=rmse(pl.col("naive"), pl.col("TAXITIME_SEC_mvt")),
-            yanlilik=err.mean(),
+            bias=err.mean(),
         )
         .sort("rmse")
         .collect()
@@ -246,7 +246,7 @@ def check_aobt_strength(train: pl.LazyFrame) -> None:
     say("**Nasil okunur.** Bu RMSE dusukse (orn. <60 sn) yarisma buyuk olcude "
         "'NM blok saatini APDF blok saatiyle uzlastirma + eslesmeyen satirlari doldurma' "
         "problemidir ve tum mimari buna gore kurulur. Yuksekse (orn. >200 sn) AOBT_3 "
-        "yalnizca guclu bir ozelliktir, cozum degildir. Kapsama orani (n / toplam DEP) "
+        "yalnizca guclu bir ozelliktir, cozum degildir. Kapsama orani (n / total DEP) "
         "en az RMSE kadar onemli: kapsanmayan satirlar icin ayri bir model gerekir.")
 
 
@@ -258,32 +258,32 @@ def check_target(train: pl.LazyFrame) -> None:
         dep.group_by("ADEP_mvt")
         .agg(
             n=pl.len(),
-            ort=t.mean(),
+            mean=t.mean(),
             std=t.std(),
             p10=t.quantile(0.10),
             p50=t.median(),
             p99=t.quantile(0.99),
-            ust_120dk=(t > 7200).mean(),
-            negatif=(t < 0).mean(),
+            over_120min_share=(t > 7200).mean(),
+            negative_share=(t < 0).mean(),
         )
         .sort("ADEP_mvt")
         .collect()
     )
     table(df)
     say()
-    say("`ust_120dk` PRC'nin resmi filtresini asan orandir (M08); `negatif` veri hatasi "
+    say("`over_120min_share` PRC'nin resmi filtresini asan orandir (M08); `negative_share` veri hatasi "
         "isaretidir. Ikisi de RMSE'de agir cezalandirilan kuyruktur: kirpma degil, "
         "**modelleme** karari gerektirir.")
 
     aylik = (
-        dep.with_columns(ay=pl.col("MVT_TIME_UTC_mvt").dt.month())
-        .group_by("ay")
-        .agg(n=pl.len(), ort=t.mean(), std=t.std())
-        .sort("ay")
+        dep.with_columns(month_num=pl.col("MVT_TIME_UTC_mvt").dt.month())
+        .group_by("month_num")
+        .agg(n=pl.len(), mean=t.mean(), std=t.std())
+        .sort("month_num")
         .collect()
     )
     say()
-    say("**Aylik (Ocak ve Temmuz satirlarina dikkat: siralama seti o iki ay):**")
+    say("**Aylik (Ocak ve Temmuz satirlarina dikkat: siralama seti o iki month_num):**")
     say()
     table(aylik)
 
@@ -296,9 +296,9 @@ def check_baselines(train: pl.LazyFrame, rank: pl.LazyFrame) -> None:
 
     # Ocak + Temmuz tutulur, kalan 10 ayla egitilir:
     # siralama setinin mevsimsel kurgusunu taklit eder.
-    ay = pl.col("MVT_TIME_UTC_mvt").dt.month()
-    fit = dep.filter(~ay.is_in([1, 7]))
-    val = dep.filter(ay.is_in([1, 7]))
+    month_num = pl.col("MVT_TIME_UTC_mvt").dt.month()
+    fit = dep.filter(~month_num.is_in([1, 7]))
+    val = dep.filter(month_num.is_in([1, 7]))
 
     genel_ort = fit.select(pl.col("TAXITIME_SEC_mvt").mean()).collect().item()
     apt_ort = fit.group_by("ADEP_mvt").agg(pl.col("TAXITIME_SEC_mvt").mean().alias("apt_ort"))
@@ -317,16 +317,16 @@ def check_baselines(train: pl.LazyFrame, rank: pl.LazyFrame) -> None:
         )
     )
     out = scored.select(
-        n_dogrulama=pl.len(),
-        kombo_kapsam=pl.col("combo_ort").is_not_null().mean(),
-        rmse_genel_ort=rmse(pl.col("genel"), pl.col("TAXITIME_SEC_mvt")),
-        rmse_apt_ort=rmse(pl.col("apt_ort"), pl.col("TAXITIME_SEC_mvt")),
-        rmse_combo_ort=rmse(pl.col("combo_dolgulu"), pl.col("TAXITIME_SEC_mvt")),
+        n_validation=pl.len(),
+        combo_coverage=pl.col("combo_ort").is_not_null().mean(),
+        rmse_global_mean=rmse(pl.col("genel"), pl.col("TAXITIME_SEC_mvt")),
+        rmse_airport_mean=rmse(pl.col("apt_ort"), pl.col("TAXITIME_SEC_mvt")),
+        rmse_combo_mean=rmse(pl.col("combo_dolgulu"), pl.col("TAXITIME_SEC_mvt")),
     ).collect()
     table(out)
     say()
-    say("`rmse_combo_ort` ilk gercek gonderimimizin tahmini seviyesidir. Bunun uzerine "
-        "koyacagimiz her sey kuyruk / tikaniklik / hava bilesenidir.")
+    say("`rmse_combo_mean` ilk gercek gonderimimizin tahmini seviyesidir. Bunun uzerine "
+        "koyacagimiz her sey kuyruk / tikaniklik / weather bilesenidir.")
 
     rank_dep = rank.filter(pl.col("PHASE_mvt") == "DEP").select(
         "ADEP_mvt", "STAND_mvt", "RUNWAY_mvt"
@@ -335,9 +335,9 @@ def check_baselines(train: pl.LazyFrame, rank: pl.LazyFrame) -> None:
         rank_dep.join(combo, on=["ADEP_mvt", "STAND_mvt", "RUNWAY_mvt"], how="left")
         .select(
             n=pl.len(),
-            gorulmus_kombo=pl.col("combo_n").is_not_null().mean(),
-            stand_bos=pl.col("STAND_mvt").is_null().mean(),
-            pist_bos=pl.col("RUNWAY_mvt").is_null().mean(),
+            seen_combo_share=pl.col("combo_n").is_not_null().mean(),
+            stand_null_share=pl.col("STAND_mvt").is_null().mean(),
+            runway_null_share=pl.col("RUNWAY_mvt").is_null().mean(),
         )
         .collect()
     )
@@ -352,7 +352,7 @@ def check_schedule_handle(train: pl.LazyFrame) -> None:
     say("Kimlik: `MVT_TIME - SCHED_TIME = taxi_out + kalkis_gecikmesi`.")
     say("`SCHED_TIME_UTC_mvt` siralama setinde bosaltilmamis (D05), yani bu da mesru bir")
     say("ozniteliktir. Degeri tamamen **kalkis gecikmesinin ne kadar ongorulebilir**")
-    say("olduguna bagli: gecikme dar dagilirsa hedefi neredeyse verir, genis dagilirsa")
+    say("olduguna bagli: delay_sec dar dagilirsa hedefi neredeyse verir, genis dagilirsa")
     say("yalnizca bir ust sinir olur.")
     say()
     dep = train.filter(
@@ -361,21 +361,21 @@ def check_schedule_handle(train: pl.LazyFrame) -> None:
         & pl.col("SCHED_TIME_UTC_mvt").is_not_null()
         & pl.col("BLOCK_TIME_UTC_mvt").is_not_null()
     ).with_columns(
-        gecikme=secs("BLOCK_TIME_UTC_mvt", "SCHED_TIME_UTC_mvt"),
-        sched_naif=secs("MVT_TIME_UTC_mvt", "SCHED_TIME_UTC_mvt"),
+        delay_sec=secs("BLOCK_TIME_UTC_mvt", "SCHED_TIME_UTC_mvt"),
+        sched_naive=secs("MVT_TIME_UTC_mvt", "SCHED_TIME_UTC_mvt"),
     )
-    g = pl.col("gecikme")
+    g = pl.col("delay_sec")
     say("**Kalkis gecikmesi (gercek blok - planlanan blok), saniye:**")
     say()
     table(
         dep.select(
             n=pl.len(),
-            ort=g.mean(),
+            mean=g.mean(),
             std=g.std(),
             p10=g.quantile(0.10),
             p50=g.median(),
             p90=g.quantile(0.90),
-            erken_oran=(g < 0).mean(),
+            early_share=(g < 0).mean(),
         ).collect()
     )
     say()
@@ -383,8 +383,8 @@ def check_schedule_handle(train: pl.LazyFrame) -> None:
     say()
     table(
         dep.select(
-            rmse=rmse(pl.col("sched_naif"), pl.col("TAXITIME_SEC_mvt")),
-            yanlilik=(pl.col("sched_naif") - pl.col("TAXITIME_SEC_mvt")).mean(),
+            rmse=rmse(pl.col("sched_naive"), pl.col("TAXITIME_SEC_mvt")),
+            bias=(pl.col("sched_naive") - pl.col("TAXITIME_SEC_mvt")).mean(),
         ).collect()
     )
     say()

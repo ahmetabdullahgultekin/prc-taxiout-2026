@@ -72,7 +72,7 @@ def test_counts_in_window_matches_brute_force(minutes: int, forward: bool) -> No
 
 
 def test_forward_and_backward_are_not_identical() -> None:
-    """Yon karistirilirsa test sessizce gecmesin diye negatif kontrol."""
+    """Yon karistirilirsa test sessizce gecmesin diye negative_share kontrol."""
     df = _sample().filter(pl.col("PHASE_mvt") == "DEP")
     group = ["apt_mvt", "RUNWAY_mvt"]
     back = congestion._counts_in_window(df, df, group, 15, False, "n").sort("MVT_ID_mvt")["n"]
@@ -109,7 +109,7 @@ def test_taxi_in_pressure_is_available_without_departure_targets() -> None:
     )
     dep = congestion.runway_features(blanked)
     out = congestion.taxi_in_pressure(blanked, dep)
-    assert out["varis_taxi_medyan"].null_count() < out.height
+    assert out["arr_taxi_median_sec"].null_count() < out.height
 
 
 @pytest.mark.parametrize("forward", [False, True])
@@ -165,14 +165,14 @@ def test_causal_mode_emits_no_forward_looking_features() -> None:
     makaledeki karsilastirma anlamsizlasir. Bu yuzden kolon adlarindan denetlenir.
     """
     out = congestion.build(_sample_with_block(), causal=True)
-    forward = [c for c in out.columns if "sonraki" in c]
+    forward = [c for c in out.columns if "_next_" in c]
     assert forward == [], f"nedensel modda ileriye bakan kolonlar var: {forward}"
 
 
 def test_retrospective_mode_does_emit_forward_features() -> None:
     """Negatif kontrol: bayrak gercekten bir sey degistiriyor mu."""
     out = congestion.build(_sample_with_block(), causal=False)
-    assert [c for c in out.columns if "sonraki" in c]
+    assert [c for c in out.columns if "_next_" in c]
 
 
 def test_causal_counts_are_anchored_at_pushback_not_takeoff() -> None:
@@ -182,7 +182,7 @@ def test_causal_counts_are_anchored_at_pushback_not_takeoff() -> None:
     demektir ve test sessizce gecerdi.
     """
     mvt = _sample_with_block()
-    col = "pist_kalkis_onceki_30dk"
+    col = "rwy_dep_prev_30m"
     geri = congestion.build(mvt, causal=True).select("MVT_ID_mvt", col).sort("MVT_ID_mvt")
     ileri = congestion.build(mvt, causal=False).select("MVT_ID_mvt", col).sort("MVT_ID_mvt")
     assert geri[col].to_list() != ileri[col].to_list()
@@ -213,4 +213,4 @@ def test_causal_window_counts_only_takeoffs_before_pushback() -> None:
     out = congestion.build(mvt, causal=True).sort("MVT_ID_mvt")
     # id=2 icin: blok cozulme 12:20, geriye 30 dk -> (11:50, 12:20] araligindaki
     # kalkislar: 12:00 (id=0) ve 12:10 (id=1) = 2. Kendi kalkisi 12:40, sayilmamali.
-    assert out.filter(pl.col("MVT_ID_mvt") == 2)["pist_kalkis_onceki_30dk"][0] == 2
+    assert out.filter(pl.col("MVT_ID_mvt") == 2)["rwy_dep_prev_30m"][0] == 2

@@ -1,12 +1,12 @@
-"""METAR gozlemlerini Iowa State IEM ASOS arsivinden ceker.
+"""Fetches METAR observations from the Iowa State IEM ASOS archive.
 
-Kaynak ve lisans `docs/external_data.md` dosyasinda belgelenmistir (odul uygunlugu sarti).
-Arsiv Imperial birim dondurur; burada SI'ye cevrilir ve taxi-out icin anlamli
-turetilmis bayraklar hesaplanir.
+Source and licence are documented in `docs/external_data.md`, which the prize rules
+require. The archive returns imperial units; they are converted to SI here, and the
+flags that matter for taxi-out are derived alongside.
 
-Neden onemli: PRC'nin resmi gostergesi AOBT sonrasi de-icing yapan ucuslari
-hesaptan **atiyor** (ATXOT s.13). Bizim hedefimiz ham taxi-out oldugu icin o
-satirlari atamayiz; de-icing kosullarini modellemek zorundayiz.
+Why it matters: EUROCONTROL's own indicator **discards** flights that de-ice after
+off-block (ATXOT p.13). Our target is the raw taxi-out, so we cannot discard those
+rows and have to model the de-icing conditions instead.
 
     python -m taxiout.adapters.metar_iem --start 2025-01-01 --end 2026-08-01 \
         --out D:/prc-taxiout-2026/00_raw/metar.parquet
@@ -32,7 +32,8 @@ AIRPORTS = [
 
 FIELDS = ["tmpf", "dwpf", "vsby", "sknt", "drct", "p01i", "wxcodes", "skyc1", "skyl1"]
 
-# METAR mevcut-hava kodlari (WMO). Donma ve kar, de-icing gerekliliginin dogrudan isareti.
+# METAR present-weather codes (WMO). Freezing and snow are direct evidence that
+# de-icing was needed.
 FREEZING_CODES = ("FZRA", "FZDZ", "FZFG")
 SNOW_CODES = ("SN", "SG", "PL", "IC", "GS", "GR")
 FOG_CODES = ("FG", "BR")
@@ -40,7 +41,7 @@ THUNDER_CODES = ("TS",)
 
 
 def _month_edges(start: date, end: date) -> list[tuple[date, date]]:
-    """Istegi aylik parcalara boler: tek dev istek yerine arsive kibar davranir."""
+    """Split the request into monthly chunks; kinder to the archive than one huge one."""
     edges: list[tuple[date, date]] = []
     cur = start.replace(day=1)
     while cur < end:
@@ -58,10 +59,10 @@ def _build_url(stations: list[str], start: date, end: date) -> str:
         ("year2", end.year), ("month2", end.month), ("day2", end.day),
         ("tz", "UTC"), ("format", "comma"), ("missing", "empty"),
         ("trace", "empty"), ("latlon", "no"),
-        # report_type BILEREK gonderilmiyor: filtrelemek Avrupa'nin yarim saatlik
-        # METAR yayinini saatlige dusuruyor ve SPECI raporlarini atiyor.
-        # SPECI tam da kosullar aniden degistiginde yayinlanir; taxi-out icin
-        # en degerli gozlemler onlardir.
+        # report_type is deliberately omitted: filtering drops Europe's
+        # half-hourly METAR issue to hourly and discards the SPECI reports.
+        # SPECI is issued exactly when conditions change suddenly, which makes
+        # those the most valuable observations for taxi-out.
     ]
     return BASE_URL + "?" + urllib.parse.urlencode(params)
 
@@ -73,17 +74,17 @@ def _fetch_chunk(stations: list[str], start: date, end: date, retries: int = 3) 
         try:
             with urllib.request.urlopen(url, timeout=180) as resp:  # noqa: S310
                 raw = resp.read().decode("utf-8", errors="replace")
-            # ilk satirlar '#DEBUG:' yorumlari; gercek basliga kadar atla
+            # The first lines are '#DEBUG:' comments; skip to the real header.
             body = "\n".join(ln for ln in raw.splitlines() if not ln.startswith("#"))
             return pl.read_csv(io.StringIO(body), infer_schema_length=10_000, try_parse_dates=False)
         except Exception as exc:  # noqa: BLE001 - agdan gelen her hatada yeniden dene
             last_error = exc
             time.sleep(2 * (attempt + 1))
-    raise RuntimeError(f"METAR indirilemedi {start}..{end}: {last_error}")
+    raise RuntimeError(f"METAR download failed for {start}..{end}: {last_error}")
 
 
 def _wx_flag(codes: tuple[str, ...]) -> pl.Expr:
-    """wxcodes alaninda verilen kodlardan herhangi biri geciyor mu."""
+    """Whether any of the given codes appears in the wxcodes field."""
     expr = pl.lit(False)
     for code in codes:
         expr = expr | pl.col("wxcodes").fill_null("").str.contains(code, literal=True)
@@ -91,40 +92,40 @@ def _wx_flag(codes: tuple[str, ...]) -> pl.Expr:
 
 
 def to_si(df: pl.DataFrame) -> pl.DataFrame:
-    """Imperial -> SI cevirisi ve taxi-out icin anlamli turetilmis bayraklar."""
+    """Imperial to SI conversion, plus the derived flags that matter for taxi-out."""
     numeric = ["tmpf", "dwpf", "vsby", "sknt", "drct", "p01i", "skyl1"]
     df = df.with_columns(
         [pl.col(c).cast(pl.Float64, strict=False) for c in numeric if c in df.columns]
     )
     df = df.with_columns(
         valid=pl.col("valid").str.to_datetime("%Y-%m-%d %H:%M", strict=False),
-        sicaklik_c=(pl.col("tmpf") - 32.0) * 5.0 / 9.0,
-        cig_noktasi_c=(pl.col("dwpf") - 32.0) * 5.0 / 9.0,
-        gorus_km=pl.col("vsby") * 1.609344,
-        ruzgar_ms=pl.col("sknt") * 0.514444,
-        ruzgar_yon=pl.col("drct"),
-        yagis_mm=pl.col("p01i") * 25.4,
-        tavan_m=pl.col("skyl1") * 0.3048,
+        temperature_c=(pl.col("tmpf") - 32.0) * 5.0 / 9.0,
+        dewpoint_c=(pl.col("dwpf") - 32.0) * 5.0 / 9.0,
+        visibility_km=pl.col("vsby") * 1.609344,
+        wind_ms=pl.col("sknt") * 0.514444,
+        wind_dir_deg=pl.col("drct"),
+        precip_mm=pl.col("p01i") * 25.4,
+        ceiling_m=pl.col("skyl1") * 0.3048,
     )
     donma = _wx_flag(FREEZING_CODES)
-    kar = _wx_flag(SNOW_CODES)
+    snow = _wx_flag(SNOW_CODES)
     return df.with_columns(
-        donma_yagisi=donma,
-        kar=kar,
-        sis=_wx_flag(FOG_CODES),
-        gok_gurultusu=_wx_flag(THUNDER_CODES),
-        # De-icing vekili: donma/kar kodu, ya da sifir civari sicaklikta rutubet.
-        # PRC bu ucuslari gostergeden atiyor; biz modellemek zorundayiz (ATXOT s.13).
-        deicing_vekili=(
+        freezing_precip=donma,
+        snow=snow,
+        fog=_wx_flag(FOG_CODES),
+        thunderstorm=_wx_flag(THUNDER_CODES),
+        # De-icing proxy: a freezing or snow code, or precipitation near zero degrees.
+        # EUROCONTROL drops these flights from its indicator; we have to model them.
+        deicing_proxy=(
             donma
-            | kar
-            | ((pl.col("sicaklik_c") <= 3.0) & (pl.col("p01i").fill_null(0.0) > 0.0))
+            | snow
+            | ((pl.col("temperature_c") <= 3.0) & (pl.col("p01i").fill_null(0.0) > 0.0))
         ),
-        dusuk_gorus=pl.col("vsby") * 1.609344 < 1.5,
+        low_visibility=pl.col("vsby") * 1.609344 < 1.5,
     ).select(
-        "station", "valid", "sicaklik_c", "cig_noktasi_c", "gorus_km", "ruzgar_ms",
-        "ruzgar_yon", "yagis_mm", "tavan_m", "wxcodes", "skyc1",
-        "donma_yagisi", "kar", "sis", "gok_gurultusu", "deicing_vekili", "dusuk_gorus",
+        "station", "valid", "temperature_c", "dewpoint_c", "visibility_km", "wind_ms",
+        "wind_dir_deg", "precip_mm", "ceiling_m", "wxcodes", "skyc1",
+        "freezing_precip", "snow", "fog", "thunderstorm", "deicing_proxy", "low_visibility",
     )
 
 
@@ -133,14 +134,14 @@ def fetch(stations: list[str], start: date, end: date, pause: float = 1.0) -> pl
     for chunk_start, chunk_end in _month_edges(start, end):
         print(f"  {chunk_start} .. {chunk_end}", flush=True)
         frames.append(_fetch_chunk(stations, chunk_start, chunk_end))
-        time.sleep(pause)  # arsive kibar ol
+        time.sleep(pause)  # be polite to the archive
     return to_si(pl.concat(frames, how="vertical_relaxed"))
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="IEM ASOS METAR indirici")
-    ap.add_argument("--start", required=True, help="YYYY-MM-DD (dahil)")
-    ap.add_argument("--end", required=True, help="YYYY-MM-DD (haric)")
+    ap = argparse.ArgumentParser(description="IEM ASOS METAR downloader")
+    ap.add_argument("--start", required=True, help="YYYY-MM-DD (inclusive)")
+    ap.add_argument("--end", required=True, help="YYYY-MM-DD (exclusive)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--stations", nargs="*", default=AIRPORTS)
     args = ap.parse_args()
@@ -149,7 +150,7 @@ def main() -> None:
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     df.write_parquet(out)
-    print(f"{df.height:,} gozlem -> {out}")
+    print(f"{df.height:,} observations -> {out}")
 
 
 if __name__ == "__main__":

@@ -36,7 +36,7 @@ Yorum: oran 1.0 ise TAXITIME turetilmis demektir ve zaman damgalari kendi icinde
 
 ## 3. Zaman damgasi hassasiyeti (M14)
 
-| ADEP_mvt | n | mvt_saniye_sifir | blok_saniye_sifir |
+| ADEP_mvt | n | mvt_second_is_zero | block_second_is_zero |
 |---|---|---|---|
 | EDDF | 230,141 | 0.0177 | 0.0169 |
 | EDDM | 167,334 | 0.0831 | 0.0834 |
@@ -55,7 +55,7 @@ Oran ~1.0 olan havalimaninda veri **HH:MM** hassasiyetindedir: taxi-out'ta +-60 
 
 **egitim 2025**
 
-| ADEP_mvt | n | flight_id_dolu | aobt3_dolu |
+| ADEP_mvt | n | flight_id_filled | aobt3_filled |
 |---|---|---|---|
 | EDDF | 230,141 | 0.9915 | 0.9915 |
 | EDDM | 167,334 | 0.9940 | 0.9940 |
@@ -70,7 +70,7 @@ Oran ~1.0 olan havalimaninda veri **HH:MM** hassasiyetindedir: taxi-out'ta +-60 
 
 **siralama 2026**
 
-| ADEP_mvt | n | flight_id_dolu | aobt3_dolu |
+| ADEP_mvt | n | flight_id_filled | aobt3_filled |
 |---|---|---|---|
 | EDDF | 36,317 | 0.9884 | 0.9884 |
 | EDDM | 10,953 | 0.9891 | 0.9891 |
@@ -88,11 +88,11 @@ Oran ~1.0 olan havalimaninda veri **HH:MM** hassasiyetindedir: taxi-out'ta +-60 
 
 Naif tahminci: `taxi_out = MVT_TIME_UTC_mvt - AOBT_3_flt`
 
-| n | rmse | mae | yanlilik | medyan_mutlak_hata |
+| n | rmse | mae | bias | median_abs_error |
 |---|---|---|---|---|
 | 2,062,577 | 384.9 | 238.1 | 17.0 | 175.0 |
 
-| ADEP_mvt | n | rmse | yanlilik |
+| ADEP_mvt | n | rmse | bias |
 |---|---|---|---|
 | EDDF | 228,185 | 255.1 | 53.2 |
 | LSZH | 132,616 | 268.4 | -59.4 |
@@ -105,11 +105,11 @@ Naif tahminci: `taxi_out = MVT_TIME_UTC_mvt - AOBT_3_flt`
 | LTFM | 269,320 | 530.6 | 236.4 |
 | LIRF | 159,216 | 557.4 | -214.2 |
 
-**Nasil okunur.** Bu RMSE dusukse (orn. <60 sn) yarisma buyuk olcude 'NM blok saatini APDF blok saatiyle uzlastirma + eslesmeyen satirlari doldurma' problemidir ve tum mimari buna gore kurulur. Yuksekse (orn. >200 sn) AOBT_3 yalnizca guclu bir ozelliktir, cozum degildir. Kapsama orani (n / toplam DEP) en az RMSE kadar onemli: kapsanmayan satirlar icin ayri bir model gerekir.
+**Nasil okunur.** Bu RMSE dusukse (orn. <60 sn) yarisma buyuk olcude 'NM blok saatini APDF blok saatiyle uzlastirma + eslesmeyen satirlari doldurma' problemidir ve tum mimari buna gore kurulur. Yuksekse (orn. >200 sn) AOBT_3 yalnizca guclu bir ozelliktir, cozum degildir. Kapsama orani (n / total DEP) en az RMSE kadar onemli: kapsanmayan satirlar icin ayri bir model gerekir.
 
 ## 6. Hedef dagilimi
 
-| ADEP_mvt | n | ort | std | p10 | p50 | p99 | ust_120dk | negatif |
+| ADEP_mvt | n | mean | std | p10 | p50 | p99 | over_120min_share | negative_share |
 |---|---|---|---|---|---|---|---|---|
 | EDDF | 230,141 | 863.5 | 329.8 | 478.0 | 837.0 | 1,819.0 | 0.0000 | 0.0000 |
 | EDDM | 167,334 | 811.9 | 301.8 | 533.0 | 774.0 | 1,921.0 | 0.0000 | 0.0000 |
@@ -122,11 +122,11 @@ Naif tahminci: `taxi_out = MVT_TIME_UTC_mvt - AOBT_3_flt`
 | LSZH | 134,907 | 740.5 | 385.4 | 400.0 | 711.0 | 1,707.0 | 0.0000 | 0.0022 |
 | LTFM | 272,965 | 1,053.0 | 427.6 | 662.0 | 963.0 | 2,587.0 | 0.0001 | 0.0000 |
 
-`ust_120dk` PRC'nin resmi filtresini asan orandir (M08); `negatif` veri hatasi isaretidir. Ikisi de RMSE'de agir cezalandirilan kuyruktur: kirpma degil, **modelleme** karari gerektirir.
+`over_120min_share` PRC'nin resmi filtresini asan orandir (M08); `negative_share` veri hatasi isaretidir. Ikisi de RMSE'de agir cezalandirilan kuyruktur: kirpma degil, **modelleme** karari gerektirir.
 
 **Aylik (Ocak ve Temmuz satirlarina dikkat: siralama seti o iki ay):**
 
-| ay | n | ort | std |
+| ay | n | mean | std |
 |---|---|---|---|
 | 1 | 153,706 | 995.3 | 604.8 |
 | 2 | 143,732 | 1,002.4 | 628.3 |
@@ -143,15 +143,15 @@ Naif tahminci: `taxi_out = MVT_TIME_UTC_mvt - AOBT_3_flt`
 
 ## 7. Temel modeller ve soguk baslangic
 
-| n_dogrulama | kombo_kapsam | rmse_genel_ort | rmse_apt_ort | rmse_combo_ort |
+| n_validation | combo_coverage | rmse_global_mean | rmse_airport_mean | rmse_combo_mean |
 |---|---|---|---|---|
 | 344,419 | 0.9986 | 686.6 | 660.0 | 628.4 |
 
-`rmse_combo_ort` ilk gercek gonderimimizin tahmini seviyesidir. Bunun uzerine koyacagimiz her sey kuyruk / tikaniklik / hava bilesenidir.
+`rmse_combo_mean` ilk gercek gonderimimizin tahmini seviyesidir. Bunun uzerine koyacagimiz her sey kuyruk / tikaniklik / weather bilesenidir.
 
 **Siralama setinin egitimde gorulmemis kombo orani (soguk baslangic riski):**
 
-| n | gorulmus_kombo | stand_bos | pist_bos |
+| n | seen_combo_share | stand_null_share | runway_null_share |
 |---|---|---|---|
 | 215,876 | 0.9946 | 0.0000 | 0.0000 |
 
@@ -160,18 +160,18 @@ Naif tahminci: `taxi_out = MVT_TIME_UTC_mvt - AOBT_3_flt`
 Kimlik: `MVT_TIME - SCHED_TIME = taxi_out + kalkis_gecikmesi`.
 `SCHED_TIME_UTC_mvt` siralama setinde bosaltilmamis (D05), yani bu da mesru bir
 ozniteliktir. Degeri tamamen **kalkis gecikmesinin ne kadar ongorulebilir**
-olduguna bagli: gecikme dar dagilirsa hedefi neredeyse verir, genis dagilirsa
+olduguna bagli: delay_sec dar dagilirsa hedefi neredeyse verir, genis dagilirsa
 yalnizca bir ust sinir olur.
 
 **Kalkis gecikmesi (gercek blok - planlanan blok), saniye:**
 
-| n | ort | std | p10 | p50 | p90 | erken_oran |
+| n | mean | std | p10 | p50 | p90 | early_share |
 |---|---|---|---|---|---|---|
 | 2,085,047 | 901.3 | 2,238.0 | -242.0 | 415.0 | 2,396.0 | 0.2421 |
 
 **`MVT - SCHED` naif tahmincisi (gecikmeyi sifir sayar):**
 
-| rmse | yanlilik |
+| rmse | bias |
 |---|---|
 | 2,412.7 | 901.3 |
 

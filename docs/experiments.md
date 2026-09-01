@@ -26,7 +26,7 @@ korunup korunmadigi; ikinci gonderimde test edilecek.
 (yakit tuketimi → yakit akisi, 220,56 → 201,04). Buraya **transfer olmadi**: artik hedef
 ham hedefle istatistiksel olarak ayni (0,29 sn fark, %0,08). Muhtemel sebep, oradaki
 donusumun carpikligi azaltmasiydi; burada ise ATXOT referansi zaten agacin ilk
-bolunmelerinde ogrendigi bir sabit ve cikarmak bilgi eklemiyor. Raporlanacak negatif
+bolunmelerinde ogrendigi bir sabit ve cikarmak bilgi eklemiyor. Raporlanacak negative_share
 sonuc.
 
 ## Hatanin nerede oldugu (2026-09-01)
@@ -37,7 +37,7 @@ Toplam RMSE 378,80 ama **iki havalimani domine ediyor**:
 |---|---:|---|
 | LIRF | 966,5 | uc degerler |
 | LFPG | 801,5 | uc degerler |
-| EGLL | 297,8 | en uzun taxi (ort 22,7 dk) |
+| EGLL | 297,8 | en uzun taxi (mean 22,7 dk) |
 | LTFM | 228,2 | |
 | LSZH | 220,6 | |
 | EHAM | 201,0 | |
@@ -50,7 +50,7 @@ Ay bazinda: **Ocak 423,6 · Temmuz 240,8**. Ocak hem daha zor hem satirlarin %71
 
 ### E03: uc degerleri egitimden cikarmak ZARARLI (beklenenin tersi)
 
-| esik | egitim satiri | LIRF RMSE | toplam RMSE | Δ |
+| threshold | egitim satiri | LIRF RMSE | total RMSE | Δ |
 |---|---:|---:|---:|---:|
 | yok | 1.870.367 | 966,5 | **378,80** | — |
 | ≤120 dk | 1.866.187 | 1.149,4 | 402,92 | +24,1 |
@@ -84,10 +84,10 @@ Yani bu satirlarda taxi suresi uzun degil, **APDF blok saati yanlis**. Etiket ha
 PRC de resmi gostergesinde 120 dakikayi asanlari eliyor (ATXOT s.13 adim 1).
 
 Sonucu: L2 kaybi tahmin edilemez gurultuyu koveliyor. **Siradaki deney (E03):** hedefi
-esik asan satirlari yalnizca **egitimden** cikarmak; dogrulama tam kalir cunku board da
+threshold asan satirlari yalnizca **egitimden** cikarmak; dogrulama tam kalir cunku board da
 tam olacak. `train_baseline.py --max-train-sec <sn>`.
 
-## Veri gelmeden kapatilan yollar (negatif sonuclar)
+## Veri gelmeden kapatilan yollar (negative_share sonuclar)
 
 | Yol | Neden bakildi | Sonuc | Belge |
 |-----|---------------|-------|-------|
@@ -104,14 +104,14 @@ Yani gonderimlerimiz ayar denemesi degil, **tasarlanmis bir deney** olmali.
 | Sira | Deney | Neden once bu | Komut |
 |------|-------|---------------|-------|
 | E00 | Veri tanisi | Mimariyi belirleyen sorular burada cevaplaniyor (Q02, D13, M14) | `scripts/probe_data.py` |
-| E01 | (apt, stand, pist) ortalamasi | Ilk gecerli gonderim + RMSE tabani | `train_baseline.py` icindeki taban |
+| E01 | (apt, stand, pist) ortalamasi | Ilk valid gonderim + RMSE tabani | `train_baseline.py` icindeki taban |
 | E02 | Ham hedef vs ATXOT artigi | 2025'te en buyuk tekil kazanc bu turden bir yeniden parametrelendirmeydi (P05) | `train_baseline.py` (ikisini birden kosar) |
 | E03 | `AOBT_3_flt` var / yok | NM blok saatinin gercek bilgi degeri; tum mimariyi belirler | `--no-aobt3` |
 | E04 | Tikaniklik oznitelikleri var / yok | Isin fikri cekirdegi; en buyuk kazanc buradan beklenir | oznitelik grubu kapatilarak |
 | E05 | METAR var / yok, ozellikle Ocak | LSZH/EHAM/EDDM/LTFM Ocak'ta %10-18 de-icing kosulunda (W03) | METAR dosyasi gizlenerek |
 | E06 | Havalimani bazli model vs global | LTFM/LTAI ile LSZH ayni davranmaz | — |
 | E07 | Mevsimsel uzmanlasma (kis/yaz) | Siralama seti iki mevsimsel uc | — |
-| E08 | `SCHED_TIME` tutamagi var / yok | `MVT − SCHED = taxi + gecikme`; degeri gecikmenin dagilimina bagli (A01-A03) | `run_ablation.py` (`atfm` ailesi) |
+| E08 | `SCHED_TIME` tutamagi var / yok | `MVT − SCHED = taxi + delay_sec`; degeri gecikmenin dagilimina bagli (A01-A03) | `run_ablation.py` (`atfm` ailesi) |
 | E09 | Tohum ortalamasi (5 model) | 2024 birincisinin yontemi: ayni veri, ayni hiperparametre, farkli tohum | `--seeds 5` |
 
 ## Ablation nasil kosulur

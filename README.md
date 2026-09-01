@@ -22,7 +22,7 @@ izlenerek kuruluyor:
 
 **Referans bileseni** resmi metodolojinin sadik yeniden uygulamasidir: her
 (havalimani, stand, kalkis pisti) kombosu icin P10, geçerlilik icin P10 altinda en az
-10 ucus (`src/taxiout/domain/reference.py`). Model bu tabanin uzerindeki **artigi**
+10 flights (`src/taxiout/domain/reference.py`). Model bu tabanin uzerindeki **artigi**
 ogrenir.
 
 **Kuyruk ve tikaniklik bilesenleri** hareket akisindan uretilir. Siralama setinde
@@ -56,7 +56,7 @@ Ayrintili gerekce ve lisans metinleri: `docs/external_data.md`.
 | Dosya | Icerik |
 |-------|--------|
 | `docs/facts.md` | Dogrulanmis gercekler sicili (kaynak + tarih zorunlu) |
-| `docs/experiments.md` | Deney gunlugu — negatif sonuclar dahil |
+| `docs/experiments.md` | Deney gunlugu — negative_share sonuclar dahil |
 | `docs/external_data.md` | Kullanilan dis veri setleri + lisanslari (odul sartı) |
 | `docs/reference/` | EUROCONTROL resmi ATXOT metodoloji dokumani + notlar |
 | `docs/adr/` | Geri donusu pahali mimari kararlar |

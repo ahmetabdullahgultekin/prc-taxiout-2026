@@ -53,9 +53,9 @@ def test_arrivals_are_counted_at_the_airport_they_landed_at() -> None:
     out = congestion.airport_features(mvt, dep).join(
         dep.select("MVT_ID_mvt", pipeline.APT), on="MVT_ID_mvt"
     )
-    eddf = out.filter(pl.col(pipeline.APT) == "EDDF")["apt_inis_onceki_15dk"][0]
-    ltfm = out.filter(pl.col(pipeline.APT) == "LTFM")["apt_inis_onceki_15dk"][0]
-    assert eddf == 1, "EDDF'e inen ucak EDDF kalkisinin cevresinde sayilmali"
+    eddf = out.filter(pl.col(pipeline.APT) == "EDDF")["apt_arr_prev_15m"][0]
+    ltfm = out.filter(pl.col(pipeline.APT) == "LTFM")["apt_arr_prev_15m"][0]
+    assert eddf == 1, "EDDF'e inen aircraft EDDF kalkisinin cevresinde sayilmali"
     assert ltfm == 0, "o inis LTFM'de sayilmamali, oradan yalnizca kalkmis"
 
 

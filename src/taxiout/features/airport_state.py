@@ -1,46 +1,45 @@
-"""Gunluk havalimani durumu: ATFM duzenlemesi ve varis gecikmesi.
+"""Daily airport state: ATFM regulation and arrival delay.
 
-Idris ve ark. (Logan, 2002) taxi-out'u belirleyen dort ana faktorden birini
-**asagi-akis kisitlari** (downstream restrictions) olarak sayiyor. Simdiye kadar bunu
-yalnizca IOBT/LOBT suruklenmesiyle vekilliyorduk; EUROCONTROL'un acik gunluk serileri
-dogrudan olcumu veriyor:
+Idris et al. (Logan, 2002) name **downstream restrictions** as one of the four factors
+driving taxi-out. Until now we proxied it only through the drift between the initial and
+last known off-block time; EUROCONTROL's open daily series give the direct measurement:
 
-- gunun kalkislarindan kaci **ATFM slotu** altindaydi
-- slot uyumu (erken/gec cikanlarin orani)
-- gunluk **varis ATFM gecikmesi**, neden koduna gore (hava, ATC kapasitesi, meydan
-  kapasitesi, personel, ekipman)
+- what share of the day's departures sat under an **ATFM slot**
+- slot adherence, meaning the share leaving early or late
+- daily **arrival ATFM delay** by cause code: weather, ATC capacity, aerodrome
+  capacity, staffing, equipment
 
-Iki seri de Ocak ve Temmuz 2026'yi, yani her iki siralama ayini da kapsiyor.
+Both series cover January and July 2026, that is both ranking months.
 
-**Nedensellik uyarisi.** Bunlar gun boyunun toplamidir: bir kalkisin anindan sonraki
-saatleri de icerirler, ve yayimlari aylarca gecikmelidir. Retrospektif model icin
-mesru, gercek zamanli bir model icin degil. `groups.py` bunlari `atfm_gunluk` ailesinde
-ayri tutuyor; `pipeline.build_features` nedensel kosuda hic eklemiyor.
+**Causality caveat.** These are whole-day totals, so they include hours after a given
+departure, and they are published months in arrears. Legitimate for the retrospective
+model, not for a real-time one. `groups.py` keeps them in their own `atfm_daily` family
+and `pipeline.build_features` never attaches them on the causal path.
 """
 
 from __future__ import annotations
 
 import polars as pl
 
-# Hareketin gerceklestigi havalimani; `pipeline.prepare_movements` ekler.
-# `ADEP_mvt` DEGIL: o, ucusun kalkis havalimani (varislarda gelinen yer).
+# The airport the movement happened at; added by `pipeline.prepare_movements`.
+# NOT `ADEP_mvt`, which on an arrival row names where the aircraft came from.
 APT = "apt_mvt"
 
 STATE_COLS = [
-    "atfm_duzenlenen_oran", "atfm_slot_gec_oran", "atfm_slot_erken_oran",
-    "gunluk_kalkis", "gunluk_inis", "varis_atfm_gecikme_dk",
-    "varis_gecikme_hava_dk", "varis_gecikme_atc_kapasite_dk",
-    "varis_gecikme_meydan_kapasite_dk", "varis_gecikme_atc_personel_dk",
-    "varis_gecikme_atc_ekipman_dk",
+    "atfm_regulated_share", "atfm_slot_late_share", "atfm_slot_early_share",
+    "daily_departures", "daily_arrivals", "arr_atfm_delay_min",
+    "arr_delay_weather_min", "arr_delay_atc_capacity_min",
+    "arr_delay_aerodrome_capacity_min", "arr_delay_atc_staffing_min",
+    "arr_delay_atc_equipment_min",
 ]
 
 
 def attach(dep: pl.DataFrame, daily: pl.DataFrame, anchor: str) -> pl.DataFrame:
-    """Kalkis satirlarina o gunun havalimani durumunu ekler."""
+    """Add that day's airport state to each departure row."""
     have = [c for c in STATE_COLS if c in daily.columns]
-    state = daily.select("apt", "gun", *have).rename({"apt": APT, "gun": "_gun"})
+    state = daily.select("apt", "day", *have).rename({"apt": APT, "day": "_day"})
     return (
-        dep.with_columns(_gun=pl.col(anchor).dt.date())
-        .join(state, on=[APT, "_gun"], how="left")
-        .drop("_gun")
+        dep.with_columns(_day=pl.col(anchor).dt.date())
+        .join(state, on=[APT, "_day"], how="left")
+        .drop("_day")
     )

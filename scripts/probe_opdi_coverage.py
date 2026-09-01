@@ -1,7 +1,7 @@
 """OPDI yer olaylarinin 11 havalimanindaki kapsamasini olcer.
 
 **Neden bakildi.** OPDI (Open Performance Data Initiative, PRC'nin kendi girisimi,
-OpenSky Network ile) ADS-B'den turetilmis ucus olaylari yayimliyor ve v0.0.2 ile
+OpenSky Network ile) ADS-B'den turetilmis flights olaylari yayimliyor ve v0.0.2 ile
 **park pozisyonu giris/cikis** olaylari eklendi. `exit-parking_position`, siralama
 setinde bosaltilmis olan blok cozulme aninin **bagimsiz bir olcumu** olurdu. Kapsam
 Ocak 2022 - Agustos 2026, yani her iki siralama ayi da iceride.
@@ -23,7 +23,7 @@ from pathlib import Path
 
 import polars as pl
 
-# ICAO -> (enlem, boylam). OurAirports.
+# ICAO -> (latitude, longitude). OurAirports.
 AIRPORTS = {
     "EDDF": (50.026706, 8.55835), "EDDM": (48.353802, 11.7861),
     "EGLL": (51.470748, -0.459909), "EHAM": (52.308601, 4.76389),
@@ -42,7 +42,7 @@ RADIUS_KM = 10.0
 
 
 def near(lat: float, lon: float) -> pl.Expr:
-    """Havalimani cevresinde kaba bir kutu. Enlem-boylam olcegi enleme gore duzeltilir."""
+    """Havalimani cevresinde kaba bir kutu. Enlem-longitude olcegi enleme gore duzeltilir."""
     dlat = RADIUS_KM / 111.0
     dlon = RADIUS_KM / (111.0 * max(0.1, math.cos(math.radians(lat))))
     return ((pl.col("latitude") - lat).abs() < dlat) & (

@@ -23,15 +23,15 @@ from taxiout.features import groups
 
 
 def markdown_table(rows: list[dict], baseline: float) -> str:
-    head = "| yapilandirma | oznitelik | Ocak | Temmuz | toplam | Δ toplam |"
+    head = "| yapilandirma | oznitelik | Ocak | Temmuz | total | Δ total |"
     sep = "|---|---:|---:|---:|---:|---:|"
     lines = [head, sep]
     for r in rows:
-        delta = r["toplam"] - baseline
+        delta = r["total"] - baseline
         işaret = "—" if abs(delta) < 1e-9 else f"{delta:+.2f}"
         lines.append(
-            f"| {r['ad']} | {r['n_oznitelik']} | {r.get('ay_1', float('nan')):.2f} | "
-            f"{r.get('ay_7', float('nan')):.2f} | {r['toplam']:.2f} | {işaret} |"
+            f"| {r['ad']} | {r['n_oznitelik']} | {r.get('month_1', float('nan')):.2f} | "
+            f"{r.get('month_7', float('nan')):.2f} | {r['total']:.2f} | {işaret} |"
         )
     return "\n".join(lines)
 
@@ -74,10 +74,10 @@ def main() -> None:
         pred = pipeline.train_predict(split, used, args.rounds, residual, seeds)
         scores = pipeline.evaluate(split, pred)
         if baseline is None:
-            baseline = scores["toplam"]
+            baseline = scores["total"]
         rows.append({"ad": ad, "n_oznitelik": len(used), **scores})
-        delta = scores["toplam"] - baseline
-        print(f"  {ad:<28} n={len(used):>3}  RMSE={scores['toplam']:8.2f}  "
+        delta = scores["total"] - baseline
+        print(f"  {ad:<28} n={len(used):>3}  RMSE={scores['total']:8.2f}  "
               f"({delta:+.2f})   [{time.time() - t0:,.0f} sn]")
 
     mod = "nedensel (blok cipali)" if args.causal else "retrospektif (kalkis cipali)"

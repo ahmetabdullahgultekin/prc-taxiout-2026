@@ -28,19 +28,19 @@ def test_valid_submission_passes_without_warnings() -> None:
 
 
 def test_missing_rows_are_rejected() -> None:
-    with pytest.raises(SubmissionError, match="satir sayisi"):
+    with pytest.raises(SubmissionError, match="row count mismatch"):
         submission.validate(_pred(49), _template(50))
 
 
 def test_extra_rows_are_rejected() -> None:
     pred = pl.DataFrame({"MVT_ID_mvt": list(range(1, 51)), "TAXITIME_SEC_mvt": [700.0] * 50})
-    with pytest.raises(SubmissionError, match="sablon satiri tahminde yok"):
+    with pytest.raises(SubmissionError, match="not in the prediction"):
         submission.validate(pred, _template(50))
 
 
 def test_duplicate_ids_are_rejected() -> None:
     pred = pl.DataFrame({"MVT_ID_mvt": [1] * 50, "TAXITIME_SEC_mvt": [700.0] * 50})
-    with pytest.raises(SubmissionError, match="tekrarli"):
+    with pytest.raises(SubmissionError, match="duplicate"):
         submission.validate(pred, _template(50))
 
 
@@ -49,12 +49,12 @@ def test_nulls_are_rejected() -> None:
         pl.when(pl.col("MVT_ID_mvt") == 3).then(None).otherwise(pl.col("TAXITIME_SEC_mvt"))
         .alias("TAXITIME_SEC_mvt")
     )
-    with pytest.raises(SubmissionError, match="bos tahmin"):
+    with pytest.raises(SubmissionError, match="null predictions"):
         submission.validate(pred, _template())
 
 
 def test_negative_predictions_are_rejected() -> None:
-    with pytest.raises(SubmissionError, match="negatif"):
+    with pytest.raises(SubmissionError, match="negative predictions"):
         submission.validate(_pred(value=-1.0), _template())
 
 
@@ -66,11 +66,11 @@ def test_nan_predictions_are_rejected() -> None:
 def test_implausible_mean_warns_but_does_not_block() -> None:
     """Sert kural degil: engelleme, ama sessizce de gecme."""
     warnings = submission.validate(_pred(value=50.0), _template())
-    assert any("60 saniyenin altinda" in w for w in warnings)
+    assert any("below 60 seconds" in w for w in warnings)
 
 
 def test_filename_convention_is_enforced(tmp_path: Path) -> None:
-    with pytest.raises(SubmissionError, match="dosya adi"):
+    with pytest.raises(SubmissionError, match="filename does not follow"):
         submission.write(_pred(), _template(), tmp_path / "gonderim.parquet")
     submission.write(_pred(), _template(), tmp_path / "keen-hamburger_v1.parquet")
 

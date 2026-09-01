@@ -1,20 +1,22 @@
-"""Kalkis yonu, ATFM baskisi ve stand donusu oznitelikleri.
+"""Departure direction, ATFM pressure and stand turnaround.
 
-Literaturden dogrudan turetilmis (bkz. `docs/literature.md`):
+Each of these comes directly from the literature (see `docs/literature.md`):
 
-- **Kalkis yonu / departure fix.** Lee, Malik ve Jung (Charlotte, 2016) "departure fix"i
-  anlamli bir tahmin edici buluyor. Ayni cikis noktasina giden ardisik kalkislar rota ve
-  girdap ayirmasi nedeniyle daha genis araliklarla salinir; bu da kuyrugu uzatir.
-  Veride departure fix yok, `ADES_mvt` var: kalkis havalimanindan varis havalimanina
-  buyuk-daire kerterizi hesaplanip sektore yuvarlanir.
+- **Departure direction as a departure-fix proxy.** Lee, Malik and Jung (Charlotte,
+  2016) find the departure fix predictive: consecutive departures heading for the same
+  exit must be released with wider spacing because of route and wake separation, which
+  lengthens the queue. The data has no fix, but it has `ADES_mvt`, so we take the
+  great-circle bearing from the departure airport to the destination and round it into
+  a sector.
 
-- **Asagi-akis kisitlari (ATFM).** Idris ve ark. (Logan, 2002) dort ana faktorden biri
-  olarak "downstream restrictions"i sayiyor. Veride ATFM slotu yok, ama `IOBT_flt`
-  (ilk planlanan blok saati) ve `LOBT_flt` (son bilinen blok saati) var: ikisi
-  arasindaki suruklenme, ucusun yeniden zamanlanip zamanlanmadiginin dogrudan izidir.
+- **Downstream restrictions.** Idris et al. (Logan, 2002) count these among the four
+  main factors. The data carries no ATFM slot, but it has `IOBT_flt`, the initially
+  planned off-block time, and `LOBT_flt`, the last known one. The drift between them is
+  a direct trace of whether the flight was re-timed.
 
-- **Stand donusu.** Ayni standa yeni inen bir ucak varsa push-back ve manevra alani
-  daralir; onceki varisin ne kadar once bloga girdigi olculur.
+- **Stand turnaround.** An aircraft that has just arrived on the same stand narrows the
+  pushback and manoeuvring area, so we measure how long ago the previous arrival went
+  on block there.
 """
 
 from __future__ import annotations
@@ -22,21 +24,21 @@ from __future__ import annotations
 import polars as pl
 
 MVT = "MVT_TIME_UTC_mvt"
-# Hareketin gerceklestigi havalimani; `pipeline.prepare_movements` ekler.
-# `ADEP_mvt` DEGIL: o, ucusun kalkis havalimani (varislarda gelinen yer).
+# The airport the movement happened at; added by `pipeline.prepare_movements`.
+# NOT `ADEP_mvt`, which on an arrival row names where the aircraft came from.
 APT = "apt_mvt"
 ADES = "ADES_mvt"
 STAND = "STAND_mvt"
 PHASE = "PHASE_mvt"
 
-# Kerteriz sektor sayisi. 12 sektor = 30 derecelik dilimler; gercek SID gruplarindan
-# kaba ama tek bir havalimanina ozel el ayari gerektirmeyen bir vekil.
+# Number of bearing sectors. Twelve gives 30-degree slices: a coarse stand-in for the
+# real SID groupings, but one that needs no hand tuning per airport.
 SECTORS = 12
 SECTOR_WINDOWS_MIN = (15, 30)
 
 
 def _bearing_deg(lat1: pl.Expr, lon1: pl.Expr, lat2: pl.Expr, lon2: pl.Expr) -> pl.Expr:
-    """Buyuk-daire baslangic kerterizi, derece (0-360)."""
+    """Great-circle initial bearing, in degrees from 0 to 360."""
     p1, p2 = lat1.radians(), lat2.radians()
     dl = (lon2 - lon1).radians()
     y = dl.sin() * p2.cos()
@@ -45,72 +47,71 @@ def _bearing_deg(lat1: pl.Expr, lon1: pl.Expr, lat2: pl.Expr, lon2: pl.Expr) -> 
 
 
 def attach_bearing(dep: pl.DataFrame, coords: pl.DataFrame) -> pl.DataFrame:
-    """Kalkis kerterizi, sektoru ve buyuk-daire mesafesini ekler."""
-    origin = coords.rename({"icao": APT, "enlem": "_lat1", "boylam": "_lon1"}).select(
+    """Add departure bearing, its sector, and the great-circle distance."""
+    origin = coords.rename({"icao": APT, "latitude": "_lat1", "longitude": "_lon1"}).select(
         APT, "_lat1", "_lon1"
     )
-    dest = coords.rename({"icao": ADES, "enlem": "_lat2", "boylam": "_lon2"}).select(
+    dest = coords.rename({"icao": ADES, "latitude": "_lat2", "longitude": "_lon2"}).select(
         ADES, "_lat2", "_lon2"
     )
     out = dep.join(origin, on=APT, how="left").join(dest, on=ADES, how="left")
 
     bearing = _bearing_deg(pl.col("_lat1"), pl.col("_lon1"), pl.col("_lat2"), pl.col("_lon2"))
-    # haversine, km
+    # haversine, kilometres
     dlat = (pl.col("_lat2") - pl.col("_lat1")).radians()
     dlon = (pl.col("_lon2") - pl.col("_lon1")).radians()
     a = (dlat / 2).sin() ** 2 + pl.col("_lat1").radians().cos() * pl.col(
         "_lat2"
     ).radians().cos() * (dlon / 2).sin() ** 2
     return out.with_columns(
-        kalkis_kerterizi=bearing.cast(pl.Float32),
-        kalkis_sektoru=(bearing / (360.0 / SECTORS)).floor().cast(pl.Int8),
-        ucus_mesafesi_km=(2 * 6371.0 * a.sqrt().arcsin()).cast(pl.Float32),
+        departure_bearing=bearing.cast(pl.Float32),
+        departure_sector=(bearing / (360.0 / SECTORS)).floor().cast(pl.Int8),
+        flight_distance_km=(2 * 6371.0 * a.sqrt().arcsin()).cast(pl.Float32),
     ).drop("_lat1", "_lon1", "_lat2", "_lon2")
 
 
 def sector_congestion(dep: pl.DataFrame, anchor: str = MVT) -> pl.DataFrame:
-    """Ayni yone giden kalkislarin penceredeki sayisi = departure-fix kuyrugu vekili.
+    """Departures heading the same way inside the window: a departure-fix queue proxy.
 
-    `attach_bearing` sonrasi cagrilmali. Sayim `congestion._counts_in_window` ile ayni
-    esitlik-guvenli tanimi kullanir: geri pencere (t-W, t], kendini dahil eder.
+    Must be called after `attach_bearing`. The count uses the same tie-safe definition
+    as `congestion._counts_in_window`: a backward window of (t-W, t] that includes the
+    row itself.
     """
     from taxiout.features.congestion import _counts_in_window
 
-    zaman = list(dict.fromkeys([anchor, MVT]))
-    keys = dep.select("MVT_ID_mvt", APT, "kalkis_sektoru", *zaman).sort(anchor)
+    time_cols = list(dict.fromkeys([anchor, MVT]))
+    keys = dep.select("MVT_ID_mvt", APT, "departure_sector", *time_cols).sort(anchor)
     out = keys
     for w in SECTOR_WINDOWS_MIN:
         out = _counts_in_window(
-            out, keys, [APT, "kalkis_sektoru"], w, False,
-            f"sektor_kalkis_onceki_{w}dk", anchor, MVT,
+            out, keys, [APT, "departure_sector"], w, False,
+            f"sector_dep_prev_{w}m", anchor, MVT,
         )
-    # ayni sektore giden kalkislarin havalimani genelindeki kalkislara orani:
-    # yuzeyin ne kadarinin ayni cikisa yigildigini gosterir
-    return out.drop(APT, "kalkis_sektoru", *zaman)
+    return out.drop(APT, "departure_sector", *time_cols)
 
 
 def atfm_pressure(dep: pl.DataFrame, anchor: str = MVT) -> pl.DataFrame:
-    """Plan suruklenmesi: ucus yeniden zamanlandi mi, ne kadar?
+    """Plan drift: was the flight re-timed, and by how much?
 
-    `lobt_kalkis_farki_sn` cipaya baglidir: nedensel modda kalkis saatini kullanmak
-    dogrudan hedefi sizdirirdi.
+    `lobt_anchor_gap_sec` is tied to the anchor: using the take-off time in causal mode
+    would leak the target directly.
     """
     cols = dep.columns
     exprs = []
     if "IOBT_flt" in cols and "LOBT_flt" in cols:
         exprs.append(
             (pl.col("LOBT_flt") - pl.col("IOBT_flt")).dt.total_seconds()
-            .cast(pl.Float32).alias("atfm_suruklenme_sn")
+            .cast(pl.Float32).alias("atfm_drift_sec")
         )
     if "LOBT_flt" in cols:
         exprs.append(
             (pl.col(anchor) - pl.col("LOBT_flt")).dt.total_seconds()
-            .cast(pl.Float32).alias("lobt_cipa_farki_sn")
+            .cast(pl.Float32).alias("lobt_anchor_gap_sec")
         )
     if "ADES_FILED_flt" in cols and ADES in cols:
-        # dosyalanan varis ile gerceklesen farkliysa ucus yonlendirilmis demektir
+        # A filed destination different from the actual one means the flight diverted.
         exprs.append(
-            (pl.col("ADES_FILED_flt") != pl.col(ADES)).alias("yonlendirildi")
+            (pl.col("ADES_FILED_flt") != pl.col(ADES)).alias("diverted")
         )
     return dep.with_columns(exprs) if exprs else dep
 
@@ -118,42 +119,42 @@ def atfm_pressure(dep: pl.DataFrame, anchor: str = MVT) -> pl.DataFrame:
 def stand_turnaround(
     mvt: pl.DataFrame, dep: pl.DataFrame, anchor: str = MVT
 ) -> pl.DataFrame:
-    """Ayni standa en son inen ucak ne kadar once bloga girdi.
+    """How long ago the last arrival went on block at the same stand.
 
-    Yeni inmis bir ucak stand cevresini ve push-back alanini mesgul eder.
+    A recently arrived aircraft occupies the stand area and the pushback space.
     """
     arr = (
         mvt.filter((pl.col(PHASE) == "ARR") & pl.col(STAND).is_not_null())
-        .select(APT, STAND, _varis_blok=pl.col("BLOCK_TIME_UTC_mvt"))
-        .filter(pl.col("_varis_blok").is_not_null())
-        .sort("_varis_blok")
+        .select(APT, STAND, _arr_block=pl.col("BLOCK_TIME_UTC_mvt"))
+        .filter(pl.col("_arr_block").is_not_null())
+        .sort("_arr_block")
     )
     if arr.height == 0:
         return dep.select("MVT_ID_mvt").with_columns(
-            stand_donus_sn=pl.lit(None, dtype=pl.Float32)
+            stand_turnaround_sec=pl.lit(None, dtype=pl.Float32)
         )
     return (
-        dep.select("MVT_ID_mvt", APT, STAND, _cipa=pl.col(anchor))
-        .sort("_cipa")
+        dep.select("MVT_ID_mvt", APT, STAND, _anchor=pl.col(anchor))
+        .sort("_anchor")
         .join_asof(
-            arr, left_on="_cipa", right_on="_varis_blok", by=[APT, STAND],
+            arr, left_on="_anchor", right_on="_arr_block", by=[APT, STAND],
             strategy="backward",
         )
         .with_columns(
-            stand_donus_sn=(pl.col("_cipa") - pl.col("_varis_blok")).dt.total_seconds()
+            stand_turnaround_sec=(pl.col("_anchor") - pl.col("_arr_block")).dt.total_seconds()
             .cast(pl.Float32)
         )
-        .select("MVT_ID_mvt", "stand_donus_sn")
+        .select("MVT_ID_mvt", "stand_turnaround_sec")
     )
 
 
 def build(
     mvt: pl.DataFrame, dep: pl.DataFrame, coords: pl.DataFrame | None, anchor: str = MVT
 ) -> pl.DataFrame:
-    """Tum yonlendirme ozniteliklerini `dep` uzerine ekler.
+    """Add every routing feature to `dep`.
 
-    `anchor`, `congestion.build` ile ayni anlama gelir: nedensel modda blok
-    cozulme anidir.
+    `anchor` means the same as in `congestion.build`: the off-block instant in causal
+    mode.
     """
     out = atfm_pressure(dep, anchor)
     if coords is not None and ADES in out.columns:

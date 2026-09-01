@@ -1,29 +1,30 @@
-"""Engelsiz (unimpeded) referans taxi-out suresi.
+"""Unimpeded reference taxi-out time.
 
-EUROCONTROL'un resmi ATXOT gostergesinin sadik yeniden uygulamasi
-(`docs/reference/atxot-notes.md`, ATXOT Edition 01.00, 16-03-2023):
+A faithful reimplementation of EUROCONTROL's own additional taxi-out time indicator
+(see `docs/reference/atxot-notes.md`; ATXOT Edition 01.00, 16 March 2023):
 
-    Referans(kombo) = P10( taxi-out sureleri )     kombo = (havalimani, stand, kalkis pisti)
-    Gecerlilik      = komboda taxi-out <= P10 olan en az 10 ucus
+    reference(combo) = P10(taxi-out times)   combo = (airport, stand, departure runway)
+    valid            = at least 10 flights in the combo with taxi-out <= P10
 
-Iki isi birden gorur:
+It does two jobs at once.
 
-1. **Model tabani.** 2025 birincisinin en buyuk tekil kazanci hedefi yeniden
-   parametrelendirmekti: yakit tuketimi yerine yakit akisi ile egitim RMSE'yi
-   220.56'dan 201.04'e indirdi, tum oznitelik gruplarindan buyuk bir etki (P05).
-   Buradaki karsiligi: ham taxi-out yerine **referans uzerindeki artigi** ogrenmek.
-   Agac modelleri sabit bir taban cikarildiginda cok daha az derinlik harcar.
+1. **A base for the model.** Last year's winner gained more from re-parameterising the
+   target than from any feature group, training on fuel flow instead of fuel burn and
+   moving RMSE from 220.56 to 201.04. The analogue here is to learn the **residual over
+   the reference** rather than the raw taxi-out, since a tree spends far less depth once
+   a constant baseline is subtracted. Whether it actually helps is an experiment, and
+   on this data it did not; see `docs/experiments.md`.
 
-2. **Makale icin dogrulanabilir bir taban cizgi.** Gostergeyi birebir yeniden
-   uretebiliyor olmak, katkiyi PRC'nin kendi olcegiyle konusabilmemizi saglar.
+2. **A checkable baseline for the paper.** Being able to reproduce the published
+   indicator lets us discuss the contribution in EUROCONTROL's own units.
 
-**Resmi metottan bilincli iki sapma** (ikisi de makalede raporlanacak):
+**Two deliberate departures from the official method**, both reported in the paper:
 
-- ATXOT gecerli referansi olmayan kombolari gostergeden **tamamen duser**. Biz her
-  satiri tahmin etmek zorundayiz, bu yuzden hiyerarsik bir geri dusus zinciri var:
-  (apt, stand, pist) -> (apt, stand) -> (apt, pist) -> (apt).
-- ATXOT kayan 12 ay kullanir. Elimizde yalnizca 2025 takvim yili var; referans
-  sabittir, kaymaz.
+- ATXOT **drops** flights whose combo has no valid reference. We have to predict every
+  row, so there is a fallback chain instead:
+  (apt, stand, runway) -> (apt, stand) -> (apt, runway) -> (apt).
+- ATXOT uses a rolling twelve months. We only have calendar 2025, so the reference is
+  fixed rather than rolling.
 """
 
 from __future__ import annotations
@@ -31,18 +32,18 @@ from __future__ import annotations
 import polars as pl
 
 TAXI = "TAXITIME_SEC_mvt"
-# Hareketin gerceklestigi havalimani (`pipeline.prepare_movements` ekler).
-# Referans yalnizca kalkislardan uretildigi icin `ADEP_mvt` ile ozdes olurdu,
-# ama tum boru hattinda tek bir kanonik ad kullanmak karisikligi onluyor.
+# The airport the movement happened at (added by `pipeline.prepare_movements`).
+# Identical to `ADEP_mvt` here, since the reference is built from departures only, but
+# one canonical name across the pipeline avoids the confusion that caused a real bug.
 APT = "apt_mvt"
 STAND = "STAND_mvt"
 RWY = "RUNWAY_mvt"
 
 PERCENTILE = 0.10
-MIN_BELOW = 10  # ATXOT s.15: P10'un altinda/esitinde en az 10 ucus
-MAX_TAXI_SEC = 120 * 60  # ATXOT s.13 adim 1: 120 dakikayi asanlar referans orneginden cikar
+MIN_BELOW = 10  # ATXOT p.15: at least ten flights at or below the P10
+MAX_TAXI_SEC = 120 * 60  # ATXOT p.13 step 1: anything above two hours leaves the sample
 
-# Genelden ozele: ilk uyan gecerli seviye kullanilir.
+# Most specific first; the first valid level wins.
 LEVELS: tuple[tuple[str, list[str]], ...] = (
     ("apt_stand_rwy", [APT, STAND, RWY]),
     ("apt_stand", [APT, STAND]),
@@ -52,7 +53,7 @@ LEVELS: tuple[tuple[str, list[str]], ...] = (
 
 
 def _level_reference(fit: pl.DataFrame, keys: list[str], suffix: str) -> pl.DataFrame:
-    """Bir gruplama seviyesi icin P10 ve ATXOT gecerlilik bayragi."""
+    """P10 and the ATXOT validity flag for one grouping level."""
     ref = (
         fit.group_by(keys)
         .agg(
@@ -62,25 +63,25 @@ def _level_reference(fit: pl.DataFrame, keys: list[str], suffix: str) -> pl.Data
             ]
         )
     )
-    # gecerlilik: kac ucusun taxi suresi P10'a esit ya da ondan kisa
+    # Validity: how many flights have a taxi-out at or below the percentile.
     below = (
         fit.join(ref, on=keys, how="left")
         .filter(pl.col(TAXI) <= pl.col(f"p10_{suffix}"))
         .group_by(keys)
-        .agg(pl.len().alias(f"alti_{suffix}"))
+        .agg(pl.len().alias(f"below_{suffix}"))
     )
     return ref.join(below, on=keys, how="left").with_columns(
-        pl.col(f"alti_{suffix}").fill_null(0),
-        gecerli=pl.col(f"alti_{suffix}").fill_null(0) >= MIN_BELOW,
-    ).rename({"gecerli": f"gecerli_{suffix}"})
+        pl.col(f"below_{suffix}").fill_null(0),
+        _valid=pl.col(f"below_{suffix}").fill_null(0) >= MIN_BELOW,
+    ).rename({"_valid": f"valid_{suffix}"})
 
 
 def fit_reference(fit: pl.DataFrame) -> dict[str, pl.DataFrame]:
-    """Referans tablolarini SADECE verilen egitim parcasindan uretir.
+    """Build the reference tables from the given fitting slice ONLY.
 
-    Dogrulama sirasinda bu fonksiyona **yalnizca egitim aylari** verilmelidir;
-    dogrulama aylarini icine katmak sizintidir ve OOF sayilarini yalanci sekilde
-    iyilestirir.
+    During validation this must be given **only the training months**. Including the
+    holdout months is leakage and would flatter the out-of-fold numbers in a way the
+    board would later take back.
     """
     clean = fit.filter(
         (pl.col("PHASE_mvt") == "DEP")
@@ -92,46 +93,46 @@ def fit_reference(fit: pl.DataFrame) -> dict[str, pl.DataFrame]:
 
 
 def apply_reference(df: pl.DataFrame, tables: dict[str, pl.DataFrame]) -> pl.DataFrame:
-    """`referans_sn` ve hangi seviyeden geldigini gosteren `referans_seviye` ekler."""
+    """Add `reference_sec` and the `reference_level` it came from."""
     out = df
     for suffix, keys in LEVELS:
         out = out.join(tables[suffix], on=keys, how="left")
 
-    # en ozel gecerli seviyeyi sec
+    # Pick the most specific level that is valid.
     ref_expr = pl.lit(None, dtype=pl.Float64)
-    lvl_expr = pl.lit("yok", dtype=pl.String)
-    for suffix, _ in reversed(LEVELS):  # genelden ozele dogru uzerine yaz
+    lvl_expr = pl.lit("none", dtype=pl.String)
+    for suffix, _ in reversed(LEVELS):  # general to specific, overwriting as we go
         usable = (
-            pl.col(f"gecerli_{suffix}").fill_null(False)
+            pl.col(f"valid_{suffix}").fill_null(False)
             & pl.col(f"p10_{suffix}").is_not_null()
         )
         ref_expr = pl.when(usable).then(pl.col(f"p10_{suffix}")).otherwise(ref_expr)
         lvl_expr = pl.when(usable).then(pl.lit(suffix)).otherwise(lvl_expr)
 
     return out.with_columns(
-        referans_sn=ref_expr.cast(pl.Float32),
-        referans_seviye=lvl_expr,
-        # kombo ne kadar iyi gozlemlenmis: modelin referansa ne kadar guvenecegini soyler
-        referans_ornek=pl.col("n_apt_stand_rwy").fill_null(0).cast(pl.Int32),
+        reference_sec=ref_expr.cast(pl.Float32),
+        reference_level=lvl_expr,
+        # How well observed the combo is: tells the model how far to trust the reference.
+        reference_sample=pl.col("n_apt_stand_rwy").fill_null(0).cast(pl.Int32),
     ).drop(
-        # `referans_ornek` n_apt_stand_rwy'yi zaten tasiyor; ham ara kolonlarin hicbiri
-        # disari sizmamali, yoksa oznitelik ailesi kaydinin disinda kalirlar.
-        [c for s, _ in LEVELS for c in (f"p10_{s}", f"n_{s}", f"alti_{s}", f"gecerli_{s}")]
+        # `reference_sample` already carries n_apt_stand_rwy. None of the intermediate
+        # columns may escape, or they fall outside the feature-family registry.
+        [c for s, _ in LEVELS for c in (f"p10_{s}", f"n_{s}", f"below_{s}", f"valid_{s}")]
     )
 
 
 def official_coverage(applied: pl.DataFrame) -> pl.DataFrame:
-    """ATXOT'un kendi kapsama olcusu: gecerli referansi olmayan ucuslarin orani.
+    """ATXOT's own coverage measure: the share of flights without a valid reference.
 
-    Resmi metotta bu ucuslar gostergeden duser; PRC bu orani veri kalitesi
-    gostergesi olarak izlemeyi sart kosuyor (ATXOT s.16, §6.3).
+    The official method drops those flights from the indicator, and PRC requires this
+    share to be monitored as a data-quality signal (ATXOT p.16, section 6.3).
     """
     return (
         applied.group_by(APT)
         .agg(
             n=pl.len(),
-            resmi_kapsam=(pl.col("referans_seviye") == "apt_stand_rwy").mean(),
-            geri_dusus=(pl.col("referans_seviye") != "apt_stand_rwy").mean(),
+            official_coverage_share=(pl.col("reference_level") == "apt_stand_rwy").mean(),
+            fallback_share=(pl.col("reference_level") != "apt_stand_rwy").mean(),
         )
         .sort(APT)
     )

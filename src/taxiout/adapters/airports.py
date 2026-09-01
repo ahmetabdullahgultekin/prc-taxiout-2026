@@ -1,18 +1,21 @@
-"""Havalimani ve pist referans verisi (OurAirports, kamu mali).
+"""Airport and runway reference data (OurAirports, public domain).
 
-Iki sey icin gerekli:
+Needed for two things:
 
-1. **Kalkis yonu.** Lee, Malik ve Jung (Charlotte, 2016) "departure fix"i anlamli bir
-   tahmin edici olarak buluyor: ayni cikis noktasina giden kalkislar birbirinden daha
-   fazla ayrilmak zorundadir, dolayisiyla komsulari kendisiyle ayni yone gidiyorsa ucak
-   daha uzun bekler. Veride departure fix yok; `ADES_mvt` var. Kalkistan varisa
-   **kerteriz** hesaplayip sektore yuvarlayarak vekilliyoruz.
+1. **Departure direction.** Lee, Malik and Jung (Charlotte, 2016) find the departure fix
+   predictive: aircraft leaving for the same exit need wider separation, so one whose
+   neighbours share its heading waits longer. The data has no fix, but it has
+   `ADES_mvt`, so we take the bearing from departure to destination and round it into a
+   sector.
 
-2. **Havalimani yapisi.** Pist sayisi kapasiteyi belirler: EGLL ve EDDM'de 2, LTFM ve
-   EHAM'da 6 pist var. Bu, havalimanlarinin neden farkli davrandiginin bir parcasi.
+2. **Airport structure.** Runway count bounds capacity: Heathrow and Munich have two,
+   Istanbul and Schiphol six. That is part of why the airports behave differently.
 
-Lisans: "All data is released to the Public Domain" (ourairports.com/data/, 2026-09-01).
-Atif zorunlu degil, yine de verilecek. `docs/external_data.md`'de belgeli.
+Licence: "All data is released to the Public Domain" (ourairports.com/data/, read
+2026-09-01). Attribution is optional but given anyway. See `docs/external_data.md`.
+
+Note: the list below carries all eleven airports named on the challenge page, but the
+delivered dataset contains only ten. LTAI (Antalya) appears nowhere in it.
 """
 
 from __future__ import annotations
@@ -40,10 +43,10 @@ def _download(url: str, dest: Path) -> Path:
 
 
 def build(raw_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame]:
-    """(tum havalimanlarinin koordinatlari, 11 havalimaninin pist ozeti) dondurur.
+    """Returns (coordinates for every airport, runway summary for the challenge ones).
 
-    Koordinat tablosu **tum** havalimanlarini icerir: varis noktasi dunyanin herhangi
-    bir yerinde olabilir, kerteriz icin hepsi gerekli.
+    The coordinate table covers **every** airport: a destination can be anywhere in
+    the world and all of them are needed for the bearing.
     """
     apt_csv = _download(AIRPORTS_URL, raw_dir / "ourairports_airports.csv")
     rwy_csv = _download(RUNWAYS_URL, raw_dir / "ourairports_runways.csv")
@@ -53,9 +56,9 @@ def build(raw_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame]:
         .filter(pl.col("latitude_deg").is_not_null() & pl.col("longitude_deg").is_not_null())
         .select(
             icao=pl.col("ident"),
-            enlem=pl.col("latitude_deg").cast(pl.Float64),
-            boylam=pl.col("longitude_deg").cast(pl.Float64),
-            yukseklik_ft=pl.col("elevation_ft").cast(pl.Float32, strict=False),
+            latitude=pl.col("latitude_deg").cast(pl.Float64),
+            longitude=pl.col("longitude_deg").cast(pl.Float64),
+            elevation_ft=pl.col("elevation_ft").cast(pl.Float32, strict=False),
         )
         .unique(subset="icao")
     )
@@ -65,9 +68,9 @@ def build(raw_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame]:
         .filter(pl.col("airport_ident").is_in(CHALLENGE_AIRPORTS) & (pl.col("closed") == 0))
         .group_by("airport_ident")
         .agg(
-            pist_sayisi=pl.len().cast(pl.Int8),
-            en_uzun_pist_ft=pl.col("length_ft").max().cast(pl.Float32),
-            ort_pist_ft=pl.col("length_ft").mean().cast(pl.Float32),
+            runway_count=pl.len().cast(pl.Int8),
+            longest_runway_ft=pl.col("length_ft").max().cast(pl.Float32),
+            mean_runway_ft=pl.col("length_ft").mean().cast(pl.Float32),
         )
         .rename({"airport_ident": "icao"})
     )
@@ -75,15 +78,15 @@ def build(raw_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame]:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="OurAirports referans verisi hazirla")
+    ap = argparse.ArgumentParser(description="prepare OurAirports reference data")
     ap.add_argument("--raw-dir", required=True)
     args = ap.parse_args()
     raw = Path(args.raw_dir)
     coords, runways = build(raw)
     coords.write_parquet(raw / "airport_coords.parquet")
     runways.write_parquet(raw / "airport_runways.parquet")
-    print(f"{coords.height:,} havalimani koordinati, {runways.height} yarisma havalimani pisti")
-    print(runways.sort("pist_sayisi", descending=True))
+    print(f"{coords.height:,} airport coordinates, {runways.height} challenge airports")
+    print(runways.sort("runway_count", descending=True))
 
 
 if __name__ == "__main__":

@@ -32,24 +32,24 @@ def test_p10_matches_hand_computed_value() -> None:
 
 
 def test_validity_rule_needs_ten_flights_at_or_below_p10() -> None:
-    """ATXOT s.15: P10'a esit ya da ondan kisa en az 10 ucus olmali."""
-    # 12 ucus: P10'un altinda 10'dan az kalir -> gecersiz
+    """ATXOT s.15: P10'a esit ya da ondan kisa en az 10 flights olmali."""
+    # 12 flights: P10'un altinda 10'dan az kalir -> gecersiz
     small = _frame(
         [
             {"apt_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": t}
             for t in range(300, 420, 10)
         ]
     )
-    assert not reference.fit_reference(small)["apt_stand_rwy"]["gecerli_apt_stand_rwy"][0]
+    assert not reference.fit_reference(small)["apt_stand_rwy"]["valid_apt_stand_rwy"][0]
 
-    # ayni degerden 20 ucus: hepsi P10'a esit -> gecerli
+    # ayni degerden 20 flights: hepsi P10'a esit -> valid
     flat = _frame(
         [
             {"apt_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": 400}
             for _ in range(20)
         ]
     )
-    assert reference.fit_reference(flat)["apt_stand_rwy"]["gecerli_apt_stand_rwy"][0]
+    assert reference.fit_reference(flat)["apt_stand_rwy"]["valid_apt_stand_rwy"][0]
 
 
 def test_official_filters_drop_impossible_taxi_times() -> None:
@@ -83,8 +83,8 @@ def test_falls_back_when_combo_is_unseen() -> None:
         [{"apt_mvt": "LTFM", "STAND_mvt": "ZZ", "RUNWAY_mvt": "34L", "TAXITIME_SEC_mvt": None}]
     )
     out = reference.apply_reference(unseen, tables)
-    assert out["referans_sn"][0] is not None
-    assert out["referans_seviye"][0] == "apt_rwy"  # stand bilinmiyor, pist biliniyor
+    assert out["reference_sec"][0] is not None
+    assert out["reference_level"][0] == "apt_rwy"  # stand bilinmiyor, pist biliniyor
 
 
 def test_most_specific_valid_level_wins() -> None:
@@ -103,9 +103,9 @@ def test_most_specific_valid_level_wins() -> None:
         [{"apt_mvt": "LSZH", "STAND_mvt": "A1", "RUNWAY_mvt": "28", "TAXITIME_SEC_mvt": None}]
     )
     out = reference.apply_reference(seen, tables)
-    assert out["referans_seviye"][0] == "apt_stand_rwy"
+    assert out["reference_level"][0] == "apt_stand_rwy"
     # havalimani geneli ~650 olurdu; en ozel seviye 400'u vermeli
-    assert out["referans_sn"][0] < 500
+    assert out["reference_sec"][0] < 500
 
 
 def test_reference_is_below_typical_taxi_time() -> None:
@@ -123,4 +123,4 @@ def test_reference_is_below_typical_taxi_time() -> None:
     )
     tables = reference.fit_reference(df)
     applied = reference.apply_reference(df, tables)
-    assert applied["referans_sn"][0] < applied["TAXITIME_SEC_mvt"].median()
+    assert applied["reference_sec"][0] < applied["TAXITIME_SEC_mvt"].median()

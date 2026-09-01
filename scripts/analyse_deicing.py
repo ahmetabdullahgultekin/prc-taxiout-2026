@@ -6,7 +6,7 @@ kamu mali) ve EUROCONTROL'un yayimladigi Taxi-Out Additional Time gostergesi.
 Sordugu soru: METAR'dan turettigimiz de-icing vekili gercekten de-icing'i mi olcuyor?
 Bagimsiz bir olcum gerekiyordu; resmi gosterge onu sagliyor. PRC kendi gostergesinde
 **AOBT sonrasi de-icing yapan ucuslari hesaptan atiyor** (ATXOT s.13 adim 1), yani
-"gecerli referansi olmayan ucus orani" alani kis aylarinda de-icing'i tasiyor.
+"valid referansi olmayan flights orani" alani kis aylarinda de-icing'i tasiyor.
 
 Bulunan sey bundan fazlasi: havalimanlarinin **de-icing rejimi farkli**, ve bu bizim
 Ocak hatamizin nerede toplanacagini belirliyor. Ayrinti `docs/deicing_analysis.md`.
@@ -29,13 +29,13 @@ OUT_MD = Path("docs/deicing_analysis.md")
 def monthly_metar(metar: pl.DataFrame) -> pl.DataFrame:
     return metar.group_by(
         apt=pl.col("station"),
-        yil=pl.col("valid").dt.year(),
-        ay=pl.col("valid").dt.month(),
+        year=pl.col("valid").dt.year(),
+        month_num=pl.col("valid").dt.month(),
     ).agg(
-        deicing=pl.col("deicing_vekili").mean(),
-        kar=pl.col("kar").mean(),
-        donma=pl.col("donma_yagisi").mean(),
-        min_sicaklik=pl.col("sicaklik_c").min(),
+        deicing=pl.col("deicing_proxy").mean(),
+        snow=pl.col("snow").mean(),
+        donma=pl.col("freezing_precip").mean(),
+        min_temperature_c=pl.col("temperature_c").min(),
     )
 
 
@@ -71,21 +71,21 @@ def main() -> None:
         )
     met = monthly_metar(pl.read_parquet(metar_path))
     off = eurocontrol.official_taxiout(raw)
-    j = off.join(met, on=["apt", "yil", "ay"], how="inner").sort("apt", "yil", "ay")
+    j = off.join(met, on=["apt", "year", "month_num"], how="inner").sort("apt", "year", "month_num")
 
-    genel_ref = j.select(pl.corr("deicing", "referanssiz_oran")).item()
-    genel_sure = j.select(pl.corr("deicing", "ek_sure_dk")).item()
+    genel_ref = j.select(pl.corr("deicing", "no_reference_share")).item()
+    genel_sure = j.select(pl.corr("deicing", "additional_min")).item()
 
     per = (
         j.group_by("apt")
         .agg(
             ay_sayisi=pl.len(),
-            r_referanssiz=pl.corr("deicing", "referanssiz_oran"),
-            r_ek_sure=pl.corr("deicing", "ek_sure_dk"),
+            r_referanssiz=pl.corr("deicing", "no_reference_share"),
+            r_ek_sure=pl.corr("deicing", "additional_min"),
             ort_deicing=pl.col("deicing").mean(),
-            ort_referanssiz=pl.col("referanssiz_oran").mean(),
-            kis_ek_sure=pl.col("ek_sure_dk").filter(pl.col("ay").is_in([1, 2, 12])).mean(),
-            yaz_ek_sure=pl.col("ek_sure_dk").filter(pl.col("ay").is_in([6, 7, 8])).mean(),
+            ort_referanssiz=pl.col("no_reference_share").mean(),
+            kis_ek_sure=pl.col("additional_min").filter(pl.col("month_num").is_in([1, 2, 12])).mean(),
+            yaz_ek_sure=pl.col("additional_min").filter(pl.col("month_num").is_in([6, 7, 8])).mean(),
         )
         .with_columns(kis_yaz_farki=pl.col("kis_ek_sure") - pl.col("yaz_ek_sure"))
         .sort("r_referanssiz", descending=True)
@@ -95,7 +95,7 @@ def main() -> None:
 
     # tablolar f-string DISINDA kurulur: f-string ifadesi icinde sozluk yazilamaz
     tablo_korelasyon = table(
-        per.select("apt", "ay_sayisi", "r_referanssiz", "r_ek_sure", "ort_deicing",
+        per.select("apt", "month_sayisi", "r_referanssiz", "r_ek_sure", "ort_deicing",
                    "ort_referanssiz")
     )
     tablo_rejim = table(
@@ -112,19 +112,19 @@ def main() -> None:
 
 Uretildigi komut: `python scripts/analyse_deicing.py --raw-dir <yol>`
 **Yarisma verisi kullanilmaz** — iki acik kaynak: IEM METAR ve EUROCONTROL'un
-yayimladigi Taxi-Out Additional Time gostergesi. Kapsam: {j.height} havalimani-ay.
+yayimladigi Taxi-Out Additional Time gostergesi. Kapsam: {j.height} havalimani-month_num.
 
 ## Neden bu karsilastirma anlamli
 
 PRC resmi gostergesinde **AOBT sonrasi de-icing yapan ucuslari hesaptan atiyor**
-(ATXOT s.13, adim 1). Dolayisiyla gostergenin "gecerli referansi olmayan ucus orani"
+(ATXOT s.13, adim 1). Dolayisiyla gostergenin "valid referansi olmayan flights orani"
 alani, kis aylarinda buyuk olcude de-icing'i tasir. Bu, METAR'dan turettigimiz
-`deicing_vekili` alani icin **bagimsiz** bir olcumdur.
+`deicing_proxy` alani icin **bagimsiz** bir olcumdur.
 
 ## Sonuc: vekil calisiyor
 
 Tum veri uzerinde korelasyon **r = {genel_ref:.3f}** (de-icing vekili ↔ referanssiz
-ucus orani). Havalimani icinde, aylar arasinda:
+flights orani). Havalimani icinde, aylar arasinda:
 
 {tablo_korelasyon}
 
@@ -138,7 +138,7 @@ De-icing vekili ile **ek taxi-out suresi** arasindaki korelasyon genelde
 
 {tablo_rejim}
 
-**EHAM tek basina ayri duruyor.** Amsterdam'da referanssiz ucus orani yil boyunca
+**EHAM tek basina ayri duruyor.** Amsterdam'da referanssiz flights orani year boyunca
 sabit (~%1) kaliyor ama ek taxi-out suresi kisin belirgin sekilde artiyor. EDDM ve
 LSZH'de ise tam tersi: kisin ucuslarin buyuk bolumu gostergeden **dusuyor**
 (Munih'te Ocak 2026'da %31), ek sure ise artmiyor.
@@ -152,7 +152,7 @@ Yorum: kis gecikmesinin **ne kadarinin taxi-out'un icine dustugu** havalimanina 
 degisiyor. Amsterdam'da icine dusuyor ve hedefi buyutuyor; Munih ve Zurih'te etkilenen
 ucuslar isaretlenip resmi hesaptan cikariliyor.
 
-Bu, kesin bir nedensellik iddiasi degil: elimizde de-icing kayitlari yok, yalnizca hava
+Bu, kesin bir nedensellik iddiasi degil: elimizde de-icing kayitlari yok, yalnizca weather
 kosulu vekili ile resmi gostergenin iki alani var. Ancak iki bagimsiz kaynagin ayni
 mevsimsel yapiyi gostermesi ve havalimanlarinin iki farkli desene ayrilmasi, yarisma
 verisi geldiginde **ilk sinanacak hipotezi** belirlemek icin yeterli.
@@ -161,12 +161,12 @@ verisi geldiginde **ilk sinanacak hipotezi** belirlemek icin yeterli.
 
 Biz **ham taxi-out'u** tahmin ediyoruz ve hicbir satiri atamayiz. Yani:
 
-- EHAM'da hava etkisi dogrudan hedefte gorunur ve ogrenilebilir.
+- EHAM'da weather etkisi dogrudan hedefte gorunur ve ogrenilebilir.
 - EDDM ve LSZH'de, resmi gostergenin **attigi** ucuslar bizim veri setimizde duruyor ve
   uc degerler olarak Ocak hatamizi domine edecek. Yayimlanmis hicbir taxi-out modeli bu
   ucuslari tahmin etmek zorunda kalmadi, cunku standart metodoloji onlari eliyor.
-- Hava etkisi **havalimanina gore degisiyor**; global bir hava katsayisi yerine
-  havalimani x hava etkilesimi (ya da havalimani bazli model) gerekiyor.
+- Hava etkisi **havalimanina gore degisiyor**; global bir weather katsayisi yerine
+  havalimani x weather etkilesimi (ya da havalimani bazli model) gerekiyor.
 
 ## Kapsam disi
 

@@ -10,7 +10,7 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | # | Gerçek | Kaynak | Kontrol | Durum |
 |---|--------|--------|---------|-------|
 | F01 | Yarışma 2026-09-01 → 2026-10-11 23:59:59 CET | dc2026/index.html | 2026-09-01 | ✅ |
-| F02 | Ödül ilk 3 takıma toplam 5000 EUR | dc2026/index.html | 2026-09-01 | ✅ |
+| F02 | Ödül ilk 3 takıma total 5000 EUR | dc2026/index.html | 2026-09-01 | ✅ |
 | F03 | Sıralama = Ocak + Temmuz 2026 kalkışlarında RMSE | dc2026/index.html | 2026-09-01 | ✅ |
 | F04 | Takım **en iyi** RMSE'siyle sıralanır (son değil, en iyi) | dc2026/ranking.html | 2026-09-01 | ✅ |
 | F05 | **Yayınlanmış gönderim limiti YOK** | dc2026/ranking.html | 2026-09-01 | ⚠️ Discord'da teyit et |
@@ -30,7 +30,7 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | # | Gerçek | Kaynak | Kontrol | Durum |
 |---|--------|--------|---------|-------|
 | D01 | 11 havalimanı: EDDF EDDM EGLL EHAM LEBL LEMD LFPG LIRF **LTAI LTFM** LSZH | dc2026/data.html | 2026-09-01 | ✅ |
-| D02 | Eğitim: 12 aylık parquet, 2025 tam yıl, toplam ~277 MB | dc2026/data.html | 2026-09-01 | ✅ |
+| D02 | Eğitim: 12 aylık parquet, 2025 tam yıl, total ~277 MB | dc2026/data.html | 2026-09-01 | ✅ |
 | D03 | `ranking.parquet` 27 MB (Ocak + Temmuz 2026); `submitting.parquet` 1.1 MB | dc2026/data.html | 2026-09-01 | ✅ |
 | D04 | Toplam 4.167.797 hareket (ARR + DEP) | dc2026/data.html | 2026-09-01 | ✅ |
 | D05 | Ranking'de **DEP için SADECE** `BLOCK_TIME_UTC_mvt` ve `TAXITIME_SEC_mvt` boşaltılmış | dc2026/data.html | 2026-09-01 | ✅ |
@@ -98,10 +98,10 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | # | Gerçek | Kaynak | Kontrol | Durum |
 |---|--------|--------|---------|-------|
 | E01 | Resmi ATXOT gostergesi acik indirilebilir: havalimani-ay bazinda referans ve ek taxi-out suresi, 2018-2026 | eurocontrol.int/performance/data/download/xls/Taxi-Out_Additional_Time.xlsx | 2026-09-01 | ✅ indirildi |
-| E02 | **2025 ortalama toplam taxi-out (dk/kalkis):** EGLL 22,7 · LIRF 19,0 · LTFM 16,9 · LEMD 16,8 · LEBL 15,8 · EDDF 14,2 · EHAM 13,0 · EDDM 12,9 · LSZH 11,9 | resmi gosterge | 2026-09-01 | ✅ **hedefin olcegi: ~715-1365 sn** |
+| E02 | **2025 ortalama total taxi-out (dk/kalkis):** EGLL 22,7 · LIRF 19,0 · LTFM 16,9 · LEMD 16,8 · LEBL 15,8 · EDDF 14,2 · EHAM 13,0 · EDDM 12,9 · LSZH 11,9 | resmi gosterge | 2026-09-01 | ✅ **hedefin olcegi: ~715-1365 sn** |
 | E03 | **LTAI resmi gostergede HIC yok** (24 ay, TF=0) — Antalya EUROCONTROL performans semasinda degil | resmi gosterge | 2026-09-01 | ✅ dis dogrulama kaynagi yok; veri kalitesi farkli olabilir |
 | E04 | Gosterge Haziran 2026'da bitiyor → **Temmuz 2026 kapsanmiyor**, ozellik olarak kullanilamaz | resmi gosterge META | 2026-09-01 | ✅ yalnizca dogrulama |
-| E05 | METAR de-icing vekilimiz resmi "referanssiz ucus orani" ile **r = 0,757** korele; havalimani icinde LTFM 0,98 · LSZH 0,97 · EDDF 0,94 · EDDM 0,94 · LFPG 0,87 | kendi analizimiz | 2026-09-01 | ✅ vekil bagimsiz dogrulandi |
+| E05 | METAR de-icing vekilimiz resmi "referanssiz flights orani" ile **r = 0,757** korele; havalimani icinde LTFM 0,98 · LSZH 0,97 · EDDF 0,94 · EDDM 0,94 · LFPG 0,87 | kendi analizimiz | 2026-09-01 | ✅ vekil bagimsiz dogrulandi |
 | E06 | **Havalimanlarinin de-icing rejimi farkli.** EHAM: referanssiz oran yil boyu sabit ~%1 ama ek sure kisin +1,46 dk. EDDM/LSZH: kisin ucuslarin buyuk kismi gostergeden dusuyor (EDDM Ocak 2026 %31), ek sure artmiyor | kendi analizimiz | 2026-09-01 | ✅ **Ocak hatasi EDDM/LSZH'de resmi gostergenin ATTIGI ucuslarda toplanacak** |
 | E07 | Ek taxi-out suresi **her havalimaninda** kisin yazdan dusuk (yaz trafik zirvesi); EHAM tek istisna | kendi analizimiz | 2026-09-01 | ✅ EHAM anomalisini guclendiriyor |
 
@@ -114,7 +114,7 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | S03 | 4,17M hareketin **2,08M'i kalkis**; 114 ham kolon, 95 modellenebilir oznitelik | kendi olcumumuz | 2026-09-01 | ⏳ gercek veride dogrulanacak |
 | S04 | Tam ablation (13 yapilandirma x 1500 tur) tahmini **~1,7 saat**, 5 tohumla ~8,5 saat | S01'den olcekleme | 2026-09-01 | ✅ gece kosusu planlanabilir |
 
-| O01 | OPDI (PRC + OpenSky acik girisimi) ADS-B'den turetilmis ucus olaylari yayimliyor; v0.0.2'de **park pozisyonu giris/cikis** var, kapsam 2022-01 → 2026-08-08 (her iki siralama ayi da) | opdi.aero/flight-event-data.html | 2026-09-01 | ✅ |
+| O01 | OPDI (PRC + OpenSky acik girisimi) ADS-B'den turetilmis flights olaylari yayimliyor; v0.0.2'de **park pozisyonu giris/cikis** var, kapsam 2022-01 → 2026-08-08 (her iki siralama ayi da) | opdi.aero/flight-event-data.html | 2026-09-01 | ✅ |
 | O02 | **Park pozisyonu olaylari yalnizca LSZH ve EDDF'te var**; EHAM/LIRF/LTAI/LTFM'de **sifir**. Sebep: OPDI bu olaylari OSM park pozisyonu poligonlarindan turetiyor, o poligonlar cogu havalimaninda yok | kendi olcumumuz, 10 gunluk dosya | 2026-09-01 | ✅ **ELENDI** (docs/opdi_negative_result.md) |
 | O03 | **LTFM ve LTAI'de acik ADS-B yer kapsamasi neredeyse sifir** (10 gunde 25 ve 119 pist girisi) — ADS-B tabanli her yaklasim tam da iki Turk havalimaninda cokerdi | kendi olcumumuz | 2026-09-01 | ✅ |
 
@@ -138,14 +138,14 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | R01 | **Veri setinde 10 havalimani var, 11 degil. LTAI (Antalya) YOK.** Ne egitimde ne siralamada tek satiri var | kendi olcumumuz | 2026-09-01 | ✅ **yarisma sayfasi 11 diyor, veri 10** (E03 ile tutarli: LTAI performans semasinda degil) |
 | R02 | **`ADEP_mvt` hareketin havalimani DEGIL, ucusun kalkis havalimani.** Hareket havalimani = DEP ise `ADEP_mvt`, ARR ise `ADES_mvt`. Egitimde 1.582 farkli `ADEP_mvt` var | kendi olcumumuz | 2026-09-01 | 🔴 **kodda hata: varis turevli tum oznitelikler yanlis havalimaninda gruplaniyordu** |
 | R03 | **Siralama setinde Temmuz'da yalnizca 3 havalimani var: EDDF, EGLL, EHAM.** Ocak'ta 10'unun hepsi | kendi olcumumuz | 2026-09-01 | 🔴 **dogrulama semasi bunu yansitmali** |
-| R04 | Siralama seti: Ocak 152.719 kalkis (10 apt) + Temmuz 63.157 kalkis (3 apt) = **215.876**. Ocak toplam satirlarin **%71'i** | kendi olcumumuz | 2026-09-01 | ✅ RMSE'yi Ocak domine ediyor |
+| R04 | Siralama seti: Ocak 152.719 kalkis (10 apt) + Temmuz 63.157 kalkis (3 apt) = **215.876**. Ocak total satirlarin **%71'i** | kendi olcumumuz | 2026-09-01 | ✅ RMSE'yi Ocak domine ediyor |
 | R05 | Egitim tam **4.167.797** hareket (yayimlanan sayiyla birebir), 2.085.047'si kalkis | kendi olcumumuz | 2026-09-01 | ✅ |
 | R06 | Kimlik `MVT_TIME − BLOCK_TIME == TAXITIME` **tam tutuyor** (oran 1,0000, azami sapma 0 sn) | probe §2 | 2026-09-01 | ✅ TAXITIME turetilmis, zaman damgalari tutarli |
 | R07 | Zaman damgalari **saniye hassasiyetinde** (saniyesi sifir olan oran %1,6-%8,4) — HH:MM sorunu YOK | probe §3 | 2026-09-01 | ✅ M14 endisesi gecersiz |
-| R08 | **`AOBT_3_flt` siralama setinde %98,52 dolu**; naif `MVT − AOBT_3` tahmincisi **RMSE 384,9 sn** (MAE 238, medyan mutlak hata 175, yanlilik +17) | probe §5 | 2026-09-01 | ✅ **cozum degil, guclu ozellik** (kendi esigim >200 sn idi) |
+| R08 | **`AOBT_3_flt` siralama setinde %98,52 dolu**; naif `MVT − AOBT_3` tahmincisi **RMSE 384,9 sn** (MAE 238, medyan mutlak hata 175, bias +17) | probe §5 | 2026-09-01 | ✅ **cozum degil, guclu ozellik** (kendi esigim >200 sn idi) |
 | R09 | Naif AOBT_3 havalimani bazinda: EDDF 255 · LSZH 268 · LEMD 276 · LEBL 311 · EHAM 330 · EDDM 349 · LFPG 380 · EGLL 419 · **LTFM 531 · LIRF 557** | probe §5 | 2026-09-01 | ✅ LTFM ve LIRF en zor |
-| R10 | **Hedef olcegi yayimlanan gostergeyle birebir ortusuyor:** EGLL ort 1364 sn (22,7 dk), LSZH 740 sn (12,3 dk) — E02'de resmi seri 22,7 ve 11,9 dk demisti | probe §6 | 2026-09-01 | ✅ dis veri calismasi dogrulandi |
-| R11 | **LIRF uc deger yuvasi:** std 1332 sn, p99 4019 sn, %0,30'u 120 dakikayi asiyor. LSZH'de %0,22 **negatif** taxi suresi var | probe §6 | 2026-09-01 | ✅ kirpma degil modelleme karari |
+| R10 | **Hedef olcegi yayimlanan gostergeyle birebir ortusuyor:** EGLL mean 1364 sn (22,7 dk), LSZH 740 sn (12,3 dk) — E02'de resmi seri 22,7 ve 11,9 dk demisti | probe §6 | 2026-09-01 | ✅ dis veri calismasi dogrulandi |
+| R11 | **LIRF uc deger yuvasi:** std 1332 sn, p99 4019 sn, %0,30'u 120 dakikayi asiyor. LSZH'de %0,22 **negative_share** taxi suresi var | probe §6 | 2026-09-01 | ✅ kirpma degil modelleme karari |
 | R12 | En yuksek varyansli aylar **Temmuz (std 745) ve Ocak (605)** — siralama aylari en zor iki ay | probe §6 | 2026-09-01 | ✅ |
 | R13 | Kombo (apt, stand, pist) ortalamasi taban modeli: **RMSE 628,4 sn**; havalimani ortalamasi 660,0; genel ortalama 686,6 | probe §7 | 2026-09-01 | ✅ ilk gonderim seviyesi |
 | R14 | Soguk baslangic dusuk: siralama kombolarinin **%99,46'si** egitimde gorulmus; stand/pist bos oran 0 | probe §7 | 2026-09-01 | ✅ |
@@ -162,12 +162,15 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | B05 | **Canli lider tablosu REST API'de:** `https://datacomp.opensky-network.org/api/competitions/bb3693e1-26bc-4a9e-8619-4fe78b4eab0c/leaderboard` — sayfada tablo gorunmuyor, Observable ile gomulu. `scripts/leaderboard.py` ceker | dc2026/ranking.html icinden cikarildi | 2026-09-01 | ✅ |
 | B06 | **32 takim kayitli**, hepsi 2026-09-01'de. `vibrant-lollipop` Turkiye olarak listede | dc2026/teams.html | 2026-09-01 | ✅ |
 | B07 | 2026-09-01 15:35 durumu: **yalnizca 2 takim gonderim yapmis.** enthusiastic-daisy 304,98 (v2) · **vibrant-lollipop 331,23 (v1)** · enthusiastic-daisy 485,23 (v1) | leaderboard API | 2026-09-01 | ✅ lidere fark 26,25 |
+| P08 | **2024 kazananlari 12. OpenSky Symposium'da (Hamburg, 7-8 Kasim 2024) aciklandi** — yani yarisma sonrasi bir sempozyum var ve kazananlar orada duyuruluyor | arama sonucu, dogrudan sayfa okunmadi | 2026-09-01 | ⚠️ 2026 icin teyit gerek |
+| P09 | JOAS 2025 yarismasi icin **ozel sayi** cikardi (Vol. 4 No. 3, 2026: "EUROCONTROL PRC 2025 Data Challenge") — makale icin hazir bir yayin yolu | journals.open.tudelft.nl/joas/issue/view/1058 | 2026-09-01 | ✅ |
+| P10 | 2026 sayfasi odulun **ilk 3 arasinda nasil bolundugunu yazmiyor**; 2025'te 2500/1750/750 idi. Odeme yontemi ve tarihi de yazmiyor | dc2026/index.html | 2026-09-01 | ⚠️ gerekirse challenge@opensky-network.org'a sorulur |
 
 ## Açık sorular
 
 | # | Soru | Nasıl kapanır |
 |---|------|---------------|
-| Q01 | Günlük/toplam gönderim limiti var mı? | Discord'da sor. P04 dolaylı kanıt: 2025 birincisi ~18 gönderimlik ablation yapmış, sıkı bir limit yok görünüyor |
+| Q01 | Günlük/total gönderim limiti var mı? | Discord'da sor. P04 dolaylı kanıt: 2025 birincisi ~18 gönderimlik ablation yapmış, sıkı bir limit yok görünüyor |
 | Q02 | ~~`AOBT_3_flt` ne kadar iyi?~~ | **KAPANDI (R08):** %98,52 dolu, naif RMSE 384,9 sn. Guclu ozellik, cozum degil |
 | Q03 | ~~Leaderboard canlı mı?~~ | **KAPANDI (B02, B05):** skor ~15 sn içinde bucket'a JSON olarak düşüyor; sıralama REST API'de |
 | Q04 | ~~Takım adı ne olacak?~~ | **KAPANDI:** `vibrant-lollipop` atandı (T01) |

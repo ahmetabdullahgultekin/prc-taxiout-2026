@@ -16,36 +16,36 @@ from taxiout.features import groups
 # referans modulunun sonradan ekledikleri.
 PRODUCED = [
     "apt_mvt", "AIRCRAFT_OPERATOR_flt", "AIRCRAFT_TYPE_flt", "AIRCRAFT_TYPE_mvt",
-    "MARKET_SEGMENT_flt", "RUNWAY_mvt", "STAND_mvt", "WK_TBL_CAT_flt", "aktif_pist_sayisi",
-    "apt_inis_onceki_5dk", "apt_inis_onceki_10dk", "apt_inis_onceki_15dk",
-    "apt_inis_onceki_30dk", "apt_inis_onceki_60dk",
-    "apt_inis_sonraki_5dk", "apt_inis_sonraki_10dk", "apt_inis_sonraki_15dk",
-    "apt_inis_sonraki_30dk", "apt_inis_sonraki_60dk",
-    "apt_kalkis_onceki_5dk", "apt_kalkis_onceki_10dk", "apt_kalkis_onceki_15dk",
-    "apt_kalkis_onceki_30dk", "apt_kalkis_onceki_60dk",
-    "apt_kalkis_sonraki_5dk", "apt_kalkis_sonraki_10dk", "apt_kalkis_sonraki_15dk",
-    "apt_kalkis_sonraki_30dk", "apt_kalkis_sonraki_60dk",
-    "atfm_suruklenme_sn", "ay", "cig_farki_c", "cig_noktasi_c", "deicing_vekili",
-    "donma_yagisi", "dusuk_gorus", "en_uzun_pist_ft", "eobt_sapmasi_sn", "gok_gurultusu",
-    "gorus_km", "gozlem_yasi_dk", "gun_dakikasi", "hafta_gunu", "inis_kalkis_orani_30dk",
-    "inis_pistleri", "kalkis_kerterizi", "kalkis_pistleri", "kalkis_sektoru", "kar",
-    "lobt_cipa_farki_sn", "naif_taxi_sn", "nm_eslesti", "onceki_kalkis_sn", "ort_pist_ft",
-    "pist_kalkis_onceki_5dk", "pist_kalkis_onceki_10dk", "pist_kalkis_onceki_15dk",
-    "pist_kalkis_onceki_30dk", "pist_kalkis_onceki_60dk",
-    "pist_kalkis_sonraki_5dk", "pist_kalkis_sonraki_10dk", "pist_kalkis_sonraki_15dk",
-    "pist_kalkis_sonraki_30dk", "pist_kalkis_sonraki_60dk",
-    "pist_sayisi", "pist_servis_araligi_sn", "plan_sapmasi_sn", "ruzgar_ms", "saat",
-    "sektor_kalkis_onceki_15dk", "sektor_kalkis_onceki_30dk", "sicaklik_c", "sis",
-    "sonraki_kalkis_sn", "stand_donus_sn", "tavan_m", "ucus_mesafesi_km",
-    "varis_taxi_medyan", "varis_taxi_sayi", "yagis_mm", "yonlendirildi",
+    "MARKET_SEGMENT_flt", "RUNWAY_mvt", "STAND_mvt", "WK_TBL_CAT_flt", "active_runway_count",
+    "apt_arr_prev_5m", "apt_arr_prev_10m", "apt_arr_prev_15m",
+    "apt_arr_prev_30m", "apt_arr_prev_60m",
+    "apt_arr_next_5m", "apt_arr_next_10m", "apt_arr_next_15m",
+    "apt_arr_next_30m", "apt_arr_next_60m",
+    "apt_dep_prev_5m", "apt_dep_prev_10m", "apt_dep_prev_15m",
+    "apt_dep_prev_30m", "apt_dep_prev_60m",
+    "apt_dep_next_5m", "apt_dep_next_10m", "apt_dep_next_15m",
+    "apt_dep_next_30m", "apt_dep_next_60m",
+    "atfm_drift_sec", "month_num", "dewpoint_spread_c", "dewpoint_c", "deicing_proxy",
+    "freezing_precip", "low_visibility", "longest_runway_ft", "eobt_offset_sec", "thunderstorm",
+    "visibility_km", "observation_age_min", "minute_of_day", "weekday", "arr_dep_ratio_30m",
+    "arr_runways_in_use", "departure_bearing", "dep_runways_in_use", "departure_sector", "snow",
+    "lobt_anchor_gap_sec", "nm_naive_taxi_sec", "nm_matched", "prev_dep_gap_sec", "mean_runway_ft",
+    "rwy_dep_prev_5m", "rwy_dep_prev_10m", "rwy_dep_prev_15m",
+    "rwy_dep_prev_30m", "rwy_dep_prev_60m",
+    "rwy_dep_next_5m", "rwy_dep_next_10m", "rwy_dep_next_15m",
+    "rwy_dep_next_30m", "rwy_dep_next_60m",
+    "runway_count", "rwy_service_interval_sec", "sched_offset_sec", "wind_ms", "hour",
+    "sector_dep_prev_15m", "sector_dep_prev_30m", "temperature_c", "fog",
+    "next_dep_gap_sec", "stand_turnaround_sec", "ceiling_m", "flight_distance_km",
+    "arr_taxi_median_sec", "arr_taxi_count", "precip_mm", "diverted",
     # airport_state.attach ciktilari (EUROCONTROL gunluk)
-    "atfm_duzenlenen_oran", "atfm_slot_gec_oran", "atfm_slot_erken_oran",
-    "gunluk_kalkis", "gunluk_inis", "varis_atfm_gecikme_dk",
-    "varis_gecikme_hava_dk", "varis_gecikme_atc_kapasite_dk",
-    "varis_gecikme_meydan_kapasite_dk", "varis_gecikme_atc_personel_dk",
-    "varis_gecikme_atc_ekipman_dk",
+    "atfm_regulated_share", "atfm_slot_late_share", "atfm_slot_early_share",
+    "daily_departures", "daily_arrivals", "arr_atfm_delay_min",
+    "arr_delay_weather_min", "arr_delay_atc_capacity_min",
+    "arr_delay_aerodrome_capacity_min", "arr_delay_atc_staffing_min",
+    "arr_delay_atc_equipment_min",
     # reference.apply_reference ciktilari
-    "referans_sn", "referans_seviye", "referans_ornek",
+    "reference_sec", "reference_level", "reference_sample",
 ]
 
 
@@ -76,19 +76,19 @@ def test_every_group_is_non_empty() -> None:
 
 
 def test_select_drops_exactly_the_named_group() -> None:
-    kept = groups.select(PRODUCED, drop={"hava"})
-    assert "sicaklik_c" not in kept
-    assert "deicing_vekili" not in kept
-    assert "pist_kalkis_onceki_15dk" in kept
-    assert len(kept) == len(PRODUCED) - len(groups.assign(PRODUCED)["hava"])
+    kept = groups.select(PRODUCED, drop={"weather"})
+    assert "temperature_c" not in kept
+    assert "deicing_proxy" not in kept
+    assert "rwy_dep_prev_15m" in kept
+    assert len(kept) == len(PRODUCED) - len(groups.assign(PRODUCED)["weather"])
 
 
 def test_select_rejects_unknown_group_instead_of_silently_ignoring() -> None:
-    with pytest.raises(KeyError, match="tanimsiz"):
+    with pytest.raises(KeyError, match="unknown feature family"):
         groups.select(PRODUCED, drop={"hava_durumu"})
 
 
 def test_unknown_columns_are_kept_not_dropped() -> None:
     """Kayitta olmayan bir kolon ablation tarafindan sessizce dusurulmemeli."""
-    kept = groups.select([*PRODUCED, "yepyeni_oznitelik"], drop={"hava"})
+    kept = groups.select([*PRODUCED, "yepyeni_oznitelik"], drop={"weather"})
     assert "yepyeni_oznitelik" in kept

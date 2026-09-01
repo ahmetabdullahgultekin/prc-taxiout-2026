@@ -7,7 +7,7 @@ Temmuz 2026, yani iki mevsimsel uc ve bir yillik kayma.
 Ayni kosuda iki hedef parametrelendirmesi karsilastirilir:
 
   ham    -> dogrudan TAXITIME_SEC_mvt
-  artik  -> TAXITIME_SEC_mvt - referans_sn (ATXOT P10), tahminde geri eklenir
+  artik  -> TAXITIME_SEC_mvt - reference_sec (ATXOT P10), tahminde geri eklenir
 
 2025 birincisinin en buyuk tekil kazanci tam olarak bu turden bir yeniden
 parametrelendirmeydi: yakit tuketimi yerine yakit akisi (RMSE 220.56 -> 201.04), tum
@@ -33,11 +33,11 @@ from taxiout.domain import reference
 def report(name: str, split: pipeline.Split, pred: np.ndarray) -> None:
     scores = pipeline.evaluate(split, pred)
     print(f"\n=== {name} ===")
-    print(f"  toplam RMSE: {scores['toplam']:8.2f} sn   (n={split.val.height:,})")
-    print("  -- ay bazinda --")
+    print(f"  total RMSE: {scores['total']:8.2f} sn   (n={split.val.height:,})")
+    print("  -- month_num bazinda --")
     for m in pipeline.HOLDOUT_MONTHS:
-        if f"ay_{m}" in scores:
-            print(f"     {m:<8} RMSE={scores[f'ay_{m}']:8.2f}")
+        if f"month_{m}" in scores:
+            print(f"     {m:<8} RMSE={scores[f'month_{m}']:8.2f}")
     print("  -- havalimani bazinda (kotuden iyiye) --")
     per_apt = sorted(
         ((k.removeprefix("apt_"), v) for k, v in scores.items() if k.startswith("apt_")),
