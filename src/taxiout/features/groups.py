@@ -22,7 +22,7 @@ import re
 GROUPS: dict[str, list[str]] = {
     # --- yerlesim ve engelsiz taban (AQLI oncesi statik bilgi)
     "geometri": [
-        r"^ADEP_mvt$", r"^RUNWAY_mvt$", r"^STAND_mvt$",
+        r"^apt_mvt$", r"^RUNWAY_mvt$", r"^STAND_mvt$",
         r"^pist_sayisi$", r"^en_uzun_pist_ft$", r"^ort_pist_ft$",
         r"^referans_",
     ],

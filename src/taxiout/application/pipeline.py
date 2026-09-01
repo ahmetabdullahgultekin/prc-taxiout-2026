@@ -24,11 +24,20 @@ from taxiout.features import airport_state, congestion, groups, routing, weather
 
 TARGET = "TAXITIME_SEC_mvt"
 MVT = "MVT_TIME_UTC_mvt"
-APT = "ADEP_mvt"
+# Hareketin GERCEKLESTIGI havalimani. `ADEP_mvt` bu degildir: o, ucusun kalkis
+# havalimanidir ve varis satirlarinda ucagin GELDIGI yeri gosterir (egitim setinde
+# 1.582 farkli deger aliyor). Hareket havalimani = DEP ise ADEP, ARR ise ADES.
+APT = "apt_mvt"
 HOLDOUT_MONTHS = (1, 7)
 
+# Siralama seti iki ayinda ayni havalimanlarini icermiyor: Ocak'ta 10'unun hepsi,
+# Temmuz'da yalnizca bu ucu (gercek veriden olculdu, docs/facts.md R03). Ocak
+# satirlarin %71'i, yani metrigi o domine ediyor. Dogrulama bu sekli taklit etmezse
+# Temmuz performansini olmadigi kadar onemli sanip yanlis model seceriz.
+JULY_AIRPORTS = ("EDDF", "EGLL", "EHAM")
+
 CATEGORICAL = {
-    "ADEP_mvt", "RUNWAY_mvt", "STAND_mvt", "AIRCRAFT_TYPE_mvt", "AIRCRAFT_TYPE_flt",
+    APT, "RUNWAY_mvt", "STAND_mvt", "AIRCRAFT_TYPE_mvt", "AIRCRAFT_TYPE_flt",
     "WK_TBL_CAT_flt", "MARKET_SEGMENT_flt", "AIRCRAFT_OPERATOR_flt", "referans_seviye",
     "kalkis_pistleri", "inis_pistleri",
 }
@@ -40,6 +49,8 @@ EXCLUDED = {
     "FLIGHT_ID_mvt", "FLIGHT_mvt", "CALLSIGN_flt", "PHASE_mvt",
     "LOBT_flt", "IOBT_flt", "EOBT_1_flt", "ARVT_1_flt", "AOBT_3_flt", "ARVT_3_flt",
     "wxcodes", "skyc1", "ADES_mvt", "ADES_flt", "ADES_FILED_flt", "ADEP_flt",
+    # kalkis satirlarinda apt_mvt ile ozdes; ikisini birden vermek gereksiz
+    "ADEP_mvt",
     "FLIGHT_RULE_mvt", "FLIGHT_RULE_flt", "FLIGHT_TYPE_flt",
 }
 
@@ -62,6 +73,22 @@ def month(col: str = MVT) -> pl.Expr:
     return pl.col(col).dt.month()
 
 
+def prepare_movements(mvt: pl.DataFrame) -> pl.DataFrame:
+    """Kanonik `apt_mvt` kolonunu ekler.
+
+    Her hareket cercevesi (egitim ve siralama) bu fonksiyondan gecmeli. Aksi halde
+    varis turevli tikaniklik oznitelikleri yanlis havalimaninda gruplanir: bir
+    kalkisin cevresindeki inisleri sayarken, o havalimanina inenleri degil, o
+    havalimanindan KALKMIS olan uzak inisleri saymis oluruz.
+    """
+    return mvt.with_columns(
+        pl.when(pl.col("PHASE_mvt") == "DEP")
+        .then(pl.col("ADEP_mvt"))
+        .otherwise(pl.col("ADES_mvt"))
+        .alias(APT)
+    )
+
+
 # --------------------------------------------------------------------------- veri
 
 
@@ -80,7 +107,9 @@ def load_inputs(raw: Path) -> Inputs:
     files = sorted(raw.glob("training_*.parquet"))
     if not files:
         raise SystemExit(f"egitim dosyasi bulunamadi: {raw}")
-    mvt = pl.concat([pl.read_parquet(f) for f in files], how="vertical_relaxed")
+    mvt = prepare_movements(
+        pl.concat([pl.read_parquet(f) for f in files], how="vertical_relaxed")
+    )
 
     def maybe(name: str) -> pl.DataFrame | None:
         p = raw / name
@@ -157,12 +186,22 @@ class Split:
     columns: list[str] = field(default_factory=list)
 
 
-def seasonal_split(feats: pl.DataFrame, movements: pl.DataFrame) -> Split:
-    """Ocak + Temmuz'u tut, kalanla egit; referansi SADECE egitim aylarindan uret."""
-    labelled = feats.filter(pl.col(TARGET).is_not_null())
-    is_val = month().is_in(HOLDOUT_MONTHS)
+def holdout_mask() -> pl.Expr:
+    """Siralama setinin seklini taklit eden dogrulama maskesi.
 
-    tables = reference.fit_reference(movements.filter(~month().is_in(HOLDOUT_MONTHS)))
+    Ocak: tum havalimanlari. Temmuz: yalnizca `JULY_AIRPORTS`. Kalan her sey egitim,
+    Temmuz'un diger havalimanlari dahil (gercek modelde de 2025'in tamamiyla
+    egitiliyor).
+    """
+    return (month() == 1) | ((month() == 7) & pl.col(APT).is_in(JULY_AIRPORTS))
+
+
+def seasonal_split(feats: pl.DataFrame, movements: pl.DataFrame) -> Split:
+    """Dogrulama parcasini ayirir; referansi SADECE egitim parcasindan uretir."""
+    labelled = feats.filter(pl.col(TARGET).is_not_null())
+    is_val = holdout_mask()
+
+    tables = reference.fit_reference(movements.filter(~holdout_mask()))
     fit = reference.apply_reference(labelled.filter(~is_val), tables)
     val = reference.apply_reference(labelled.filter(is_val), tables)
     return Split(fit, val, feature_columns(fit))
@@ -257,6 +296,7 @@ def evaluate(split: Split, pred: np.ndarray) -> dict[str, float]:
         sub = scored.filter(month() == m)
         if sub.height:
             out[f"ay_{m}"] = rmse(sub["_p"].to_numpy(), sub[TARGET].to_numpy())
+            out[f"ay_{m}_n"] = float(sub.height)
     per_apt = (
         scored.group_by(APT)
         .agg(r=((pl.col("_p") - pl.col(TARGET)) ** 2).mean().sqrt())

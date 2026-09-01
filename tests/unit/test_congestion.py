@@ -28,7 +28,7 @@ def _sample(n: int = 400, seed: int = 7) -> pl.DataFrame:
     return pl.DataFrame(
         {
             "MVT_ID_mvt": list(range(n)),
-            "ADEP_mvt": apt,
+            "apt_mvt": apt,
             "RUNWAY_mvt": rwy,
             "STAND_mvt": rng.choice(["A1", "B2", "C3"], n),
             "PHASE_mvt": phase,
@@ -63,7 +63,7 @@ def _brute_count(rows, i, group_cols, minutes, forward):
 @pytest.mark.parametrize("forward", [False, True])
 def test_counts_in_window_matches_brute_force(minutes: int, forward: bool) -> None:
     df = _sample().filter(pl.col("PHASE_mvt") == "DEP")
-    group = ["ADEP_mvt", "RUNWAY_mvt"]
+    group = ["apt_mvt", "RUNWAY_mvt"]
     got = congestion._counts_in_window(df, df, group, minutes, forward, "n").sort("MVT_ID_mvt")
 
     rows = df.sort("MVT_ID_mvt").to_dicts()
@@ -74,7 +74,7 @@ def test_counts_in_window_matches_brute_force(minutes: int, forward: bool) -> No
 def test_forward_and_backward_are_not_identical() -> None:
     """Yon karistirilirsa test sessizce gecmesin diye negatif kontrol."""
     df = _sample().filter(pl.col("PHASE_mvt") == "DEP")
-    group = ["ADEP_mvt", "RUNWAY_mvt"]
+    group = ["apt_mvt", "RUNWAY_mvt"]
     back = congestion._counts_in_window(df, df, group, 15, False, "n").sort("MVT_ID_mvt")["n"]
     fwd = congestion._counts_in_window(df, df, group, 15, True, "n").sort("MVT_ID_mvt")["n"]
     assert back.to_list() != fwd.to_list()
@@ -129,7 +129,7 @@ def test_counts_are_correct_when_timestamps_are_minute_rounded(forward: bool) ->
     df = pl.DataFrame(
         {
             "MVT_ID_mvt": list(range(n)),
-            "ADEP_mvt": ["EDDF"] * n,
+            "apt_mvt": ["EDDF"] * n,
             "RUNWAY_mvt": rng.choice(["07L", "25R"], n),
             "PHASE_mvt": ["DEP"] * n,
             "MVT_TIME_UTC_mvt": [start + timedelta(seconds=int(s)) for s in offs],
@@ -138,7 +138,7 @@ def test_counts_are_correct_when_timestamps_are_minute_rounded(forward: bool) ->
     # esitlik gercekten var mi (testin kendi oncululunu dogrula)
     assert df["MVT_TIME_UTC_mvt"].n_unique() < n
 
-    group = ["ADEP_mvt", "RUNWAY_mvt"]
+    group = ["apt_mvt", "RUNWAY_mvt"]
     got = congestion._counts_in_window(df, df, group, 15, forward, "n").sort("MVT_ID_mvt")
     rows = df.sort("MVT_ID_mvt").to_dicts()
     expected = [_brute_count(rows, i, group, 15, forward) for i in range(len(rows))]
@@ -194,7 +194,7 @@ def test_causal_window_counts_only_takeoffs_before_pushback() -> None:
     mvt = pl.DataFrame(
         {
             "MVT_ID_mvt": [0, 1, 2],
-            "ADEP_mvt": ["EDDF"] * 3,
+            "apt_mvt": ["EDDF"] * 3,
             "RUNWAY_mvt": ["18"] * 3,
             "STAND_mvt": ["A1"] * 3,
             "PHASE_mvt": ["DEP"] * 3,

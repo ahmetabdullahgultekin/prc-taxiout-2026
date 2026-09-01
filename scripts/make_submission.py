@@ -66,7 +66,7 @@ def main() -> None:
     # dis veriler egitim tarafiyla AYNI olmali; alan adiyla veriliyor cunku konumsal
     # cagri Inputs'a yeni bir alan eklendiginde sessizce eksik kalir (bir kez oldu)
     rank_inputs = pipeline.Inputs(
-        movements=pl.read_parquet(rank_path),
+        movements=pipeline.prepare_movements(pl.read_parquet(rank_path)),
         metar=inputs.metar,
         coords=inputs.coords,
         runways=inputs.runways,

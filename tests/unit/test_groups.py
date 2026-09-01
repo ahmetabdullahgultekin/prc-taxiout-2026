@@ -15,7 +15,7 @@ from taxiout.features import groups
 # Boru hattinin urettigi kolonlar (fixture uzerinde uctan uca kosudan alindi) +
 # referans modulunun sonradan ekledikleri.
 PRODUCED = [
-    "ADEP_mvt", "AIRCRAFT_OPERATOR_flt", "AIRCRAFT_TYPE_flt", "AIRCRAFT_TYPE_mvt",
+    "apt_mvt", "AIRCRAFT_OPERATOR_flt", "AIRCRAFT_TYPE_flt", "AIRCRAFT_TYPE_mvt",
     "MARKET_SEGMENT_flt", "RUNWAY_mvt", "STAND_mvt", "WK_TBL_CAT_flt", "aktif_pist_sayisi",
     "apt_inis_onceki_5dk", "apt_inis_onceki_10dk", "apt_inis_onceki_15dk",
     "apt_inis_onceki_30dk", "apt_inis_onceki_60dk",

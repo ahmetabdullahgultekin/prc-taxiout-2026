@@ -46,7 +46,7 @@ def _dep(pairs: list[tuple[str, str]]) -> pl.DataFrame:
     return pl.DataFrame(
         {
             "MVT_ID_mvt": list(range(len(pairs))),
-            "ADEP_mvt": [a for a, _ in pairs],
+            "apt_mvt": [a for a, _ in pairs],
             "ADES_mvt": [b for _, b in pairs],
             "MVT_TIME_UTC_mvt": [start + timedelta(minutes=3 * i) for i in range(len(pairs))],
         }
@@ -98,7 +98,7 @@ def test_sector_congestion_counts_only_same_direction() -> None:
     dep = pl.DataFrame(
         {
             "MVT_ID_mvt": [0, 1, 2],
-            "ADEP_mvt": ["EDDF"] * 3,
+            "apt_mvt": ["EDDF"] * 3,
             "ADES_mvt": ["EGLL", "LTAI", "EGLL"],
             "MVT_TIME_UTC_mvt": [start, start + timedelta(minutes=2), start + timedelta(minutes=4)],
         }
@@ -115,7 +115,7 @@ def test_stand_turnaround_measures_time_since_previous_arrival() -> None:
     start = datetime(2025, 5, 1, 8, 0)
     mvt = pl.DataFrame(
         {
-            "ADEP_mvt": ["EDDF", "EDDF"],
+            "apt_mvt": ["EDDF", "EDDF"],
             "STAND_mvt": ["A1", "A1"],
             "PHASE_mvt": ["ARR", "ARR"],
             "BLOCK_TIME_UTC_mvt": [start, start + timedelta(minutes=40)],
@@ -124,7 +124,7 @@ def test_stand_turnaround_measures_time_since_previous_arrival() -> None:
     dep = pl.DataFrame(
         {
             "MVT_ID_mvt": [10],
-            "ADEP_mvt": ["EDDF"],
+            "apt_mvt": ["EDDF"],
             "STAND_mvt": ["A1"],
             "MVT_TIME_UTC_mvt": [start + timedelta(minutes=50)],
         }

@@ -61,20 +61,42 @@ def test_features_are_producible_on_the_ranking_set(raw_dir: Path) -> None:
     """
     inputs = pipeline.load_inputs(raw_dir)
     fit = pipeline.build_features(inputs)
-    rank_inputs = replace(inputs, movements=pl.read_parquet(raw_dir / "ranking.parquet"))
+    rank_inputs = replace(inputs, movements=pipeline.prepare_movements(
+        pl.read_parquet(raw_dir / "ranking.parquet")))
     rank = pipeline.build_features(rank_inputs)
 
     eksik = set(pipeline.feature_columns(fit)) - set(rank.columns)
     assert eksik == set(), f"siralama setinde uretilemeyen oznitelikler: {sorted(eksik)}"
 
 
-def test_seasonal_split_holds_out_january_and_july(raw_dir: Path) -> None:
+def test_holdout_mirrors_the_ranking_set_shape(raw_dir: Path) -> None:
+    """Dogrulama parcasi siralama setinin seklini tasimali.
+
+    Siralama seti simetrik degil: Ocak'ta 10 havalimani, Temmuz'da yalnizca uc tanesi
+    (docs/facts.md R03). Dogrulama bunu taklit etmezse Temmuz'u oldugundan onemli
+    sanip yanlis modeli seceriz. Temmuz'un diger havalimanlari bilerek egitimde kalir.
+    """
     inputs = pipeline.load_inputs(raw_dir)
     split = pipeline.seasonal_split(pipeline.build_features(inputs), inputs.movements)
-    fit_months = set(split.fit["MVT_TIME_UTC_mvt"].dt.month().unique().to_list())
-    val_months = set(split.val["MVT_TIME_UTC_mvt"].dt.month().unique().to_list())
-    assert val_months == set(pipeline.HOLDOUT_MONTHS)
-    assert fit_months & val_months == set(), "egitim ve dogrulama aylari kesismemeli"
+
+    ay = pl.col("MVT_TIME_UTC_mvt").dt.month()
+    assert set(split.val.select(ay.unique()).to_series().to_list()) == {1, 7}
+
+    temmuz_apt = set(
+        split.val.filter(ay == 7)[pipeline.APT].unique().to_list()
+    )
+    ocak_apt = set(split.val.filter(ay == 1)[pipeline.APT].unique().to_list())
+    assert temmuz_apt <= set(pipeline.JULY_AIRPORTS), f"Temmuz'da fazladan havalimani: {temmuz_apt}"
+    assert len(ocak_apt) > len(temmuz_apt), "Ocak daha genis olmali"
+
+    # satirlar kesismemeli
+    ortak = set(split.fit["MVT_ID_mvt"].to_list()) & set(split.val["MVT_ID_mvt"].to_list())
+    assert ortak == set(), "ayni hareket hem egitimde hem dogrulamada olamaz"
+
+    # Temmuz'un dogrulamada olmayan havalimanlari egitimde kalmali
+    egitim_temmuz = set(split.fit.filter(ay == 7)[pipeline.APT].unique().to_list())
+    assert egitim_temmuz, "Temmuz'un diger havalimanlari egitimde olmali"
+    assert not (egitim_temmuz & temmuz_apt)
 
 
 def test_reference_is_fitted_without_the_validation_months(raw_dir: Path) -> None:
@@ -100,7 +122,8 @@ def test_full_run_produces_a_valid_submission(raw_dir: Path, tmp_path: Path) -> 
     fit = reference.apply_reference(
         pipeline.build_features(inputs).filter(pl.col(pipeline.TARGET).is_not_null()), tables
     )
-    rank_inputs = replace(inputs, movements=pl.read_parquet(raw_dir / "ranking.parquet"))
+    rank_inputs = replace(inputs, movements=pipeline.prepare_movements(
+        pl.read_parquet(raw_dir / "ranking.parquet")))
     rank = reference.apply_reference(pipeline.build_features(rank_inputs), tables)
 
     cols = [c for c in pipeline.feature_columns(fit) if c in rank.columns]

@@ -22,7 +22,9 @@ from __future__ import annotations
 import polars as pl
 
 MVT = "MVT_TIME_UTC_mvt"
-APT = "ADEP_mvt"
+# Hareketin gerceklestigi havalimani; `pipeline.prepare_movements` ekler.
+# `ADEP_mvt` DEGIL: o, ucusun kalkis havalimani (varislarda gelinen yer).
+APT = "apt_mvt"
 ADES = "ADES_mvt"
 STAND = "STAND_mvt"
 PHASE = "PHASE_mvt"

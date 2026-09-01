@@ -21,7 +21,7 @@ def test_p10_matches_hand_computed_value() -> None:
     taxis = list(range(100, 1100, 10))
     df = _frame(
         [
-            {"ADEP_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": t}
+            {"apt_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": t}
             for t in taxis
         ]
     )
@@ -36,7 +36,7 @@ def test_validity_rule_needs_ten_flights_at_or_below_p10() -> None:
     # 12 ucus: P10'un altinda 10'dan az kalir -> gecersiz
     small = _frame(
         [
-            {"ADEP_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": t}
+            {"apt_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": t}
             for t in range(300, 420, 10)
         ]
     )
@@ -45,7 +45,7 @@ def test_validity_rule_needs_ten_flights_at_or_below_p10() -> None:
     # ayni degerden 20 ucus: hepsi P10'a esit -> gecerli
     flat = _frame(
         [
-            {"ADEP_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": 400}
+            {"apt_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": 400}
             for _ in range(20)
         ]
     )
@@ -55,12 +55,12 @@ def test_validity_rule_needs_ten_flights_at_or_below_p10() -> None:
 def test_official_filters_drop_impossible_taxi_times() -> None:
     """ATXOT s.13 adim 1: 120 dakikayi asanlar ve pozitif olmayanlar referansa girmez."""
     rows = [
-        {"ADEP_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": 400}
+        {"apt_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": 400}
         for _ in range(20)
     ]
     rows += [
-        {"ADEP_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": 99_999},
-        {"ADEP_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": -50},
+        {"apt_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": 99_999},
+        {"apt_mvt": "EDDF", "STAND_mvt": "A1", "RUNWAY_mvt": "18", "TAXITIME_SEC_mvt": -50},
     ]
     tables = reference.fit_reference(_frame(rows))
     assert tables["apt_stand_rwy"]["n_apt_stand_rwy"][0] == 20
@@ -70,17 +70,17 @@ def test_falls_back_when_combo_is_unseen() -> None:
     """Siralama setinde egitimde hic gorulmemis stand cikabilir; satir yine de tahmin edilmeli."""
     fit = _frame(
         [
-            {"ADEP_mvt": "LTFM", "STAND_mvt": "A1", "RUNWAY_mvt": "34L", "TAXITIME_SEC_mvt": 500}
+            {"apt_mvt": "LTFM", "STAND_mvt": "A1", "RUNWAY_mvt": "34L", "TAXITIME_SEC_mvt": 500}
             for _ in range(30)
         ]
         + [
-            {"ADEP_mvt": "LTFM", "STAND_mvt": "B9", "RUNWAY_mvt": "34L", "TAXITIME_SEC_mvt": 700}
+            {"apt_mvt": "LTFM", "STAND_mvt": "B9", "RUNWAY_mvt": "34L", "TAXITIME_SEC_mvt": 700}
             for _ in range(30)
         ]
     )
     tables = reference.fit_reference(fit)
     unseen = _frame(
-        [{"ADEP_mvt": "LTFM", "STAND_mvt": "ZZ", "RUNWAY_mvt": "34L", "TAXITIME_SEC_mvt": None}]
+        [{"apt_mvt": "LTFM", "STAND_mvt": "ZZ", "RUNWAY_mvt": "34L", "TAXITIME_SEC_mvt": None}]
     )
     out = reference.apply_reference(unseen, tables)
     assert out["referans_sn"][0] is not None
@@ -90,17 +90,17 @@ def test_falls_back_when_combo_is_unseen() -> None:
 def test_most_specific_valid_level_wins() -> None:
     fit = _frame(
         [
-            {"ADEP_mvt": "LSZH", "STAND_mvt": "A1", "RUNWAY_mvt": "28", "TAXITIME_SEC_mvt": 400}
+            {"apt_mvt": "LSZH", "STAND_mvt": "A1", "RUNWAY_mvt": "28", "TAXITIME_SEC_mvt": 400}
             for _ in range(30)
         ]
         + [
-            {"ADEP_mvt": "LSZH", "STAND_mvt": "B2", "RUNWAY_mvt": "28", "TAXITIME_SEC_mvt": 900}
+            {"apt_mvt": "LSZH", "STAND_mvt": "B2", "RUNWAY_mvt": "28", "TAXITIME_SEC_mvt": 900}
             for _ in range(30)
         ]
     )
     tables = reference.fit_reference(fit)
     seen = _frame(
-        [{"ADEP_mvt": "LSZH", "STAND_mvt": "A1", "RUNWAY_mvt": "28", "TAXITIME_SEC_mvt": None}]
+        [{"apt_mvt": "LSZH", "STAND_mvt": "A1", "RUNWAY_mvt": "28", "TAXITIME_SEC_mvt": None}]
     )
     out = reference.apply_reference(seen, tables)
     assert out["referans_seviye"][0] == "apt_stand_rwy"
@@ -116,7 +116,7 @@ def test_reference_is_below_typical_taxi_time() -> None:
     taxis = 400 + rng.gamma(2.0, 120.0, 2000)
     df = _frame(
         [
-            {"ADEP_mvt": "EHAM", "STAND_mvt": "D5", "RUNWAY_mvt": "24",
+            {"apt_mvt": "EHAM", "STAND_mvt": "D5", "RUNWAY_mvt": "24",
              "TAXITIME_SEC_mvt": float(t)}
             for t in taxis
         ]

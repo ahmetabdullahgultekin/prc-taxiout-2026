@@ -31,7 +31,10 @@ from __future__ import annotations
 import polars as pl
 
 TAXI = "TAXITIME_SEC_mvt"
-APT = "ADEP_mvt"
+# Hareketin gerceklestigi havalimani (`pipeline.prepare_movements` ekler).
+# Referans yalnizca kalkislardan uretildigi icin `ADEP_mvt` ile ozdes olurdu,
+# ama tum boru hattinda tek bir kanonik ad kullanmak karisikligi onluyor.
+APT = "apt_mvt"
 STAND = "STAND_mvt"
 RWY = "RUNWAY_mvt"
 
