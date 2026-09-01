@@ -1,4 +1,4 @@
-# veri ve modeller D: sürücüsünde tutulur, repoya hiç girmez
+# data and models live on the D: drive and never enter the repository
 data/
 *.parquet
 *.pkl
@@ -14,10 +14,10 @@ __pycache__/
 .mypy_cache/
 *.egg-info/
 
-# notebook ciktilari
+# notebook outputs
 .ipynb_checkpoints/
 
-# yerel
+# local
 .env
 *.log
 mlruns/
@@ -25,7 +25,7 @@ docs/data_probe_report.md
 !docs/data_probe_report_2026-09-01.md
 docs/ablation_report.md
 
-# LaTeX derleme ciktilari
+# LaTeX build outputs
 docs/paper/build/
 docs/paper/*.pdf
 docs/paper/*.aux
