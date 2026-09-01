@@ -93,6 +93,18 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | J06 | Gonderim: derlenmis PDF + LaTeX kaynaginin ZIP'i. Hakemlik **acik** (kimlikler paylasilir, degerlendirmeler yayimlanir). Ucret yok | joas/about/submissions | 2026-09-01 | ✅ |
 | J07 | Makale turu: `manuscript=article` (Research Article, General). "Open Software Focus" yazarin yazilimin ana gelistiricisi olmasini ve odagin yazilim olmasini istiyor — bizim katkimiz yontem | joas/about/submissions | 2026-09-01 | ✅ karar verildi |
 
+## EUROCONTROL resmi gostergesi ve de-icing (2026-09-01 analizi)
+
+| # | Gerçek | Kaynak | Kontrol | Durum |
+|---|--------|--------|---------|-------|
+| E01 | Resmi ATXOT gostergesi acik indirilebilir: havalimani-ay bazinda referans ve ek taxi-out suresi, 2018-2026 | eurocontrol.int/performance/data/download/xls/Taxi-Out_Additional_Time.xlsx | 2026-09-01 | ✅ indirildi |
+| E02 | **2025 ortalama toplam taxi-out (dk/kalkis):** EGLL 22,7 · LIRF 19,0 · LTFM 16,9 · LEMD 16,8 · LEBL 15,8 · EDDF 14,2 · EHAM 13,0 · EDDM 12,9 · LSZH 11,9 | resmi gosterge | 2026-09-01 | ✅ **hedefin olcegi: ~715-1365 sn** |
+| E03 | **LTAI resmi gostergede HIC yok** (24 ay, TF=0) — Antalya EUROCONTROL performans semasinda degil | resmi gosterge | 2026-09-01 | ✅ dis dogrulama kaynagi yok; veri kalitesi farkli olabilir |
+| E04 | Gosterge Haziran 2026'da bitiyor → **Temmuz 2026 kapsanmiyor**, ozellik olarak kullanilamaz | resmi gosterge META | 2026-09-01 | ✅ yalnizca dogrulama |
+| E05 | METAR de-icing vekilimiz resmi "referanssiz ucus orani" ile **r = 0,757** korele; havalimani icinde LTFM 0,98 · LSZH 0,97 · EDDF 0,94 · EDDM 0,94 · LFPG 0,87 | kendi analizimiz | 2026-09-01 | ✅ vekil bagimsiz dogrulandi |
+| E06 | **Havalimanlarinin de-icing rejimi farkli.** EHAM: referanssiz oran yil boyu sabit ~%1 ama ek sure kisin +1,46 dk. EDDM/LSZH: kisin ucuslarin buyuk kismi gostergeden dusuyor (EDDM Ocak 2026 %31), ek sure artmiyor | kendi analizimiz | 2026-09-01 | ✅ **Ocak hatasi EDDM/LSZH'de resmi gostergenin ATTIGI ucuslarda toplanacak** |
+| E07 | Ek taxi-out suresi **her havalimaninda** kisin yazdan dusuk (yaz trafik zirvesi); EHAM tek istisna | kendi analizimiz | 2026-09-01 | ✅ EHAM anomalisini guclendiriyor |
+
 ## Açık sorular
 
 | # | Soru | Nasıl kapanır |
