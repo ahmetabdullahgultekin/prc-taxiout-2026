@@ -114,6 +114,10 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | S03 | 4,17M hareketin **2,08M'i kalkis**; 114 ham kolon, 95 modellenebilir oznitelik | kendi olcumumuz | 2026-09-01 | ⏳ gercek veride dogrulanacak |
 | S04 | Tam ablation (13 yapilandirma x 1500 tur) tahmini **~1,7 saat**, 5 tohumla ~8,5 saat | S01'den olcekleme | 2026-09-01 | ✅ gece kosusu planlanabilir |
 
+| O01 | OPDI (PRC + OpenSky acik girisimi) ADS-B'den turetilmis ucus olaylari yayimliyor; v0.0.2'de **park pozisyonu giris/cikis** var, kapsam 2022-01 → 2026-08-08 (her iki siralama ayi da) | opdi.aero/flight-event-data.html | 2026-09-01 | ✅ |
+| O02 | **Park pozisyonu olaylari yalnizca LSZH ve EDDF'te var**; EHAM/LIRF/LTAI/LTFM'de **sifir**. Sebep: OPDI bu olaylari OSM park pozisyonu poligonlarindan turetiyor, o poligonlar cogu havalimaninda yok | kendi olcumumuz, 10 gunluk dosya | 2026-09-01 | ✅ **ELENDI** (docs/opdi_negative_result.md) |
+| O03 | **LTFM ve LTAI'de acik ADS-B yer kapsamasi neredeyse sifir** (10 gunde 25 ve 119 pist girisi) — ADS-B tabanli her yaklasim tam da iki Turk havalimaninda cokerdi | kendi olcumumuz | 2026-09-01 | ✅ |
+
 ## Açık sorular
 
 | # | Soru | Nasıl kapanır |

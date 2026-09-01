@@ -11,6 +11,14 @@ Sebep: sıralama seti Ocak + Temmuz 2026 — iki mevsimsel uc.
 |----|---------|-----------|-------------------------------|-------|-------|--------|
 | — | _gercek veri bekleniyor_ | — | — | — | — | — |
 
+## Veri gelmeden kapatilan yollar (negatif sonuclar)
+
+| Yol | Neden bakildi | Sonuc | Belge |
+|-----|---------------|-------|-------|
+| OPDI ADS-B park pozisyonu olaylari | Bosaltilan blok saatinin bagimsiz olcumu olurdu; acik ve belgeli veri | **ELENDI** — olaylar 11 havalimaninin yalnizca 2'sinde (LSZH, EDDF) var; LTFM/LTAI'de ADS-B yer kapsamasi sifira yakin | `docs/opdi_negative_result.md` |
+| EUROCONTROL varis ATFM gecikmesinde `D` (de-icing) neden kodu | Gunluk, dogrudan de-icing olcumu olurdu | **ELENDI** — kolon tamamen bos; de-icing bir *varis* ATFM nedeni olarak kodlanmiyor | `docs/external_data.md` |
+| EUROCONTROL resmi taxi-out gostergesini **oznitelik** olarak kullanmak | Havalimani-ay bazinda referans/ek sure | **ELENDI** — aylik, ~2 ay gecikmeli yayim, Temmuz 2026 kapsanmiyor; ayrica dairesel olurdu. **Dogrulama icin kullaniliyor** | `docs/deicing_analysis.md` |
+
 ## Veri gelir gelmez kosulacak sira
 
 Bu sira rastgele degil: 2025 birincisinin ablation tablosu (P06) makalenin katkı
