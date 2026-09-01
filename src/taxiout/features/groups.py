@@ -52,6 +52,10 @@ GROUPS: dict[str, list[str]] = {
         r"^eobt_offset_sec$", r"^diverted$",
     ],
     "stand_turnaround": [r"^stand_turnaround_sec$"],
+    # The queue as a stock rather than a flow, and the surface running over its own
+    # baseline right now. Both are derived from the Network Manager off-block time, so
+    # they share the fate of the nm_aobt family: unavailable to the causal model.
+    "surface": [r"^surface_"],
     # Weather: the family that carries the January de-icing regime.
     "weather": [
         r"^temperature_c$", r"^dewpoint_c$", r"^dewpoint_spread_c$", r"^visibility_km$",

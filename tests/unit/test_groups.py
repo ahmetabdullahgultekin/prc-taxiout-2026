@@ -46,6 +46,10 @@ PRODUCED = [
     "arr_delay_atc_equipment_min",
     # reference.apply_reference outputs
     "reference_sec", "reference_level", "reference_sample",
+    # surface_delay.build outputs
+    "surface_apt_at_pushback", "surface_apt_at_takeoff",
+    "surface_rwy_at_pushback", "surface_rwy_at_takeoff",
+    "surface_excess_sec", "surface_excess_n",
 ]
 
 

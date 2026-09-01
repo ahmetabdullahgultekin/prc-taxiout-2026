@@ -21,7 +21,9 @@ import polars as pl
 from taxiout import models
 from taxiout.domain import reference, schema
 from taxiout.domain.schema import Col, Phase
-from taxiout.features import airport_state, congestion, groups, routing, weather
+from taxiout.features import (
+    airport_state, congestion, groups, routing, surface_delay, weather,
+)
 
 # Column names come from taxiout.domain.schema, which is the only place they are
 # spelled out. These aliases are kept because they read better inside expressions and
@@ -177,6 +179,14 @@ def build_features(inputs: Inputs, causal: bool = False, aobt3: bool = True) -> 
         stand_pier=pl.col(Col.STAND).str.extract(r"^([A-Za-z]+)"),
         stand_number=pl.col(Col.STAND).str.extract(r"(\d+)").cast(pl.Int32, strict=False),
     )
+
+    if aobt3 and not causal and Col.AOBT_3 in feats.columns:
+        # The queue this flight joined, counted rather than forecast, and how far the
+        # surface is running over its own baseline. Both need the Network Manager
+        # off-block time, so the causal variant cannot have them.
+        feats = feats.join(
+            surface_delay.build(mvt, feats), on=Col.MVT_ID, how="left"
+        )
 
     feats = routing.build(mvt, feats, inputs.coords, anchor)
     if inputs.runways is not None:
