@@ -196,13 +196,28 @@ def holdout_mask() -> pl.Expr:
     return (month() == 1) | ((month() == 7) & pl.col(APT).is_in(JULY_AIRPORTS))
 
 
-def seasonal_split(feats: pl.DataFrame, movements: pl.DataFrame) -> Split:
-    """Dogrulama parcasini ayirir; referansi SADECE egitim parcasindan uretir."""
+def seasonal_split(
+    feats: pl.DataFrame, movements: pl.DataFrame, max_train_sec: float | None = None
+) -> Split:
+    """Dogrulama parcasini ayirir; referansi SADECE egitim parcasindan uretir.
+
+    `max_train_sec` verilirse hedefi bu esigi asan satirlar **yalnizca egitimden**
+    cikarilir; dogrulama kumesi hep tam kalir, cunku board da tam olacak.
+
+    Gerekcesi olculdu: 2 saati asan 584 kalkisin NM eslesmesi olanlarinda %94,2'sinde
+    NM blok saati makul (medyan 18 dk) ama APDF 2,3 saat diyor. Yani bunlar taxi
+    suresi degil, **etiket hatasi**. Sayilari cok az (%0,028) ama LIRF'te en ust %1
+    varyansin %88'ini tasiyor, dolayisiyla L2 kaybi onlari kovaliyor. PRC kendi resmi
+    gostergesinde de 120 dakikayi asanlari eliyor (ATXOT s.13).
+    """
     labelled = feats.filter(pl.col(TARGET).is_not_null())
     is_val = holdout_mask()
 
     tables = reference.fit_reference(movements.filter(~holdout_mask()))
-    fit = reference.apply_reference(labelled.filter(~is_val), tables)
+    fit_rows = labelled.filter(~is_val)
+    if max_train_sec is not None:
+        fit_rows = fit_rows.filter(pl.col(TARGET) <= max_train_sec)
+    fit = reference.apply_reference(fit_rows, tables)
     val = reference.apply_reference(labelled.filter(is_val), tables)
     return Split(fit, val, feature_columns(fit))
 

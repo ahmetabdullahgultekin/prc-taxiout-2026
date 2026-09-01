@@ -16,7 +16,8 @@ Gercek veriden olculen ve burada birebir yeniden uretilen yapisal ozellikler
 - Siralama seti **asimetrik**: Ocak'ta 10 havalimani, Temmuz'da yalnizca EDDF,
   EGLL, EHAM. Ocak satirlarin %71'i.
 - `MVT_TIME - BLOCK_TIME == TAXITIME` kimligi tam tutuyor.
-- Zaman damgalari saniye hassasiyetinde.
+- Zaman damgalari saniye hassasiyetinde ve **UTC-farkindalikli** (datetime[us, UTC]);
+  dis veri kaynaklari naif donuyor, birlestirmeler hizalama gerektiriyor.
 
 Gercek veri ASLA bu dizine yazilmaz (form sarti F11).
 
@@ -86,7 +87,7 @@ def build(
     opt_block = [b if m else None for b, m in zip(block, matched, strict=True)]
     opt_fid = [int(i) if m else None for i, m in enumerate(matched)]
 
-    return pl.DataFrame({
+    frame = pl.DataFrame({
         "MVT_ID_mvt": np.arange(seed * 10**7, seed * 10**7 + n),
         "FLIGHT_ID_mvt": opt_fid,
         "FLIGHT_mvt": [f"XX{i % 9000 + 100}" for i in range(n)],
@@ -120,6 +121,11 @@ def build(
         "AOBT_3_flt": aobt3,
         "ARVT_3_flt": opt_block,
     })
+    # gercek veri gibi UTC-farkindalikli yap
+    zaman = [c for c, d in frame.schema.items() if d == pl.Datetime]
+    return frame.with_columns(
+        [pl.col(c).dt.replace_time_zone("UTC") for c in zaman]
+    )
 
 
 def external_data(out: Path) -> None:

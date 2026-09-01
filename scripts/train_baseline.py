@@ -55,6 +55,9 @@ def main() -> None:
     ap.add_argument("--causal", action="store_true",
                     help="nedensel mod: oznitelikler blok cozulme anina baglanir, "
                          "ileriye bakan pencere yok (yalnizca makale icin)")
+    ap.add_argument("--max-train-sec", type=float, default=None,
+                    help="hedefi bu esigi asan satirlari EGITIMDEN cikar "
+                         "(dogrulama tam kalir); etiket hatasi filtresi")
     ap.add_argument("--no-aobt3", action="store_true",
                     help="NM blok saatinden turetilen ozniteligi cikar (ablation)")
     args = ap.parse_args()
@@ -67,9 +70,11 @@ def main() -> None:
     print(f"mod: {mod}")
 
     feats = pipeline.build_features(inputs, causal=args.causal, aobt3=not args.no_aobt3)
-    split = pipeline.seasonal_split(feats, inputs.movements)
-    print(f"oznitelik tablosu: {split.fit.height + split.val.height:,} kalkis, "
+    split = pipeline.seasonal_split(feats, inputs.movements, args.max_train_sec)
+    print(f"egitim {split.fit.height:,} / dogrulama {split.val.height:,} kalkis, "
           f"{len(split.columns)} oznitelik")
+    if args.max_train_sec:
+        print(f"egitim hedef esigi: {args.max_train_sec:,.0f} sn")
     print("\noznitelik ailesi buyuklukleri:")
     print(pipeline.group_report(split.columns))
 

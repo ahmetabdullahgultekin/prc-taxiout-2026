@@ -29,9 +29,15 @@ def attach(dep: pl.DataFrame, metar: pl.DataFrame, anchor: str = MVT) -> pl.Data
     Nedensel modda `anchor` blok cozulme anidir: kalkis anindaki havayi bilmek
     gercek zamanli bir modelin elinde olmazdi.
     """
+    # Yarisma verisinin zaman damgalari UTC-farkindalikli (datetime[us, UTC]);
+    # IEM arsivi naif UTC donuyor. Birlestirme oncesi hizalanmazsa polars
+    # dogrudan hata veriyor. Ayni anin iki gosterimi, kayma yok.
+    tz = dep.schema[anchor].time_zone
+    gozlem = pl.col("valid")
+    if tz is not None:
+        gozlem = gozlem.dt.replace_time_zone(tz)
     obs = (
-        metar.select("station", "valid", *WEATHER_COLS)
-        .rename({"valid": "_gozlem_ani"})
+        metar.select("station", _gozlem_ani=gozlem, **{c: pl.col(c) for c in WEATHER_COLS})
         .sort("_gozlem_ani")
     )
     joined = (

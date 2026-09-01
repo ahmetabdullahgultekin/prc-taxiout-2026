@@ -9,7 +9,60 @@ Sebep: sıralama seti Ocak + Temmuz 2026 — iki mevsimsel uc.
 
 | ID | Hipotez | Degisiklik | OOF RMSE (Oca / Tem / Toplam) | Delta | Karar | Commit |
 |----|---------|-----------|-------------------------------|-------|-------|--------|
-| — | _gercek veri bekleniyor_ | — | — | — | — | — |
+| E00 | veri tanisi | — | — | — | ✅ 15 gercek kaydedildi (facts R01-R15) | 42b6cd0 |
+| E01 | (apt, stand, pist) ortalamasi | taban | — / — / **628,4** | referans | ✅ taban cizgi (probe §7) | 42b6cd0 |
+| E02a | tam oznitelik seti, **ham** hedef | 95 oznitelik, 600 tur, 1 tohum | 423,60 / 240,80 / **378,80** | −249,6 | ✅ tut | 6b095f6 |
+| E02b | tam oznitelik seti, **ATXOT P10 artigi** | ayni | 423,94 / 240,88 / **379,09** | +0,29 | ❌ **kazanc yok** | 6b095f6 |
+| **v1** | ilk gonderim: ham hedef, 800 tur, 3 tohum | — | yerel 378,80 → **BOARD 331,23** | — | ✅ taban board skoru | 6b095f6 |
+
+**Yerel ↔ board iliskisi (v1).** Yerel dogrulama 378,80, board 331,23: yerel olcum
+**kotumser**, board %12,6 daha iyi. Bu guvenli yon. Muhtemel sebep 2025 Ocak/Temmuz
+holdout'unun LIRF etiket hatalarini tam dozunda tasimasi. Onemli olan **siralamanin**
+korunup korunmadigi; ikinci gonderimde test edilecek.
+
+**E02b notu.** 2025 birincisinin en buyuk kazanci hedefi yeniden parametrelendirmekti
+(yakit tuketimi → yakit akisi, 220,56 → 201,04). Buraya **transfer olmadi**: artik hedef
+ham hedefle istatistiksel olarak ayni (0,29 sn fark, %0,08). Muhtemel sebep, oradaki
+donusumun carpikligi azaltmasiydi; burada ise ATXOT referansi zaten agacin ilk
+bolunmelerinde ogrendigi bir sabit ve cikarmak bilgi eklemiyor. Raporlanacak negatif
+sonuc.
+
+## Hatanin nerede oldugu (2026-09-01)
+
+Toplam RMSE 378,80 ama **iki havalimani domine ediyor**:
+
+| havalimani | RMSE | not |
+|---|---:|---|
+| LIRF | 966,5 | uc degerler |
+| LFPG | 801,5 | uc degerler |
+| EGLL | 297,8 | en uzun taxi (ort 22,7 dk) |
+| LTFM | 228,2 | |
+| LSZH | 220,6 | |
+| EHAM | 201,0 | |
+| EDDF | 189,4 | |
+| EDDM | 187,6 | |
+| LEMD | 165,5 | |
+| LEBL | 151,1 | en kolay |
+
+Ay bazinda: **Ocak 423,6 · Temmuz 240,8**. Ocak hem daha zor hem satirlarin %71'i.
+
+### Uc degerlerin kaynagi: etiket hatasi
+
+| olcum | deger |
+|---|---|
+| 2 saati asan kalkis | 584 (%0,028) |
+| bunlarin 480'i | LIRF'te |
+| azami taxi-out | LIRF 131.167 sn (36,4 saat), LSZH 87.341, LFPG 84.240 |
+| LIRF'te en ust %1'in varyans payi | **%88,1** (LFPG %48,3, EGLL %32,7) |
+| 2 saati asanlarda NM eslesmesi olan | 103 |
+| bunlarin NM'ye gore **makul** (<2sa) olani | **%94,2** (NM medyan 18 dk, APDF medyan 2,3 saat) |
+
+Yani bu satirlarda taxi suresi uzun degil, **APDF blok saati yanlis**. Etiket hatasi.
+PRC de resmi gostergesinde 120 dakikayi asanlari eliyor (ATXOT s.13 adim 1).
+
+Sonucu: L2 kaybi tahmin edilemez gurultuyu koveliyor. **Siradaki deney (E03):** hedefi
+esik asan satirlari yalnizca **egitimden** cikarmak; dogrulama tam kalir cunku board da
+tam olacak. `train_baseline.py --max-train-sec <sn>`.
 
 ## Veri gelmeden kapatilan yollar (negatif sonuclar)
 

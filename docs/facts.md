@@ -151,6 +151,15 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | R14 | Soguk baslangic dusuk: siralama kombolarinin **%99,46'si** egitimde gorulmus; stand/pist bos oran 0 | probe §7 | 2026-09-01 | ✅ |
 | R15 | Kalkis gecikmesi (gercek blok − planlanan) std **2238 sn**, %24,2'si erken. `MVT − SCHED` naif tahmincisi RMSE **2412,7** | probe §8 | 2026-09-01 | ✅ SCHED, AOBT_3'ten cok daha zayif tutamak |
 
+## Board (gonderim sonuclari)
+
+| # | Gerçek | Kaynak | Kontrol | Durum |
+|---|--------|--------|---------|-------|
+| B01 | **v1 board skoru: RMSE 331,2256**, status Succeeded, 215.876 ciftin tamami kullanildi | bucket `vibrant-lollipop_v1.parquet_result.json` | 2026-09-01 | ✅ ilk taban |
+| B02 | Gonderim sonrasi bucket'a **iki dosya** dusuyor: `<ad>_result.json` (skor) ve `<ad>_persist.json` (durum). Sonuc ~15 saniyede geliyor | ayni | 2026-09-01 | ✅ hizli geri bildirim, leaderboard beklemeye gerek yok |
+| B03 | Gercek hedef `prc-2026-testsets/truthing.parquet`'te tutuluyor (bize kapali) | result.json `inputs` alani | 2026-09-01 | ✅ |
+| B04 | **Yerel dogrulama board'dan KOTUMSER:** yerel 378,80 → board 331,23 (%12,6 daha iyi). Guvenli yon; yerel iyilesme board'a gecerse gecer | kendi olcumumuz | 2026-09-01 | ⏳ ikinci gonderimde iliski dogrulanacak |
+
 ## Açık sorular
 
 | # | Soru | Nasıl kapanır |
