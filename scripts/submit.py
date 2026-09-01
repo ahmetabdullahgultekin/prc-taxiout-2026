@@ -25,14 +25,15 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import time
 from pathlib import Path
 
+from taxiout import config
+
 MC = Path.home() / "bin" / "mc.exe"
-ALIAS = "prc"
+ALIAS = config.MC_ALIAS
 POLL_SECONDS = 5
 POLL_LIMIT = 300
 
@@ -69,13 +70,13 @@ def check_alias() -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="upload a submission and wait for the score")
-    ap.add_argument("--data-dir", default=os.environ.get("TAXIOUT_DATA_DIR", "D:/prc-taxiout-2026"))
+    ap.add_argument("--data-dir", default=str(config.DATA_DIR))
     ap.add_argument("--team", required=True)
     ap.add_argument("--version", type=int, default=None, help="defaults to the newest file")
     ap.add_argument("--no-wait", action="store_true", help="upload and exit")
     args = ap.parse_args()
 
-    out_dir = Path(args.data_dir) / "04_submissions"
+    out_dir = config.submissions(args.data_dir)
     if args.version is not None:
         path = out_dir / f"{args.team}_v{args.version}.parquet"
     else:
@@ -88,7 +89,7 @@ def main() -> None:
         raise SystemExit(f"not found: {path}")
 
     check_alias()
-    bucket = f"{ALIAS}/prc-2026-{args.team}"
+    bucket = config.bucket(args.team)
     print(f"uploading {path.name} ({path.stat().st_size:,} bytes) to {bucket}/")
     mc("cp", str(path), f"{bucket}/")
 

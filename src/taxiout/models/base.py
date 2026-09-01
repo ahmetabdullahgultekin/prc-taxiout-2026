@@ -5,18 +5,23 @@ feature columns and the target, and returns predictions for the prediction frame
 one encodes the categorical columns the way its own library wants them, because that is
 precisely where the libraries differ and where the difference turned out to matter:
 
-| learner | holdout RMSE, 92 features, 400 rounds |
+| learner | holdout RMSE, 400 rounds |
 |---|---:|
 | LightGBM, categorical splits | 378.99 |
+| LightGBM, **same code, categorical declaration removed** | 363.97 |
 | XGBoost, categoricals as plain integer codes | 357.80 |
-| CatBoost, ordered target statistics | 353.59 |
-| XGBoost and CatBoost averaged | 351.69 |
+| CatBoost depth 8, ordered target statistics | 353.59 |
+| CatBoost depth 10 | 348.71 |
+| XGBoost and CatBoost depth 8 averaged | 351.69 |
 
 The paired noise floor on this holdout is about 5 seconds, so those gaps are real. The
 reading is that LightGBM's categorical splitting overfits the high cardinality fields
-here, and there are several: 1,899 stands, a hashed aircraft operator, 11 origins. The
-evidence for that reading is XGBoost, which applies no categorical handling at all and
-still beats it by 21 seconds.
+here, and there are several: 1,899 stands, a hashed aircraft operator, 11 origins.
+
+Two independent pieces of evidence for that reading. XGBoost applies no categorical
+handling at all and beats LightGBM by 21 seconds. And LightGBM with nothing changed but
+the categorical declaration removed gains 13.9 of those 21 seconds back, which is the
+prediction the diagnosis made before it was tested.
 
 Keeping the interface at the frame level rather than the matrix level is what makes this
 comparable. A matrix-level port would have forced one encoding on all three, which is
@@ -135,11 +140,28 @@ class XGBoost:
 class CatBoost:
     """CatBoost, which encodes categoricals with ordered target statistics.
 
-    It is by far the slowest of the three, roughly seven times LightGBM per round, and
-    it is also the most accurate here.
+    By far the slowest of the three, roughly seven times LightGBM per round at depth 8
+    and three times that again at depth 10, and also the most accurate.
+
+    Depth 10 rather than the library default of 6, because it was measured and the
+    difference is large:
+
+    | depth | 400 rounds | 800 rounds |
+    |---|---:|---:|
+    | 6 | 359.27 | 355.76 |
+    | 8 | 356.45 | 355.00 |
+    | 10 | **348.71** | **345.60** |
+
+    Depth 10 at 400 rounds already beats depth 8 at 1600 (352.50), so the extra depth
+    buys more than four times the rounds. The score was still improving at 1600 rounds,
+    slowly, so the round count is a time budget rather than a fitted optimum.
     """
 
     name = "catboost"
+
+    def __init__(self, depth: int = 10, learning_rate: float = 0.08) -> None:
+        self.depth = depth
+        self.learning_rate = learning_rate
 
     def fit_predict(self, fit, val, cols, y, rounds, seed):
         from catboost import CatBoostRegressor, Pool
@@ -154,8 +176,8 @@ class CatBoost:
         fit_pd = fit.select(cols).with_columns(as_str).to_pandas()
         val_pd = val.select(cols).with_columns(as_str).to_pandas()
         model = CatBoostRegressor(
-            iterations=rounds, learning_rate=0.08, depth=8, loss_function="RMSE",
-            random_seed=seed, verbose=False, thread_count=-1,
+            iterations=rounds, learning_rate=self.learning_rate, depth=self.depth,
+            loss_function="RMSE", random_seed=seed, verbose=False, thread_count=-1,
         )
         model.fit(Pool(fit_pd, y, cat_features=cat_names))
         return np.asarray(
@@ -168,6 +190,8 @@ _REGISTRY: dict[str, type | object] = {
     "lightgbm-nocat": lambda: LightGbm(categorical=False),
     "xgboost": XGBoost,
     "catboost": CatBoost,
+    "catboost-d8": lambda: CatBoost(depth=8),
+    "catboost-d12": lambda: CatBoost(depth=12),
 }
 
 
@@ -193,4 +217,4 @@ def blend(preds: list[np.ndarray], weights: list[float] | None = None) -> np.nda
     if len(weights) != len(preds):
         raise ValueError(f"{len(preds)} predictions but {len(weights)} weights")
     total = sum(weights)
-    return np.sum([w / total * p for w, p in zip(weights, preds)], axis=0)
+    return np.sum([w / total * p for w, p in zip(weights, preds, strict=True)], axis=0)

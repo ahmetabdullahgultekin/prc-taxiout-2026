@@ -18,13 +18,13 @@ Flow:
 from __future__ import annotations
 
 import argparse
-import os
 import time
 from pathlib import Path
 
 import numpy as np
 import polars as pl
 
+from taxiout import config
 from taxiout.application import pipeline, submission
 from taxiout.domain import reference
 from taxiout.features import groups
@@ -34,7 +34,7 @@ TARGET = pipeline.TARGET
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="produce a ranking set submission")
-    ap.add_argument("--data-dir", default=os.environ.get("TAXIOUT_DATA_DIR", "D:/prc-taxiout-2026"))
+    ap.add_argument("--data-dir", default=str(config.DATA_DIR))
     ap.add_argument("--team", required=True, help="assigned team name, e.g. keen-hamburger")
     ap.add_argument("--rounds", type=int, default=1500)
     ap.add_argument("--seeds", type=int, default=5,

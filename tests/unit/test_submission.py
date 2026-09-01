@@ -27,6 +27,32 @@ def test_valid_submission_passes_without_warnings() -> None:
     assert submission.validate(_pred(), _template()) == []
 
 
+def test_identifier_type_change_is_rejected() -> None:
+    """The real MVT_ID_mvt arrives as a float and must leave as one.
+
+    Casting it to an integer changes nothing we can see: the values compare equal in
+    Python, so every id check here still passes. The ranking script joins on the column
+    as it is stored, and the rejection would arrive only after the submission was spent.
+    """
+    template = _template().with_columns(pl.col("MVT_ID_mvt").cast(pl.Float64))
+    pred = _pred().with_columns(pl.col("MVT_ID_mvt").cast(pl.Int64))
+    with pytest.raises(SubmissionError, match="type changed"):
+        submission.validate(pred, template)
+
+
+def test_matching_identifier_types_pass() -> None:
+    # The negative control: the check must object to the change, not to floats.
+    template = _template().with_columns(pl.col("MVT_ID_mvt").cast(pl.Float64))
+    pred = _pred().with_columns(pl.col("MVT_ID_mvt").cast(pl.Float64))
+    assert submission.validate(pred, template) == []
+
+
+def test_non_numeric_predictions_are_rejected() -> None:
+    pred = _pred().with_columns(pl.col("TAXITIME_SEC_mvt").cast(pl.String))
+    with pytest.raises(SubmissionError, match="must be numeric"):
+        submission.validate(pred, _template())
+
+
 def test_missing_rows_are_rejected() -> None:
     with pytest.raises(SubmissionError, match="row count mismatch"):
         submission.validate(_pred(49), _template(50))

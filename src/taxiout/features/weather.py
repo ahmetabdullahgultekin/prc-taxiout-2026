@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import polars as pl
 
-MVT = "MVT_TIME_UTC_mvt"
+from taxiout.domain.schema import Col
+
+MVT = Col.MVT_TIME
 # The airport the movement happened at; added by `pipeline.prepare_movements`.
 # NOT `ADEP_mvt`, which on an arrival row names where the aircraft came from.
 APT = "apt_mvt"
