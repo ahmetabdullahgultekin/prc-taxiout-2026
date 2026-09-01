@@ -1,97 +1,97 @@
-# PRC Data Challenge 2026 — Taxi-Out Time Prediction
+# PRC Data Challenge 2026: Taxi-Out Time Prediction
 
-11 buyuk Avrupa havalimaninda kalkis yapan ucaklarin **taxi-out suresini** (AOBT -> ATOT, saniye)
-tahmin eden acik kaynakli cozum. EUROCONTROL Performance Review Commission (PRC) ve
-OpenSky Network tarafindan duzenlenen 2026 veri yarismasi icin.
+An open source solution that predicts the **taxi-out time** (AOBT -> ATOT, in seconds) of
+aircraft departing from 11 large European airports. Built for the 2026 data challenge run by
+the EUROCONTROL Performance Review Commission (PRC) and the OpenSky Network.
 
-- Yarisma: <https://ansperformance.eu/study/data-challenge/dc2026/>
-- Metrik: RMSE (saniye), Ocak + Temmuz 2026 kalkislari uzerinde
-- Lisans: GNU GPLv3 (yarisma odul sartı)
+- Competition: <https://ansperformance.eu/study/data-challenge/dc2026/>
+- Metric: RMSE (seconds), over the January + July 2026 departures
+- Licence: GNU GPLv3 (a competition prize condition)
 
-## Durum
+## Status
 
-Veri erisimi icin takim olusturma basvurusu bekleniyor. Boru hatti veri gelmeden
-kuruldu ve sentetik bir fixture uzerinde uctan uca dogrulandi.
+Waiting on the team registration that grants data access. The pipeline was built before the
+data arrived and validated end to end on a synthetic fixture.
 
-## Yaklasim
+## Approach
 
-Problem, EUROCONTROL'un kendi *additional taxi-out time* gostergesinin ayristirmasi
-izlenerek kuruluyor:
+The problem is set up by following the decomposition of EUROCONTROL's own *additional taxi-out
+time* indicator:
 
-    taxi-out = engelsiz referans + kuyruk + tikaniklik
+    taxi-out = unimpeded reference + queue + congestion
 
-**Referans bileseni** resmi metodolojinin sadik yeniden uygulamasidir: her
-(havalimani, stand, kalkis pisti) kombosu icin P10, geçerlilik icin P10 altinda en az
-10 flights (`src/taxiout/domain/reference.py`). Model bu tabanin uzerindeki **artigi**
-ogrenir.
+The **reference component** is a faithful reimplementation of the official methodology: P10 for
+every (airport, stand, departure runway) combination, and for validity at least 10 flights at
+or below P10 (`src/taxiout/domain/reference.py`). The model learns the **residual** over that
+baseline.
 
-**Kuyruk ve tikaniklik bilesenleri** hareket akisindan uretilir. Siralama setinde
-kalkislarin yalnizca blok saati ve taxi suresi bosaltilmis; kalkis saati, pist, stand
-ve varislarin tamami duruyor. Dolayisiyla bir kalkisin cevresindeki trafik tam olarak
-gozlenebilir. Bu, **post-operasyon** kurgusunun dogal sonucudur (yarismanin belirtilen
-amaci da odur), ve gercek zamanli bir modelde tahmin edilmek zorunda olan kuyruk
-degiskenini burada olculebilir kilar.
+The **queue and congestion components** are built from the movement stream. In the ranking set
+only the block time and the taxi time of departures are blanked out; the take-off time, the
+runway, the stand and all of the arrivals are still there. So the traffic around a departure is
+fully observable. That is a natural consequence of the **post-operations** setup (which is also
+the stated purpose of the competition), and it makes the queue variable, which a real-time
+model would have to predict, measurable here.
 
-Ayni kod iki model uretir:
+The same code produces two models:
 
-| | cipa | kullanim |
+| | anchor | use |
 |---|---|---|
-| retrospektif | kalkis ani | yarisma gonderimi; post-ops KPI, eksik veri doldurma |
-| nedensel | blok cozulme ani | A-CDM / TSAT / DMAN gibi gercek zamanli kararlar |
+| retrospective | take-off instant | competition submission; post-ops KPI, filling gaps in data |
+| causal | off-block instant | real-time decisions such as A-CDM / TSAT / DMAN |
 
-Ikisi ayni dogrulama kumesinde karsilastirilabilir; aradaki fark retrospektif
-gozlenebilirligin bilgi degeridir.
+The two can be compared on the same validation set; the difference between them is the
+information value of retrospective observability.
 
-## Dis veri
+## External data
 
-| Kaynak | Lisans | Ne icin |
-|--------|--------|---------|
-| [Iowa Environmental Mesonet ASOS/METAR](https://mesonet.agron.iastate.edu/) | kamu mali | sicaklik, gorus, ruzgar, yagis; de-icing vekili |
-| [OurAirports](https://ourairports.com/data/) | kamu mali | koordinatlar (kalkis kerterizi), pist sayilari |
+| Source | Licence | Used for |
+|--------|---------|----------|
+| [Iowa Environmental Mesonet ASOS/METAR](https://mesonet.agron.iastate.edu/) | public domain | temperature, visibility, wind, precipitation; de-icing proxy |
+| [OurAirports](https://ourairports.com/data/) | public domain | coordinates (departure bearing), runway counts |
 
-Ayrintili gerekce ve lisans metinleri: `docs/external_data.md`.
+Detailed rationale and licence texts: `docs/external_data.md`.
 
-## Belgeler
+## Documents
 
-| Dosya | Icerik |
+| File | Contents |
 |-------|--------|
-| `docs/facts.md` | Dogrulanmis gercekler sicili (kaynak + tarih zorunlu) |
-| `docs/experiments.md` | Deney gunlugu — negative_share sonuclar dahil |
-| `docs/external_data.md` | Kullanilan dis veri setleri + lisanslari (odul sartı) |
-| `docs/reference/` | EUROCONTROL resmi ATXOT metodoloji dokumani + notlar |
-| `docs/adr/` | Geri donusu pahali mimari kararlar |
-| `docs/literature.md` | Literatur taramasi; her oznitelik ailesinin gerekcesi |
-| `docs/paper/` | JOAS makale taslagi ve resmi LaTeX sablonu |
+| `docs/facts.md` | Register of verified facts (source + date required) |
+| `docs/experiments.md` | Experiment log, negative results included |
+| `docs/external_data.md` | External data sets used, with their licences (prize condition) |
+| `docs/reference/` | EUROCONTROL official ATXOT methodology document and notes |
+| `docs/adr/` | Architecture decisions that are expensive to reverse |
+| `docs/literature.md` | Literature review; the rationale for each feature family |
+| `docs/paper/` | JOAS paper draft and the official LaTeX template |
 
-## Calistirma
+## Running it
 
 ```bash
 python -m venv D:/prc-taxiout-2026/.venv
 PY=D:/prc-taxiout-2026/.venv/Scripts/python.exe
 $PY -m pip install -e ".[dev]"
 
-# dis veri (yarisma verisi gerektirmez)
+# external data (needs no competition data)
 $PY -m taxiout.adapters.metar_iem --start 2025-01-01 --end 2026-08-01     --out D:/prc-taxiout-2026/00_raw/metar.parquet
 $PY -m taxiout.adapters.airports --raw-dir D:/prc-taxiout-2026/00_raw
 
-# yarisma verisi geldikten sonra
-$PY scripts/probe_data.py     --data-dir D:/prc-taxiout-2026   # veri tanisi
-$PY scripts/train_baseline.py --data-dir D:/prc-taxiout-2026   # mevsimsel dogrulama
-$PY scripts/run_ablation.py   --data-dir D:/prc-taxiout-2026   # oznitelik ailesi tablosu
+# once the competition data has arrived
+$PY scripts/probe_data.py     --data-dir D:/prc-taxiout-2026   # data diagnosis
+$PY scripts/train_baseline.py --data-dir D:/prc-taxiout-2026   # seasonal validation
+$PY scripts/run_ablation.py   --data-dir D:/prc-taxiout-2026   # feature family table
 $PY scripts/make_submission.py --data-dir D:/prc-taxiout-2026 --team vibrant-lollipop
 
 $PY -m pytest tests -q
 ```
 
-Veri olmadan borulari surmek icin sentetik fixture:
+A synthetic fixture, to drive the pipes without the data:
 
 ```bash
 $PY tests/make_fixture.py --out D:/prc-taxiout-2026/99_fixture/00_raw
 $PY scripts/train_baseline.py --data-dir D:/prc-taxiout-2026/99_fixture --rounds 300
 ```
 
-## Veri yerlesimi
+## Where the data lives
 
-Kod bu depoda (OneDrive ile yedeklenir). Veri ve modeller `D:/prc-taxiout-2026/` altinda —
-C: surucusunde yalnizca %6 bos alan var ve DRAM-siz SSD, yazma hizi cokuyor.
-`TAXIOUT_DATA_DIR` ortam degiskeni ile degistirilebilir.
+The code is in this repository (backed up through OneDrive). Data and models live under
+`D:/prc-taxiout-2026/`, because the C: drive has only 6% free space and a DRAM-less SSD whose
+write speed collapses. It can be changed with the `TAXIOUT_DATA_DIR` environment variable.
