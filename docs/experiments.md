@@ -31,7 +31,12 @@ that their transform reduced skew, whereas here the ATXOT reference is already a
 tree learns in its first splits, so subtracting it adds no information. A negative result to
 report.
 
-## Target parameterisation: three attempts, all three failed
+## Target parameterisation: three attempts, none separated
+
+> **Corrected after measuring the resolution of this holdout (next section).** These
+> three configurations differ by 2 to 5 seconds, which is inside the noise floor.
+> Nothing here is a result. The raw target is kept because it is the simplest, not
+> because it was shown to be better.
 
 Same holdout, same 90 features, 400 rounds:
 
@@ -51,6 +56,55 @@ no information and instead distorts the distribution of the residual target.
 One other thing stands out in the same table: **the model buys 154 seconds over the naive
 prediction** (531 -> 378). Even though the gain distribution makes the congestion features look
 close to worthless, the model itself is clearly doing its job.
+
+## How large a difference can this holdout resolve?
+
+Measured before trusting any more comparisons, because RMSE here is dominated by a few
+hundred rows: at Paris five rows carry two thirds of the squared deviation, at Rome five
+carry four fifths.
+
+Two different numbers, and the distinction matters:
+
+| quantity | spread |
+|---|---:|
+| a single score, unpaired bootstrap | standard deviation about **56 s** |
+| a difference between two models on the same rows | resolves to about **5 s** |
+
+Three seeds of the same configuration scored 377.44, 377.57 and 376.67, and every paired
+seed-to-seed difference has a confidence interval spanning zero. That spread is the noise
+floor. Paired bootstrap results:
+
+| comparison | difference | 95% CI | verdict |
+|---|---:|---|---|
+| seed 2 minus seed 1 | +0.13 | [-4.73, +4.03] | not distinguishable |
+| seed 3 minus seed 1 | -0.77 | [-2.91, +0.83] | not distinguishable |
+| slow seed 2 minus slow seed 1 | +2.11 | [-2.01, +6.67] | not distinguishable |
+| **slow minus base, seed 1** | **-5.42** | **[-9.45, -1.59]** | **significant** |
+| **slow minus base, seed 2** | **-3.45** | **[-6.56, -0.35]** | **significant** |
+
+### What this invalidates
+
+**The target parameterisation results above were reported as conclusions and they are
+not.** Raw at 377.84, reference residual at 379.73 and NM residual at 382.74 differ by 2
+to 5 seconds, which sits inside the noise floor. The honest statement is that no
+parameterisation was shown to beat any other, not that the raw target wins. The claim
+that last year's largest lever "does not transfer" is unsupported by this evidence; it
+was not measured either way.
+
+**E03 survives.** Removing outliers from training cost 24 and 36 seconds at the two
+thresholds, both well outside the floor, and the effect grows with the threshold. That
+negative result stands.
+
+**The gain shares are unaffected.** Feature importance is a direct measurement of the
+fitted model, not a comparison of noisy scores.
+
+### What follows for how we run experiments
+
+The board is a **better** comparator than this holdout, which is not the usual situation.
+It is a fixed set, so every submission is scored on the same rows and board comparisons
+are paired in exactly the way the local ones need bootstrapping to become. Feedback
+arrives in about fifteen seconds and no submission limit is published. Local runs are
+for deciding what is worth submitting; the board decides what is true.
 
 ## Gain distribution: it falsifies my thesis
 
