@@ -38,3 +38,6 @@ docs/paper/*.run.xml
 
 # crash dumps
 *.stackdump
+
+# CatBoost writes a training log directory next to the working directory
+catboost_info/

@@ -73,6 +73,9 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | P05 | The single largest gain in 2025 was **reparameterising the target**: training on fuel *flow* instead of fuel burn (RMSE 220.56 -> 201.04), larger than any of the feature groups | PRC_2025_report.pdf §6.3 | 2026-09-01 | ✅ **our equivalent: the residual over the P10 reference instead of raw taxi-out** |
 | P06 | The 2025 winner's paper is 14 pages in JOAS preprint format: Abstract/Keywords/Abbreviations + Introduction, Data, Preprocessing, Features, Model, Results, Conclusion; the contribution is presented as **a single feature x RMSE ablation table** | PRC_2025_report.pdf | 2026-09-01 | ✅ template |
 | P07 | There is **NO trajectory (ADS-B) data in 2026**, only movement records. 2024 and 2025 required ADS-B plus OpenAP / aerodynamics expertise | dc2026/data.html | 2026-09-01 | ✅ **the field is levelled for non-aviation tabular teams** |
+| P08 | **The 2024 winners were announced at the 12th OpenSky Symposium (Hamburg, 7-8 November 2024)**, so there is a symposium after the competition where the winners are announced | search result, the page itself was not read | 2026-09-01 | ⚠️ needs confirmation for 2026 |
+| P09 | JOAS ran a **special issue** for the 2025 competition (Vol. 4 No. 3, 2026: "EUROCONTROL PRC 2025 Data Challenge"), so there is a ready publication route for the paper | journals.open.tudelft.nl/joas/issue/view/1058 | 2026-09-01 | ✅ |
+| P10 | The 2026 page **does not say how the prize is split across the top 3**; in 2025 it was 2500/1750/750. It also does not give the payment method or date | dc2026/index.html | 2026-09-01 | ⚠️ ask challenge@opensky-network.org if needed |
 | W01 | IEM ASOS/METAR covers all 11 airports, all 577 days between 2025-01-01 and 2026-07-31, 48 observations a day, less than 0.03% missing | our own download | 2026-09-01 | ✅ 306,222 rows downloaded |
 | W02 | IEM data is **public domain**, attribution appreciated | mesonet.agron.iastate.edu/disclaimer.php | 2026-09-01 | ✅ meets the prize condition |
 | W03 | Share of de-icing conditions in January 2026: **LSZH 18.0% · EHAM 13.4% · EDDM 11.2% · LTFM 9.9% · EDDF 8.3%**; LTAI/LEBL/LIRF **0%** | our own METAR analysis | 2026-09-01 | ✅ **the January error will pile up at these five airports; there is no de-icing at LTAI** |
@@ -114,6 +117,10 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | S03 | **2.08M of the 4.17M movements are departures**; 114 raw columns, 95 modellable features | our own measurement | 2026-09-01 | ⏳ to be confirmed on the real data |
 | S04 | A full ablation (13 configurations x 1500 rounds) is estimated at **~1.7 hours**, ~8.5 hours with 5 seeds | scaled from S01 | 2026-09-01 | ✅ an overnight run can be planned |
 
+## External data sources (2026-09-01 investigation)
+
+| # | Fact | Source | Checked | Status |
+|---|--------|--------|---------|-------|
 | O01 | OPDI (the open PRC + OpenSky initiative) publishes flight events derived from ADS-B; v0.0.2 includes **parking position entry/exit**, covering 2022-01 to 2026-08-08 (both ranking months) | opdi.aero/flight-event-data.html | 2026-09-01 | ✅ |
 | O02 | **Parking position events exist only at LSZH and EDDF**; there are **zero** at EHAM/LIRF/LTAI/LTFM. The reason: OPDI derives these events from OSM parking position polygons, and those polygons are missing at most airports | our own measurement, a 10-day file | 2026-09-01 | ✅ **RULED OUT** (docs/opdi_negative_result.md) |
 | O03 | **Open ADS-B ground coverage at LTFM and LTAI is nearly zero** (25 and 119 runway entries in 10 days), so any ADS-B based approach would collapse at exactly the two Turkish airports | our own measurement | 2026-09-01 | ✅ |
@@ -162,9 +169,7 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | B05 | **The live leaderboard is behind a REST API:** `https://datacomp.opensky-network.org/api/competitions/bb3693e1-26bc-4a9e-8619-4fe78b4eab0c/leaderboard`. The page shows no table, it is embedded through Observable. `scripts/leaderboard.py` fetches it | extracted from dc2026/ranking.html | 2026-09-01 | ✅ |
 | B06 | **32 teams registered**, all of them on 2026-09-01. `vibrant-lollipop` is listed under Turkey | dc2026/teams.html | 2026-09-01 | ✅ |
 | B07 | State at 2026-09-01 15:35: **only 2 teams have submitted.** enthusiastic-daisy 304.98 (v2) · **vibrant-lollipop 331.23 (v1)** · enthusiastic-daisy 485.23 (v1) | leaderboard API | 2026-09-01 | ✅ 26.25 behind the leader |
-| P08 | **The 2024 winners were announced at the 12th OpenSky Symposium (Hamburg, 7-8 November 2024)**, so there is a symposium after the competition where the winners are announced | search result, the page itself was not read | 2026-09-01 | ⚠️ needs confirmation for 2026 |
-| P09 | JOAS ran a **special issue** for the 2025 competition (Vol. 4 No. 3, 2026: "EUROCONTROL PRC 2025 Data Challenge"), so there is a ready publication route for the paper | journals.open.tudelft.nl/joas/issue/view/1058 | 2026-09-01 | ✅ |
-| P10 | The 2026 page **does not say how the prize is split across the top 3**; in 2025 it was 2500/1750/750. It also does not give the payment method or date | dc2026/index.html | 2026-09-01 | ⚠️ ask challenge@opensky-network.org if needed |
+| B08 | **v2 board 331.7983** (lr 0.02, 255 leaves, 380 rounds, 5 seeds) vs **v1 331.2256**. Locally v2 was significantly better by the paired test; on the board it was 0.57 worse | bucket result.json | 2026-09-01 | ✅ **local significance does not imply board improvement** |
 
 ## Model findings (2026-09-01 measurements)
 
@@ -177,7 +182,9 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | M24 | Despite its name `LOBT_flt` is **not the actual block time**, it is nearly identical to IOBT (740 vs 740), so it is a planned time | our own measurement | 2026-09-01 | ✅ |
 | M25 | On the holdout the **naive prediction is 531.40** and the model 377.84. The model buys **154 s** over the naive prediction | our own measurement | 2026-09-01 | ✅ the modelling effort pays for itself |
 
-| B08 | **v2 board 331.7983** (lr 0.02, 255 leaves, 380 rounds, 5 seeds) vs **v1 331.2256**. Locally v2 was significantly better by the paired test; on the board it was 0.57 worse | bucket result.json | 2026-09-01 | ✅ **local significance does not imply board improvement** |
+| M26 | **The learner was the largest lever found so far.** Same features, same split, 400 rounds: LightGBM 378.99, XGBoost 357.80, CatBoost 353.59, XGBoost+CatBoost 351.69. The paired noise floor is ~5 s | our own measurement | 2026-09-01 | ✅ the model layer is now a port with one adapter per library |
+| M27 | **Adding LightGBM to the blend makes it worse** (357.49 for all three against 351.69 for the pair), so it contributes error rather than a different view | our own measurement | 2026-09-01 | ✅ |
+| M28 | XGBoost applies **no categorical handling at all** and still beats LightGBM by 21 s, which points at LightGBM's categorical splitting overfitting the 1,899 stands and the hashed operator | our own measurement | 2026-09-01 | ⏳ `lightgbm-nocat` will test it |
 
 ## Open questions
 

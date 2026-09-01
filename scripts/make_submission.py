@@ -39,6 +39,9 @@ def main() -> None:
     ap.add_argument("--rounds", type=int, default=1500)
     ap.add_argument("--seeds", type=int, default=5,
                     help="seed averaging; the method of the 2024 winner")
+    ap.add_argument("--learners", default="lightgbm",
+                    help="comma separated, from taxiout.models: lightgbm, "
+                         "lightgbm-nocat, xgboost, catboost")
     ap.add_argument("--raw-target", action="store_true")
     ap.add_argument("--drop-groups", nargs="*", default=[],
                     help="feature families to drop, for ablation")
@@ -92,10 +95,13 @@ def main() -> None:
     print(f"using {len(cols)} features")
 
     split = pipeline.Split(fit=fit, val=rank_feats, columns=cols)
+    learners = tuple(s.strip() for s in args.learners.split(",") if s.strip())
+    print(f"learners: {', '.join(learners)}  rounds: {args.rounds}  seeds: {args.seeds}")
     pred = pipeline.train_predict(
         split, cols, args.rounds,
         residual=not args.raw_target,
         seeds=tuple(range(1, args.seeds + 1)),
+        learners=learners,
     )
 
     # --- submission file

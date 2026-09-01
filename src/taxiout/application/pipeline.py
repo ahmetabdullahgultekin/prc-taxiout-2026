@@ -15,10 +15,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import lightgbm as lgb
 import numpy as np
 import polars as pl
 
+from taxiout import models
 from taxiout.domain import reference
 from taxiout.features import airport_state, congestion, groups, routing, weather
 
@@ -274,6 +274,8 @@ def train_predict(
     rounds: int = 1500,
     residual: bool = True,
     seeds: tuple[int, ...] = (1,),
+    learners: tuple[str, ...] = ("lightgbm",),
+    weights: list[float] | None = None,
 ) -> np.ndarray:
     """Train and return predictions for the validation slice.
 
@@ -281,28 +283,28 @@ def train_predict(
     kind of re-parameterisation was last year's single largest gain, which is why it is
     measured here; on this data it made no difference.
 
-    With more than one seed, models trained on the same data and hyperparameters with
-    different seeds are averaged, which is what the 2024 winner did.
+    `learners` names the libraries to fit, from `taxiout.models`. Every named learner is
+    fitted once per seed and everything is averaged together, so seed averaging (the
+    method of the 2024 winner) and library averaging are the same operation. The default
+    is LightGBM alone for compatibility with the runs already recorded in the experiment
+    log; it is not the best choice, see the table in `taxiout.models.base`.
     """
-    x_fit, cat_idx, levels = to_matrix(split.fit, cols)
-    x_val, _, _ = to_matrix(split.val, cols, levels)
-
     ref_fit = split.fit["reference_sec"].fill_null(strategy="mean").to_numpy()
     ref_val = split.val["reference_sec"].fill_null(strategy="mean").to_numpy()
     y = split.fit[TARGET].to_numpy().astype(np.float64)
     if residual:
         y = y - ref_fit
 
-    preds = []
-    for seed in seeds:
-        params = {**LGB_PARAMS, "seed": seed, "bagging_seed": seed, "feature_fraction_seed": seed}
-        booster = lgb.train(
-            params,
-            lgb.Dataset(x_fit, label=y, feature_name=cols, categorical_feature=cat_idx),
-            num_boost_round=rounds,
-        )
-        preds.append(booster.predict(x_val))
-    pred = np.mean(preds, axis=0)
+    preds, blend_weights = [], []
+    for i, name in enumerate(learners):
+        learner = models.build(name)
+        for seed in seeds:
+            preds.append(
+                learner.fit_predict(split.fit, split.val, cols, y, rounds, seed)
+            )
+            blend_weights.append(1.0 if weights is None else weights[i] / len(seeds))
+
+    pred = models.blend(preds, blend_weights)
     if residual:
         pred = pred + ref_val
     return np.clip(pred, 0.0, None)  # a negative taxi time is physically impossible

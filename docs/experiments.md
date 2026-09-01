@@ -58,6 +58,56 @@ prediction** (531 -> 378). Even though the gain distribution makes the congestio
 close to worthless, the model itself is clearly doing its job.
 
 
+## The learner itself was the largest lever found so far
+
+Every result up to this point was measured with LightGBM, and the choice was never
+tested. It should have been. Same 92 features, same split, same 400 rounds, one seed:
+
+| learner | holdout RMSE | against LightGBM | fit time |
+|---|---:|---:|---:|
+| LightGBM, categorical splits | 378.99 | - | 124 s |
+| XGBoost, categoricals as integer codes | 357.80 | **-21.19** | 149 s |
+| CatBoost, ordered target statistics | 353.59 | **-25.40** | 1074 s |
+| XGBoost + CatBoost, equal weight | **351.69** | **-27.30** | - |
+| all three, equal weight | 357.49 | -21.50 | - |
+| best searched weighting (0.0 / 0.4 / 0.6) | 351.42 | -27.57 | - |
+
+The paired noise floor on this holdout is about 5 seconds, so a 27 second gap is not
+close to a judgement call. For comparison, the entire congestion feature family, which
+this project was designed around and which took the most work, carries about 3 percent
+of the gain.
+
+**Adding LightGBM to the blend makes it worse** (357.49 against 351.69 for the pair). It
+is not contributing a different view of the data, it is contributing error.
+
+### Why
+
+The reading is that LightGBM's categorical splitting overfits the high cardinality
+fields, and there are several: 1,899 stands, a hashed aircraft operator, 11 aircraft
+types. LightGBM sorts categories by gradient statistics and splits the sorted order,
+which on a category seen a handful of times fits noise.
+
+The evidence for that reading is XGBoost. It applies **no categorical handling at all**,
+receiving the same integer codes as bare numbers, and still beats LightGBM by 21
+seconds. A learner that throws the categorical structure away should not beat one that
+models it, unless the modelling is doing harm.
+
+The prediction that follows is testable: LightGBM with the categorical declaration
+removed should close most of the gap to XGBoost. That is what `lightgbm-nocat` in
+`taxiout.models` is for, and it is the next thing to measure.
+
+### What was changed
+
+The learner is no longer hardcoded. `taxiout.models` holds a `Regressor` port with one
+adapter per library, and `train_predict` takes a `learners` tuple. The port is defined at
+the frame level rather than the matrix level on purpose: each library encodes the
+categoricals its own way, and forcing a single encoding on all three would have assumed
+away the thing being measured.
+
+The equal-weight blend is used rather than the searched weighting. The search is fitted
+on the same rows the score is read from, and the difference between them is 0.27
+seconds, inside the noise.
+
 ## v2: a local gain that did not transfer
 
 | submission | configuration | local holdout | **board** |
