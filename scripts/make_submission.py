@@ -63,8 +63,14 @@ def main() -> None:
     fit = reference.apply_reference(fit_feats, tables)
 
     # --- siralama tarafi: oznitelikler kendi hareket akisindan
+    # dis veriler egitim tarafiyla AYNI olmali; alan adiyla veriliyor cunku konumsal
+    # cagri Inputs'a yeni bir alan eklendiginde sessizce eksik kalir (bir kez oldu)
     rank_inputs = pipeline.Inputs(
-        pl.read_parquet(rank_path), inputs.metar, inputs.coords, inputs.runways
+        movements=pl.read_parquet(rank_path),
+        metar=inputs.metar,
+        coords=inputs.coords,
+        runways=inputs.runways,
+        atfm_daily=inputs.atfm_daily,
     )
     print(f"siralama hareketi: {rank_inputs.movements.height:,}")
     rank_feats = reference.apply_reference(pipeline.build_features(rank_inputs), tables)
@@ -74,8 +80,12 @@ def main() -> None:
     if eksik:
         # sessizce dusurmek yerine soyle: siralama setinde uretilemeyen oznitelik varsa
         # bu, kurgu hakkinda bir sey ogrendigimiz anlamina gelir
-        print(f"UYARI: siralama setinde uretilemeyen {len(eksik)} oznitelik atlandi: "
-              f"{sorted(eksik)[:10]}")
+        print(
+            f"UYARI: siralama setinde uretilemeyen {len(eksik)} oznitelik atlandi: "
+            f"{sorted(eksik)}"
+        )
+        print("  bu neredeyse her zaman bir hatadir: modelin egitimde ogrenip")
+        print("  tahminde kaybettigi bilgidir. Devam etmeden once bakilmali.")
     cols = groups.select(cols, set(args.drop_groups))
     print(f"{len(cols)} oznitelik kullaniliyor")
 

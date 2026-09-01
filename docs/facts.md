@@ -105,6 +105,15 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | E06 | **Havalimanlarinin de-icing rejimi farkli.** EHAM: referanssiz oran yil boyu sabit ~%1 ama ek sure kisin +1,46 dk. EDDM/LSZH: kisin ucuslarin buyuk kismi gostergeden dusuyor (EDDM Ocak 2026 %31), ek sure artmiyor | kendi analizimiz | 2026-09-01 | ✅ **Ocak hatasi EDDM/LSZH'de resmi gostergenin ATTIGI ucuslarda toplanacak** |
 | E07 | Ek taxi-out suresi **her havalimaninda** kisin yazdan dusuk (yaz trafik zirvesi); EHAM tek istisna | kendi analizimiz | 2026-09-01 | ✅ EHAM anomalisini guclendiriyor |
 
+## Olcek ve performans (2026-09-01 olcumu)
+
+| # | Gerçek | Kaynak | Kontrol | Durum |
+|---|--------|--------|---------|-------|
+| S01 | Gercek olcekte (4,17M hareket) uctan uca dogrulama kosusu **96 sn**, tepe bellek **5,15 GB / 15,9** | kendi olcumumuz, sentetik veri | 2026-09-01 | ✅ ADR-0002 |
+| S02 | Gonderim yolu (en yuksek bellek noktasi) **171 sn**, tepe **7,06 GB** | kendi olcumumuz | 2026-09-01 | ✅ out-of-core gerekmiyor |
+| S03 | 4,17M hareketin **2,08M'i kalkis**; 114 ham kolon, 95 modellenebilir oznitelik | kendi olcumumuz | 2026-09-01 | ⏳ gercek veride dogrulanacak |
+| S04 | Tam ablation (13 yapilandirma x 1500 tur) tahmini **~1,7 saat**, 5 tohumla ~8,5 saat | S01'den olcekleme | 2026-09-01 | ✅ gece kosusu planlanabilir |
+
 ## Açık sorular
 
 | # | Soru | Nasıl kapanır |

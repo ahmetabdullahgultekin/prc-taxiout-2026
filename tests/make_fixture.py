@@ -9,7 +9,7 @@ Gercek veri ASLA bu dizine yazilmaz (form sarti F11).
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -93,6 +93,81 @@ def build(start: datetime, days: int, per_day: int, seed: int) -> pl.DataFrame:
     )
 
 
+
+def external_data(out: Path) -> None:
+    """Minimal sentetik dis veri: METAR, havalimani koordinatlari, gunluk ATFM.
+
+    Bunlar olmadan entegrasyon testleri **bosuna gecer**: `load_inputs` dis veriyi
+    None dondurur, egitim ve siralama taraflari da ayni sekilde eksik kalir, dolayisiyla
+    "her oznitelik iki tarafta da uretilebiliyor mu" testi hicbir sey dogrulamaz.
+    Gercek bir hata tam bu yuzden kacmisti (gunluk ATFM tablosu gonderim yolunda
+    siralama tarafina gecirilmiyordu).
+    """
+    rng = np.random.default_rng(99)
+    saatler = pl.datetime_range(
+        datetime(2025, 1, 1), datetime(2026, 8, 1), interval="30m", eager=True, closed="left"
+    )
+    n = len(saatler)
+    metar = pl.concat([
+        pl.DataFrame({
+            "station": [a] * n,
+            "valid": saatler,
+            "sicaklik_c": rng.normal(12, 9, n),
+            "cig_noktasi_c": rng.normal(7, 8, n),
+            "gorus_km": rng.gamma(4, 3, n).clip(0.1, 20),
+            "ruzgar_ms": rng.gamma(2, 3, n),
+            "ruzgar_yon": rng.uniform(0, 360, n),
+            "yagis_mm": rng.gamma(0.4, 1.0, n),
+            "tavan_m": rng.gamma(3, 400, n),
+            "wxcodes": [""] * n,
+            "skyc1": ["FEW"] * n,
+            "donma_yagisi": rng.random(n) < 0.01,
+            "kar": rng.random(n) < 0.01,
+            "sis": rng.random(n) < 0.05,
+            "gok_gurultusu": rng.random(n) < 0.02,
+            "deicing_vekili": rng.random(n) < 0.02,
+            "dusuk_gorus": rng.random(n) < 0.05,
+        })
+        for a in AIRPORTS
+    ])
+    metar.write_parquet(out / "metar.parquet")
+
+    pl.DataFrame({
+        "icao": AIRPORTS,
+        "enlem": rng.uniform(36, 53, len(AIRPORTS)),
+        "boylam": rng.uniform(-1, 31, len(AIRPORTS)),
+        "yukseklik_ft": rng.uniform(0, 1500, len(AIRPORTS)),
+    }).write_parquet(out / "airport_coords.parquet")
+
+    pl.DataFrame({
+        "icao": AIRPORTS,
+        "pist_sayisi": rng.integers(2, 7, len(AIRPORTS)).astype("int8"),
+        "en_uzun_pist_ft": rng.uniform(10000, 14000, len(AIRPORTS)),
+        "ort_pist_ft": rng.uniform(9000, 13000, len(AIRPORTS)),
+    }).write_parquet(out / "airport_runways.parquet")
+
+    gunler = pl.date_range(date(2025, 1, 1), date(2026, 8, 1), eager=True, closed="left")
+    g = len(gunler)
+    pl.concat([
+        pl.DataFrame({
+            "apt": [a] * g,
+            "gun": gunler,
+            "atfm_duzenlenen_oran": rng.beta(2, 20, g),
+            "atfm_slot_gec_oran": rng.beta(2, 30, g),
+            "atfm_slot_erken_oran": rng.beta(2, 30, g),
+            "gunluk_kalkis": rng.uniform(200, 800, g),
+            "varis_atfm_gecikme_dk": rng.gamma(2, 1.5, g),
+            "gunluk_inis": rng.uniform(200, 800, g),
+            "varis_gecikme_hava_dk": rng.gamma(1.5, 1.0, g),
+            "varis_gecikme_atc_kapasite_dk": rng.gamma(1.2, 0.5, g),
+            "varis_gecikme_meydan_kapasite_dk": rng.gamma(1.2, 0.6, g),
+            "varis_gecikme_atc_personel_dk": rng.gamma(1.0, 0.3, g),
+            "varis_gecikme_atc_ekipman_dk": rng.gamma(1.0, 0.2, g),
+        })
+        for a in AIRPORTS
+    ]).write_parquet(out / "eurocontrol_atfm_daily.parquet")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
@@ -121,7 +196,8 @@ def main() -> None:
     rank.filter(is_dep).select("MVT_ID_mvt", "TAXITIME_SEC_mvt").write_parquet(
         out / "submitting.parquet"
     )
-    print("fixture yazildi:", out, "| ranking satiri:", rank.height)
+    external_data(out)
+    print("fixture yazildi:", out, "| ranking satiri:", rank.height, "| dis veri dahil")
 
 
 if __name__ == "__main__":

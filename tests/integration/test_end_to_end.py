@@ -10,8 +10,10 @@ Fixture kucuk tutuldu; amac hiz degil, borularin gercekten uctan uca aktigi.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -52,10 +54,14 @@ def test_features_are_producible_on_the_ranking_set(raw_dir: Path) -> None:
 
     Uretilemeyen bir oznitelik, modelin egitimde ogrenip tahminde kaybettigi bilgidir;
     sessizce olursa RMSE'yi bozar ve nedeni gorunmez.
+
+    Dis veriler iki tarafa da **ayni sekilde** verilmeli. Testin ilk hali bunu
+    yapmiyordu ve gercek bir hatayi kacirdi: `make_submission.py` siralama tarafina
+    gunluk ATFM tablosunu gecirmiyordu, 11 oznitelik sessizce dusuyordu.
     """
     inputs = pipeline.load_inputs(raw_dir)
     fit = pipeline.build_features(inputs)
-    rank_inputs = pipeline.Inputs(pl.read_parquet(raw_dir / "ranking.parquet"))
+    rank_inputs = replace(inputs, movements=pl.read_parquet(raw_dir / "ranking.parquet"))
     rank = pipeline.build_features(rank_inputs)
 
     eksik = set(pipeline.feature_columns(fit)) - set(rank.columns)
@@ -94,7 +100,7 @@ def test_full_run_produces_a_valid_submission(raw_dir: Path, tmp_path: Path) -> 
     fit = reference.apply_reference(
         pipeline.build_features(inputs).filter(pl.col(pipeline.TARGET).is_not_null()), tables
     )
-    rank_inputs = pipeline.Inputs(pl.read_parquet(raw_dir / "ranking.parquet"))
+    rank_inputs = replace(inputs, movements=pl.read_parquet(raw_dir / "ranking.parquet"))
     rank = reference.apply_reference(pipeline.build_features(rank_inputs), tables)
 
     cols = [c for c in pipeline.feature_columns(fit) if c in rank.columns]
@@ -127,3 +133,33 @@ def test_causal_run_also_completes(raw_dir: Path) -> None:
     scores = pipeline.evaluate(split, pred)
     assert scores["toplam"] > 0
     assert not [c for c in split.columns if "sonraki" in c]
+
+
+def test_submission_script_drops_no_features(raw_dir: Path, tmp_path: Path) -> None:
+    """Uretim betigini gercekten calistirir ve hicbir ozniteligin dusmedigini dogrular.
+
+    Bu testin var olma nedeni somut: `make_submission.py` `Inputs`'u konumsal
+    argumanlarla kuruyordu; `Inputs`'a gunluk ATFM alani eklendiginde siralama tarafi
+    sessizce onsuz kaldi ve 11 oznitelik dustu. Boru hatti fonksiyonlarini test etmek
+    bunu yakalamiyor cunku hata betigin kendi kurulumundaydi — bu yuzden betik
+    bir alt surec olarak calistiriliyor.
+    """
+    data_dir = tmp_path / "veri"
+    (data_dir / "00_raw").mkdir(parents=True)
+    for f in raw_dir.iterdir():
+        (data_dir / "00_raw" / f.name).write_bytes(f.read_bytes())
+
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, str(REPO / "scripts" / "make_submission.py"),
+         "--data-dir", str(data_dir), "--team", "keen-hamburger",
+         "--rounds", "20", "--seeds", "1"],
+        check=True, cwd=REPO, capture_output=True, text=True,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+    assert "UYARI: siralama setinde uretilemeyen" not in result.stdout, (
+        "gonderim yolunda oznitelik dusuyor:\n" + result.stdout
+    )
+    written = list((data_dir / "04_submissions").glob("keen-hamburger_v*.parquet"))
+    assert len(written) == 1, f"tam bir gonderim dosyasi beklendi, bulunan: {written}"
+    template = pl.read_parquet(raw_dir / "submitting.parquet")
+    assert pl.read_parquet(written[0]).height == template.height
