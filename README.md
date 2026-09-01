@@ -89,7 +89,7 @@ Detailed rationale and licence texts: `docs/external_data.md`.
 ```bash
 PY=D:/prc-taxiout-2026/.venv/Scripts/python.exe
 $PY -m ruff check src tests scripts
-$PY -m pytest tests -q
+$PY -m pytest tests -q          # or: $PY scripts/verify.py, which runs every CI check
 ```
 
 `.github/workflows/ci.yml` runs the same two checks on every push, then drives the whole
@@ -127,6 +127,8 @@ $PY -m taxiout.adapters.airports --raw-dir D:/prc-taxiout-2026/00_raw
 
 # once the competition data has arrived
 $PY scripts/probe_data.py     --data-dir D:/prc-taxiout-2026   # data diagnosis
+$PY scripts/audit_data.py     --data-dir D:/prc-taxiout-2026   # data quality audit
+$PY scripts/cache_features.py --data-dir D:/prc-taxiout-2026   # build features once, reuse
 $PY scripts/train_baseline.py --data-dir D:/prc-taxiout-2026   # seasonal validation
 $PY scripts/run_ablation.py   --data-dir D:/prc-taxiout-2026   # feature family table
 
