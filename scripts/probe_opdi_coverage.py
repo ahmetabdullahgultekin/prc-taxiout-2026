@@ -1,16 +1,17 @@
-"""OPDI yer olaylarinin 11 havalimanindaki kapsamasini olcer.
+"""Measures the coverage of OPDI ground events at the 11 airports.
 
-**Neden bakildi.** OPDI (Open Performance Data Initiative, PRC'nin kendi girisimi,
-OpenSky Network ile) ADS-B'den turetilmis flights olaylari yayimliyor ve v0.0.2 ile
-**park pozisyonu giris/cikis** olaylari eklendi. `exit-parking_position`, siralama
-setinde bosaltilmis olan blok cozulme aninin **bagimsiz bir olcumu** olurdu. Kapsam
-Ocak 2022 - Agustos 2026, yani her iki siralama ayi da iceride.
+**Why we looked.** OPDI (Open Performance Data Initiative, the PRC's own initiative with
+the OpenSky Network) publishes flight events derived from ADS-B, and v0.0.2 added
+**parking position entry/exit** events. `exit-parking_position` would be an **independent
+measurement** of the off-block instant, which is blanked out in the ranking set. The
+coverage runs January 2022 to August 2026, so both ranking months are inside it.
 
-Ayrica yarismanin belirtilen amaci tam olarak bu: taxi-out "elde etmesi zor bir
-buyukluk" ve model, A-CDM verisi paylasmayan havalimanlarindaki bosluk icin. Acik
-ADS-B olaylariyla o boslugu doldurabilmek dogrudan konuyla ilgili bir sonuc olurdu.
+This is also exactly the stated purpose of the competition: taxi-out is "a quantity that is
+hard to obtain", and the model is meant for the gap at airports that do not share A-CDM
+data. Filling that gap with open ADS-B events would have been a directly relevant result.
 
-**Sonuc: kullanilamaz.** Olculen kapsama asagida; ozet `docs/opdi_negative_result.md`.
+**Result: unusable.** The measured coverage is below; the summary is in
+`docs/opdi_negative_result.md`.
 
     python scripts/probe_opdi_coverage.py --events <flight_events_*.parquet>
 """
@@ -42,7 +43,7 @@ RADIUS_KM = 10.0
 
 
 def near(lat: float, lon: float) -> pl.Expr:
-    """Havalimani cevresinde kaba bir kutu. Enlem-longitude olcegi enleme gore duzeltilir."""
+    """A rough box around the airport. The longitude scale is corrected for latitude."""
     dlat = RADIUS_KM / 111.0
     dlon = RADIUS_KM / (111.0 * max(0.1, math.cos(math.radians(lat))))
     return ((pl.col("latitude") - lat).abs() < dlat) & (
@@ -68,14 +69,14 @@ def coverage(event_files: list[Path]) -> pl.DataFrame:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--events", nargs="+", required=True,
-                    help="OPDI flight_events_*.parquet dosyalari")
+                    help="OPDI flight_events_*.parquet files")
     args = ap.parse_args()
     files = [Path(p) for p in args.events]
     df = coverage(files)
-    print(f"dosya: {len(files)}")
+    print(f"files: {len(files)}")
     print(df)
-    sifir = df.filter(pl.col("exit-parking_position") == 0)["apt"].to_list()
-    print(f"\npark pozisyonu cikis olayi HIC olmayan havalimani: {sorted(sifir)}")
+    zero = df.filter(pl.col("exit-parking_position") == 0)["apt"].to_list()
+    print(f"\nairports with NO parking position exit event at all: {sorted(zero)}")
 
 
 if __name__ == "__main__":

@@ -1,15 +1,16 @@
-"""De-icing rejimi analizi: METAR vekilini resmi gostergeye karsi dogrular.
+"""De-icing regime analysis: validates the METAR proxy against the official indicator.
 
-**Yarisma verisi gerektirmez.** Iki acik kaynak kullanir: METAR (Iowa State IEM,
-kamu mali) ve EUROCONTROL'un yayimladigi Taxi-Out Additional Time gostergesi.
+**Needs no competition data.** It uses two open sources: METAR (Iowa State IEM, public
+domain) and the Taxi-Out Additional Time indicator published by EUROCONTROL.
 
-Sordugu soru: METAR'dan turettigimiz de-icing vekili gercekten de-icing'i mi olcuyor?
-Bagimsiz bir olcum gerekiyordu; resmi gosterge onu sagliyor. PRC kendi gostergesinde
-**AOBT sonrasi de-icing yapan ucuslari hesaptan atiyor** (ATXOT s.13 adim 1), yani
-"valid referansi olmayan flights orani" alani kis aylarinda de-icing'i tasiyor.
+The question it asks: does the de-icing proxy we derive from METAR actually measure
+de-icing? An independent measurement was needed, and the official indicator provides one.
+In its own indicator the PRC **discards flights that de-ice after AOBT** (ATXOT p.13,
+step 1), so the "share of flights without a valid reference" field carries de-icing during
+the winter months.
 
-Bulunan sey bundan fazlasi: havalimanlarinin **de-icing rejimi farkli**, ve bu bizim
-Ocak hatamizin nerede toplanacagini belirliyor. Ayrinti `docs/deicing_analysis.md`.
+What we found goes further than that: airports have **different de-icing regimes**, and
+that determines where our January error will pile up. Detail in `docs/deicing_analysis.md`.
 
     python scripts/analyse_deicing.py --raw-dir D:/prc-taxiout-2026/00_raw
 """
@@ -34,7 +35,7 @@ def monthly_metar(metar: pl.DataFrame) -> pl.DataFrame:
     ).agg(
         deicing=pl.col("deicing_proxy").mean(),
         snow=pl.col("snow").mean(),
-        donma=pl.col("freezing_precip").mean(),
+        freezing=pl.col("freezing_precip").mean(),
         min_temperature_c=pl.col("temperature_c").min(),
     )
 
@@ -47,7 +48,7 @@ def table(df: pl.DataFrame, digits: dict[str, int] | None = None) -> str:
         cells = []
         for col, v in zip(df.columns, row, strict=True):
             if v is None:
-                cells.append("—")
+                cells.append("-")
             elif isinstance(v, float):
                 cells.append(f"{v:.{digits.get(col, 3)}f}")
             else:
@@ -65,123 +66,133 @@ def main() -> None:
     metar_path = raw / "metar.parquet"
     if not metar_path.exists():
         raise SystemExit(
-            f"METAR bulunamadi: {metar_path}\n"
-            "once: python -m taxiout.adapters.metar_iem --start 2025-01-01 "
-            "--end 2026-08-01 --out <yol>"
+            f"METAR not found: {metar_path}\n"
+            "first: python -m taxiout.adapters.metar_iem --start 2025-01-01 "
+            "--end 2026-08-01 --out <path>"
         )
     met = monthly_metar(pl.read_parquet(metar_path))
     off = eurocontrol.official_taxiout(raw)
     j = off.join(met, on=["apt", "year", "month_num"], how="inner").sort("apt", "year", "month_num")
 
-    genel_ref = j.select(pl.corr("deicing", "no_reference_share")).item()
-    genel_sure = j.select(pl.corr("deicing", "additional_min")).item()
+    overall_ref = j.select(pl.corr("deicing", "no_reference_share")).item()
+    overall_time = j.select(pl.corr("deicing", "additional_min")).item()
 
     per = (
         j.group_by("apt")
         .agg(
-            ay_sayisi=pl.len(),
-            r_referanssiz=pl.corr("deicing", "no_reference_share"),
-            r_ek_sure=pl.corr("deicing", "additional_min"),
-            ort_deicing=pl.col("deicing").mean(),
-            ort_referanssiz=pl.col("no_reference_share").mean(),
-            kis_ek_sure=pl.col("additional_min").filter(pl.col("month_num").is_in([1, 2, 12])).mean(),
-            yaz_ek_sure=pl.col("additional_min").filter(pl.col("month_num").is_in([6, 7, 8])).mean(),
+            n_months=pl.len(),
+            r_no_reference=pl.corr("deicing", "no_reference_share"),
+            r_additional=pl.corr("deicing", "additional_min"),
+            mean_deicing=pl.col("deicing").mean(),
+            mean_no_reference=pl.col("no_reference_share").mean(),
+            winter_additional=pl.col("additional_min")
+            .filter(pl.col("month_num").is_in([1, 2, 12]))
+            .mean(),
+            summer_additional=pl.col("additional_min")
+            .filter(pl.col("month_num").is_in([6, 7, 8]))
+            .mean(),
         )
-        .with_columns(kis_yaz_farki=pl.col("kis_ek_sure") - pl.col("yaz_ek_sure"))
-        .sort("r_referanssiz", descending=True)
+        .with_columns(
+            winter_summer_diff=pl.col("winter_additional") - pl.col("summer_additional")
+        )
+        .sort("r_no_reference", descending=True)
     )
 
-    eksik = set(eurocontrol.CHALLENGE_AIRPORTS) - set(off["apt"].unique().to_list())
+    missing = set(eurocontrol.CHALLENGE_AIRPORTS) - set(off["apt"].unique().to_list())
 
-    # tablolar f-string DISINDA kurulur: f-string ifadesi icinde sozluk yazilamaz
-    tablo_korelasyon = table(
-        per.select("apt", "month_sayisi", "r_referanssiz", "r_ek_sure", "ort_deicing",
-                   "ort_referanssiz")
+    # the tables are built OUTSIDE the f-string: a dict literal cannot go in an f-string
+    # expression
+    table_correlation = table(
+        per.select("apt", "n_months", "r_no_reference", "r_additional", "mean_deicing",
+                   "mean_no_reference")
     )
-    tablo_rejim = table(
-        per.select("apt", "r_ek_sure", "kis_ek_sure", "yaz_ek_sure", "kis_yaz_farki"),
-        digits={"kis_ek_sure": 2, "yaz_ek_sure": 2, "kis_yaz_farki": 2},
+    table_regime = table(
+        per.select("apt", "r_additional", "winter_additional", "summer_additional",
+                   "winter_summer_diff"),
+        digits={"winter_additional": 2, "summer_additional": 2, "winter_summer_diff": 2},
     )
-    kapsam_disi = (
-        "Resmi gostergede **hic verisi olmayan** havalimani: " + ", ".join(sorted(eksik))
-        if eksik
-        else "Tum yarisma havalimanlari gostergede kapsanmis."
+    out_of_scope = (
+        "Airports with **no data at all** in the official indicator: " + ", ".join(sorted(missing))
+        if missing
+        else "Every competition airport is covered by the indicator."
     )
 
-    body = f"""# De-icing rejimi: METAR vekilinin bagimsiz dogrulanmasi
+    body = f"""# De-icing regime: independent validation of the METAR proxy
 
-Uretildigi komut: `python scripts/analyse_deicing.py --raw-dir <yol>`
-**Yarisma verisi kullanilmaz** — iki acik kaynak: IEM METAR ve EUROCONTROL'un
-yayimladigi Taxi-Out Additional Time gostergesi. Kapsam: {j.height} havalimani-month_num.
+Produced by: `python scripts/analyse_deicing.py --raw-dir <path>`
+**No competition data is used**, only two open sources: IEM METAR and the Taxi-Out
+Additional Time indicator published by EUROCONTROL. Coverage: {j.height} airport-months.
 
-## Neden bu karsilastirma anlamli
+## Why this comparison is meaningful
 
-PRC resmi gostergesinde **AOBT sonrasi de-icing yapan ucuslari hesaptan atiyor**
-(ATXOT s.13, adim 1). Dolayisiyla gostergenin "valid referansi olmayan flights orani"
-alani, kis aylarinda buyuk olcude de-icing'i tasir. Bu, METAR'dan turettigimiz
-`deicing_proxy` alani icin **bagimsiz** bir olcumdur.
+In its official indicator the PRC **discards flights that de-ice after AOBT**
+(ATXOT p.13, step 1). The indicator's "share of flights without a valid reference" field
+therefore carries mostly de-icing during the winter months. That is an **independent**
+measurement of the `deicing_proxy` field we derive from METAR.
 
-## Sonuc: vekil calisiyor
+## Result: the proxy works
 
-Tum veri uzerinde korelasyon **r = {genel_ref:.3f}** (de-icing vekili ↔ referanssiz
-flights orani). Havalimani icinde, aylar arasinda:
+Over the whole data set the correlation is **r = {overall_ref:.3f}** (de-icing proxy
+against the share of flights without a reference). Within an airport, across months:
 
-{tablo_korelasyon}
+{table_correlation}
 
-Soguk havalimanlarinda korelasyon 0.87–0.98; sicak olanlarda (LIRF, LEBL, EGLL)
-de-icing neredeyse hic olmadigi icin korelasyon gurultudur, dusuk olmasi beklenir.
+At the cold airports the correlation is 0.87 to 0.98; at the warm ones (LIRF, LEBL, EGLL)
+there is almost no de-icing, so the correlation is noise and is expected to be low.
 
-## Asil bulgu: havalimanlarinin de-icing rejimi farkli
+## The real finding: airports have different de-icing regimes
 
-De-icing vekili ile **ek taxi-out suresi** arasindaki korelasyon genelde
-{genel_sure:+.3f}, yani neredeyse yok — ama havalimani bazinda tablo ikiye ayriliyor:
+The correlation between the de-icing proxy and the **additional taxi-out time** is
+{overall_time:+.3f} overall, that is, effectively none. But per airport the table splits
+in two:
 
-{tablo_rejim}
+{table_regime}
 
-**EHAM tek basina ayri duruyor.** Amsterdam'da referanssiz flights orani year boyunca
-sabit (~%1) kaliyor ama ek taxi-out suresi kisin belirgin sekilde artiyor. EDDM ve
-LSZH'de ise tam tersi: kisin ucuslarin buyuk bolumu gostergeden **dusuyor**
-(Munih'te Ocak 2026'da %31), ek sure ise artmiyor.
+**EHAM stands apart on its own.** At Amsterdam the share of flights without a reference
+stays flat through the year (~1%), yet the additional taxi-out time rises clearly in
+winter. At EDDM and LSZH it is the other way round: in winter a large share of flights
+**drops out** of the indicator (31% at Munich in January 2026), while the additional time
+does not rise.
 
-Onemli bir kayit: ek taxi-out suresi **her havalimaninda** kisin yazdan dusuk
-(-0,25 ile -2,82 dk arasi), cunku yaz trafik zirvesi kuyrugu buyutuyor. EHAM'in
-+1,46 dk'lik farki bu tabana ragmen olusuyor; yani anomaliyi zayiflatan degil,
-guclendiren bir arka plan.
+One caveat worth recording: the additional taxi-out time is lower in winter than in summer
+at **every** airport (between -0.25 and -2.82 min), because the summer traffic peak makes
+the queue longer. EHAM's +1.46 min appears in spite of that baseline, so the background
+strengthens the anomaly rather than weakening it.
 
-Yorum: kis gecikmesinin **ne kadarinin taxi-out'un icine dustugu** havalimanina gore
-degisiyor. Amsterdam'da icine dusuyor ve hedefi buyutuyor; Munih ve Zurih'te etkilenen
-ucuslar isaretlenip resmi hesaptan cikariliyor.
+Reading: **how much of the winter delay lands inside taxi-out** varies by airport. At
+Amsterdam it lands inside and inflates the target; at Munich and Zurich the affected
+flights are flagged and taken out of the official calculation.
 
-Bu, kesin bir nedensellik iddiasi degil: elimizde de-icing kayitlari yok, yalnizca weather
-kosulu vekili ile resmi gostergenin iki alani var. Ancak iki bagimsiz kaynagin ayni
-mevsimsel yapiyi gostermesi ve havalimanlarinin iki farkli desene ayrilmasi, yarisma
-verisi geldiginde **ilk sinanacak hipotezi** belirlemek icin yeterli.
+This is not a firm causal claim: we have no de-icing records, only a weather condition
+proxy and two fields of the official indicator. But two independent sources showing the
+same seasonal structure, and the airports splitting into two distinct patterns, is enough
+to fix **the first hypothesis to test** once the competition data arrives.
 
-## Bizim icin sonucu
+## What it means for us
 
-Biz **ham taxi-out'u** tahmin ediyoruz ve hicbir satiri atamayiz. Yani:
+We predict **raw taxi-out** and we cannot discard any row. So:
 
-- EHAM'da weather etkisi dogrudan hedefte gorunur ve ogrenilebilir.
-- EDDM ve LSZH'de, resmi gostergenin **attigi** ucuslar bizim veri setimizde duruyor ve
-  uc degerler olarak Ocak hatamizi domine edecek. Yayimlanmis hicbir taxi-out modeli bu
-  ucuslari tahmin etmek zorunda kalmadi, cunku standart metodoloji onlari eliyor.
-- Hava etkisi **havalimanina gore degisiyor**; global bir weather katsayisi yerine
-  havalimani x weather etkilesimi (ya da havalimani bazli model) gerekiyor.
+- At EHAM the weather effect shows up directly in the target and can be learned.
+- At EDDM and LSZH the flights the official indicator **discards** are still in our data
+  set, and as outliers they will dominate our January error. No published taxi-out model
+  has had to predict those flights, because the standard methodology filters them out.
+- The weather effect **varies by airport**; instead of one global weather coefficient we
+  need an airport x weather interaction (or a per-airport model).
 
-## Kapsam disi
+## Out of scope
 
-{kapsam_disi}
-Antalya EUROCONTROL performans semasinda degil; bu havalimani icin dis dogrulama
-kaynagimiz yok ve veri kalitesinin farkli olabilecegi akilda tutulmali.
+{out_of_scope}
+Antalya is not in the EUROCONTROL performance scheme; we have no external validation source
+for that airport, and its data quality may differ, which is worth keeping in mind.
 
-Siralama aylarindan **Temmuz 2026 henuz yayimlanmamis** (seri Haziran 2026'da bitiyor),
-dolayisiyla bu gosterge ozellik olarak kullanilamaz — yalnizca dogrulama icindir.
+Of the two ranking months, **July 2026 has not been published yet** (the series ends in
+June 2026), so this indicator cannot be used as a feature. It is for validation only.
 """
     OUT_MD.parent.mkdir(parents=True, exist_ok=True)
     OUT_MD.write_text(body, encoding="utf-8")
-    print(f"genel korelasyon r = {genel_ref:.3f}")
+    print(f"overall correlation r = {overall_ref:.3f}")
     print(per)
-    print(f"\nrapor: {OUT_MD}")
+    print(f"\nreport: {OUT_MD}")
 
 
 if __name__ == "__main__":

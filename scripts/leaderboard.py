@@ -1,10 +1,10 @@
-"""Canli lider tablosunu ceker.
+"""Fetches the live leaderboard.
 
-Yarisma sayfasinda tablo gorunmuyor; siralama bir REST API'de duruyor ve sayfa onu
-Observable uzerinden gomuyor. Adres `ranking.html` icinden cikarildi.
+The competition page shows no table; the ranking sits behind a REST API and the page embeds
+it through Observable. The address was extracted from `ranking.html`.
 
-Her gonderim ayri bir kayit olarak listeleniyor, yani ayni takim birden cok kez
-gorunebilir. Takim sıralaması **en iyi** skora gore (yarisma kurali F04).
+Every submission is listed as a separate record, so the same team can appear more than once.
+Teams are ranked by their **best** score (competition rule F04).
 
     python scripts/leaderboard.py
     python scripts/leaderboard.py --team vibrant-lollipop
@@ -25,7 +25,7 @@ UA = (
 
 
 def fetch() -> list[dict]:
-    """Tum gonderimleri ceker; sayfalama `nextCursor` ile ilerliyor."""
+    """Fetches every submission; paging advances through `nextCursor`."""
     items: list[dict] = []
     cursor: str | None = None
     while True:
@@ -49,16 +49,16 @@ def best_per_team(items: list[dict]) -> list[dict]:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="PRC 2026 lider tablosu")
-    ap.add_argument("--team", default=None, help="bu takimi isaretle")
-    ap.add_argument("--all", action="store_true", help="her gonderimi ayri listele")
+    ap = argparse.ArgumentParser(description="PRC 2026 leaderboard")
+    ap.add_argument("--team", default=None, help="mark this team")
+    ap.add_argument("--all", action="store_true", help="list every submission separately")
     args = ap.parse_args()
 
     items = fetch()
-    print(f"{len(items)} gonderim, {len({i['teamName'] for i in items})} takim gonderim yapmis\n")
+    print(f"{len(items)} submissions, {len({i['teamName'] for i in items})} teams have submitted\n")
 
     rows = sorted(items, key=lambda x: x["score"]) if args.all else best_per_team(items)
-    print(f"{'#':>3}  {'takim':<26} {'skor':>10}  {'dosya':<34} islendi")
+    print(f"{'#':>3}  {'team':<26} {'score':>10}  {'file':<34} processed")
     for i, r in enumerate(rows, 1):
         mark = " <<<" if args.team and r["teamName"] == args.team else ""
         print(f"{i:>3}. {r['teamName']:<26} {r['score']:>10.4f}  {r['filename']:<34} "
@@ -67,12 +67,12 @@ def main() -> None:
     if args.team:
         ours = [r for r in rows if r["teamName"] == args.team]
         if ours and rows:
-            fark = ours[0]["score"] - rows[0]["score"]
+            gap = ours[0]["score"] - rows[0]["score"]
             n = sum(1 for i in items if i["teamName"] == args.team)
             print()
             print(
-                f"{args.team}: {n} gonderim, "
-                f"en iyi {ours[0]['score']:.4f}, lidere fark {fark:+.4f}"
+                f"{args.team}: {n} submissions, "
+                f"best {ours[0]['score']:.4f}, gap to the leader {gap:+.4f}"
             )
 
 

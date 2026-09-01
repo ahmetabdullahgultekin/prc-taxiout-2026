@@ -1,16 +1,16 @@
-"""Gun-sifir veri tanisi.
+"""Day-zero data diagnosis.
 
-Veri iner inmez calistir. Cevapladigi sorular (bkz. docs/facts.md):
+Run this as soon as the data lands. The questions it answers (see docs/facts.md):
 
-  Q02 / D06  AOBT_3_flt ranking setinde duruyor mu, duruyorsa ne kadar iyi bir tahmin?
-  D13        MVT_TIME - BLOCK_TIME == TAXITIME kimligi 2025'te tutuyor mu?
-  M14        Zaman damgalari saniye hassasiyetinde mi, yoksa HH:MM mi?
-  D10        NM flights eslesme orani ne?
-  --         Soguk baslangic: siralama setindeki (stand, pist) kombolari egitimde var mi?
-  --         Onemsiz temel modellerin RMSE tabani ne?
-  --         Kalkis gecikmesi ne kadar genis dagiliyor (indirgenemez belirsizlik)?
+  Q02 / D06  Is AOBT_3_flt present in the ranking set, and if so, how good a predictor is it?
+  D13        Does the identity MVT_TIME - BLOCK_TIME == TAXITIME hold in 2025?
+  M14        Are the timestamps second-precision, or only HH:MM?
+  D10        What is the NM flights match rate?
+  --         Cold start: do the ranking set (stand, runway) combinations occur in training?
+  --         What RMSE floor do the trivial baselines set?
+  --         How wide is the departure delay distribution (irreducible uncertainty)?
 
-Kullanim:
+Usage:
     python scripts/probe_data.py [--data-dir D:/prc-taxiout-2026]
 """
 
@@ -47,11 +47,11 @@ def resolve_data_dir(cli_value: str | None) -> Path:
     for candidate in (cli_value, os.environ.get("TAXIOUT_DATA_DIR"), "D:/prc-taxiout-2026"):
         if candidate:
             return Path(candidate)
-    raise SystemExit("veri dizini belirlenemedi")
+    raise SystemExit("could not determine the data directory")
 
 
 def as_datetime(expr: pl.Expr, dtype: pl.DataType) -> pl.Expr:
-    """Kolon string olarak geldiyse datetime'a cevir, zaten datetime ise dokunma."""
+    """Cast a column to datetime if it came in as a string; leave it if already datetime."""
     if dtype == pl.String:
         return expr.str.to_datetime(strict=False)
     return expr
@@ -70,7 +70,7 @@ def load(paths: list[Path]) -> pl.LazyFrame:
 
 
 def secs(a: str, b: str) -> pl.Expr:
-    """a - b, saniye cinsinden."""
+    """a - b, in seconds."""
     return (pl.col(a) - pl.col(b)).dt.total_seconds()
 
 
@@ -84,7 +84,7 @@ def fmt(value: object, digits: int = 1) -> str:
     if isinstance(value, bool):
         return str(value)
     if isinstance(value, float):
-        # oranlar (0..1) icin 4 hane, saniye cinsinden buyuklukler icin 1 hane
+        # 4 places for shares (0..1), 1 place for magnitudes in seconds
         places = 4 if -1.0 <= value <= 1.0 else digits
         return format(value, ",." + str(places) + "f")
     if isinstance(value, int):
@@ -94,7 +94,7 @@ def fmt(value: object, digits: int = 1) -> str:
 
 def table(df: pl.DataFrame) -> None:
     if df.height == 0:
-        say("_(bos)_")
+        say("_(empty)_")
         return
     cols = df.columns
     say("| " + " | ".join(cols) + " |")
@@ -103,23 +103,25 @@ def table(df: pl.DataFrame) -> None:
         say("| " + " | ".join(fmt(v) for v in row) + " |")
 
 
-# --------------------------------------------------------------------------- kontroller
+# --------------------------------------------------------------------------- checks
 
 
 def check_schema(train: pl.LazyFrame, rank: pl.LazyFrame, submit: pl.LazyFrame | None) -> None:
-    section("1. Sema karsilastirmasi (D05 / D06)")
+    section("1. Schema comparison (D05 / D06)")
     tcols = train.collect_schema().names()
     rcols = rank.collect_schema().names()
     missing = [c for c in tcols if c not in rcols]
     extra = [c for c in rcols if c not in tcols]
-    say("- egitim kolon sayisi: **" + str(len(tcols)) + "**, siralama: **" + str(len(rcols)) + "**")
-    say("- siralamada olmayan kolonlar: " + str(missing or "yok"))
-    say("- siralamada fazladan olan kolonlar: " + str(extra or "yok"))
+    say(
+        "- training column count: **" + str(len(tcols)) + "**, ranking: **" + str(len(rcols)) + "**"
+    )
+    say("- columns absent from ranking: " + str(missing or "none"))
+    say("- columns present only in ranking: " + str(extra or "none"))
     if submit is not None:
-        say("- submitting.parquet kolonlari: " + str(submit.collect_schema().names()))
+        say("- submitting.parquet columns: " + str(submit.collect_schema().names()))
 
     say()
-    say("**Siralama setinde DEP satirlarinda doluluk orani** (0.0 = tamamen bosaltilmis):")
+    say("**Fill rate on the DEP rows of the ranking set** (0.0 = blanked out entirely):")
     dep = rank.filter(pl.col("PHASE_mvt") == "DEP")
     watch = set(TIME_COLS + FLT_TIME_COLS) | {
         "TAXITIME_SEC_mvt", "RUNWAY_mvt", "STAND_mvt", "FLIGHT_ID_mvt",
@@ -132,18 +134,18 @@ def check_schema(train: pl.LazyFrame, rank: pl.LazyFrame, submit: pl.LazyFrame |
     say()
     for name, value in zip(filled.columns, filled.row(0), strict=True):
         if name == "n_dep":
-            say("- DEP satir sayisi: **" + fmt(value) + "**")
+            say("- DEP row count: **" + fmt(value) + "**")
             continue
         note = ""
         if value == 0:
-            note = "  <-- BOSALTILMIS"
+            note = "  <-- BLANKED"
         elif name == "AOBT_3_flt":
-            note = "  <-- **DOLU, kritik bulgu**"
+            note = "  <-- **FILLED, critical finding**"
         say("- `" + name + "`: " + format(value, ".4f") + note)
 
 
 def check_identity(train: pl.LazyFrame) -> None:
-    section("2. Taxi-out kimligi: MVT_TIME - BLOCK_TIME == TAXITIME ? (D13)")
+    section("2. Taxi-out identity: MVT_TIME - BLOCK_TIME == TAXITIME ? (D13)")
     dep = train.filter(pl.col("PHASE_mvt") == "DEP")
     diff = secs("MVT_TIME_UTC_mvt", "BLOCK_TIME_UTC_mvt") - pl.col("TAXITIME_SEC_mvt")
     res = dep.select(
@@ -157,17 +159,17 @@ def check_identity(train: pl.LazyFrame) -> None:
         max_abs_diff=diff.abs().max(),
     ).collect()
     n, n_complete, match, maxdiff = res.row(0)
-    say("- DEP satiri: **" + fmt(n) + "**, ucu de dolu olan: **" + fmt(n_complete) + "**")
-    say("- kimlik <1 sn hata ile tutan oran: **" + fmt(match, 6) + "**")
-    say("- en buyuk mutlak sapma: **" + fmt(maxdiff) + " sn**")
+    say("- DEP rows: **" + fmt(n) + "**, rows with all three filled: **" + fmt(n_complete) + "**")
+    say("- share where the identity holds within 1 s: **" + fmt(match, 6) + "**")
+    say("- largest absolute deviation: **" + fmt(maxdiff) + " s**")
     say()
-    say("Yorum: oran 1.0 ise TAXITIME turetilmis demektir ve zaman damgalari kendi icinde "
-        "tutarlidir; 1.0 degilse aradaki fark bagimsiz bir olcum hatasidir ve kuyruk "
-        "ozelliklerinin gurultu tabanini belirler.")
+    say("Reading: a share of 1.0 means TAXITIME is derived and the timestamps are internally "
+        "consistent; anything below 1.0 means the difference is an independent measurement "
+        "error, and it sets the noise floor for the queue features.")
 
 
 def check_precision(train: pl.LazyFrame) -> None:
-    section("3. Zaman damgasi hassasiyeti (M14)")
+    section("3. Timestamp precision (M14)")
     dep = train.filter(pl.col("PHASE_mvt") == "DEP")
     df = (
         dep.group_by("ADEP_mvt")
@@ -181,13 +183,14 @@ def check_precision(train: pl.LazyFrame) -> None:
     )
     table(df)
     say()
-    say("Oran ~1.0 olan havalimaninda veri **HH:MM** hassasiyetindedir: taxi-out'ta +-60 sn "
-        "taban gurultu vardir ve o havalimani icin ulasilabilir RMSE alt siniri daha yuksektir.")
+    say("An airport whose share is near 1.0 has data at **HH:MM** precision: taxi-out there "
+        "carries +-60 s of floor noise, so the reachable RMSE lower bound for that airport is "
+        "higher.")
 
 
 def check_nm_match(train: pl.LazyFrame, rank: pl.LazyFrame) -> None:
-    section("4. Network Manager eslesme orani (D10)")
-    for label, lf in (("egitim 2025", train), ("siralama 2026", rank)):
+    section("4. Network Manager match rate (D10)")
+    for label, lf in (("training 2025", train), ("ranking 2026", rank)):
         cols = lf.collect_schema().names()
         aggs = {"n": pl.len()}
         if "FLIGHT_ID_mvt" in cols:
@@ -208,11 +211,11 @@ def check_nm_match(train: pl.LazyFrame, rank: pl.LazyFrame) -> None:
 
 
 def check_aobt_strength(train: pl.LazyFrame) -> None:
-    section("5. KRITIK: AOBT_3_flt ne kadar iyi bir tahmin? (Q02)")
+    section("5. CRITICAL: how good a predictor is AOBT_3_flt? (Q02)")
     if "AOBT_3_flt" not in train.collect_schema().names():
-        say("`AOBT_3_flt` egitim setinde yok — kontrol atlandi.")
+        say("`AOBT_3_flt` is not in the training set, check skipped.")
         return
-    say("Naif tahminci: `taxi_out = MVT_TIME_UTC_mvt - AOBT_3_flt`")
+    say("Naive predictor: `taxi_out = MVT_TIME_UTC_mvt - AOBT_3_flt`")
     say()
     dep = train.filter(
         (pl.col("PHASE_mvt") == "DEP")
@@ -243,15 +246,16 @@ def check_aobt_strength(train: pl.LazyFrame) -> None:
     )
     table(per_apt)
     say()
-    say("**Nasil okunur.** Bu RMSE dusukse (orn. <60 sn) yarisma buyuk olcude "
-        "'NM blok saatini APDF blok saatiyle uzlastirma + eslesmeyen satirlari doldurma' "
-        "problemidir ve tum mimari buna gore kurulur. Yuksekse (orn. >200 sn) AOBT_3 "
-        "yalnizca guclu bir ozelliktir, cozum degildir. Kapsama orani (n / total DEP) "
-        "en az RMSE kadar onemli: kapsanmayan satirlar icin ayri bir model gerekir.")
+    say("**How to read this.** If this RMSE is low (say <60 s) the competition is mostly a "
+        "'reconcile the NM block time with the APDF block time and fill in the unmatched rows' "
+        "problem, and the whole architecture follows from that. If it is high (say >200 s) then "
+        "AOBT_3 is only a strong feature, not the solution. The coverage share (n / total DEP) "
+        "matters at least as much as the RMSE: the rows it does not cover need a separate "
+        "model.")
 
 
 def check_target(train: pl.LazyFrame) -> None:
-    section("6. Hedef dagilimi")
+    section("6. Target distribution")
     dep = train.filter((pl.col("PHASE_mvt") == "DEP") & pl.col("TAXITIME_SEC_mvt").is_not_null())
     t = pl.col("TAXITIME_SEC_mvt")
     df = (
@@ -271,11 +275,11 @@ def check_target(train: pl.LazyFrame) -> None:
     )
     table(df)
     say()
-    say("`over_120min_share` PRC'nin resmi filtresini asan orandir (M08); `negative_share` veri hatasi "
-        "isaretidir. Ikisi de RMSE'de agir cezalandirilan kuyruktur: kirpma degil, "
-        "**modelleme** karari gerektirir.")
+    say("`over_120min_share` is the share above the official PRC filter (M08); "
+        "`negative_share` marks a data error. Both are the tail that RMSE punishes hardest: "
+        "they call for a **modelling** decision, not clipping.")
 
-    aylik = (
+    monthly = (
         dep.with_columns(month_num=pl.col("MVT_TIME_UTC_mvt").dt.month())
         .group_by("month_num")
         .agg(n=pl.len(), mean=t.mean(), std=t.std())
@@ -283,50 +287,50 @@ def check_target(train: pl.LazyFrame) -> None:
         .collect()
     )
     say()
-    say("**Aylik (Ocak ve Temmuz satirlarina dikkat: siralama seti o iki month_num):**")
+    say("**By month (watch the January and July rows: those are the two ranking month_num):**")
     say()
-    table(aylik)
+    table(monthly)
 
 
 def check_baselines(train: pl.LazyFrame, rank: pl.LazyFrame) -> None:
-    section("7. Temel modeller ve soguk baslangic")
+    section("7. Baselines and cold start")
     dep = train.filter(
         (pl.col("PHASE_mvt") == "DEP") & pl.col("TAXITIME_SEC_mvt").is_not_null()
     ).select("ADEP_mvt", "STAND_mvt", "RUNWAY_mvt", "TAXITIME_SEC_mvt", "MVT_TIME_UTC_mvt")
 
-    # Ocak + Temmuz tutulur, kalan 10 ayla egitilir:
-    # siralama setinin mevsimsel kurgusunu taklit eder.
+    # January and July are held out and the remaining 10 months are used to fit:
+    # this imitates the seasonal setup of the ranking set.
     month_num = pl.col("MVT_TIME_UTC_mvt").dt.month()
     fit = dep.filter(~month_num.is_in([1, 7]))
     val = dep.filter(month_num.is_in([1, 7]))
 
-    genel_ort = fit.select(pl.col("TAXITIME_SEC_mvt").mean()).collect().item()
-    apt_ort = fit.group_by("ADEP_mvt").agg(pl.col("TAXITIME_SEC_mvt").mean().alias("apt_ort"))
+    global_mean = fit.select(pl.col("TAXITIME_SEC_mvt").mean()).collect().item()
+    apt_mean = fit.group_by("ADEP_mvt").agg(pl.col("TAXITIME_SEC_mvt").mean().alias("apt_mean"))
     combo = fit.group_by("ADEP_mvt", "STAND_mvt", "RUNWAY_mvt").agg(
-        pl.col("TAXITIME_SEC_mvt").mean().alias("combo_ort"),
+        pl.col("TAXITIME_SEC_mvt").mean().alias("combo_mean"),
         pl.col("TAXITIME_SEC_mvt").quantile(0.10).alias("combo_p10"),
         pl.len().alias("combo_n"),
     )
 
     scored = (
-        val.join(apt_ort, on="ADEP_mvt", how="left")
+        val.join(apt_mean, on="ADEP_mvt", how="left")
         .join(combo, on=["ADEP_mvt", "STAND_mvt", "RUNWAY_mvt"], how="left")
         .with_columns(
-            genel=pl.lit(genel_ort),
-            combo_dolgulu=pl.col("combo_ort").fill_null(pl.col("apt_ort")),
+            global_pred=pl.lit(global_mean),
+            combo_filled=pl.col("combo_mean").fill_null(pl.col("apt_mean")),
         )
     )
     out = scored.select(
         n_validation=pl.len(),
-        combo_coverage=pl.col("combo_ort").is_not_null().mean(),
-        rmse_global_mean=rmse(pl.col("genel"), pl.col("TAXITIME_SEC_mvt")),
-        rmse_airport_mean=rmse(pl.col("apt_ort"), pl.col("TAXITIME_SEC_mvt")),
-        rmse_combo_mean=rmse(pl.col("combo_dolgulu"), pl.col("TAXITIME_SEC_mvt")),
+        combo_coverage=pl.col("combo_mean").is_not_null().mean(),
+        rmse_global_mean=rmse(pl.col("global_pred"), pl.col("TAXITIME_SEC_mvt")),
+        rmse_airport_mean=rmse(pl.col("apt_mean"), pl.col("TAXITIME_SEC_mvt")),
+        rmse_combo_mean=rmse(pl.col("combo_filled"), pl.col("TAXITIME_SEC_mvt")),
     ).collect()
     table(out)
     say()
-    say("`rmse_combo_mean` ilk gercek gonderimimizin tahmini seviyesidir. Bunun uzerine "
-        "koyacagimiz her sey kuyruk / tikaniklik / weather bilesenidir.")
+    say("`rmse_combo_mean` is the expected level of our first real submission. Everything we "
+        "put on top of it is the queue / congestion / weather component.")
 
     rank_dep = rank.filter(pl.col("PHASE_mvt") == "DEP").select(
         "ADEP_mvt", "STAND_mvt", "RUNWAY_mvt"
@@ -342,18 +346,18 @@ def check_baselines(train: pl.LazyFrame, rank: pl.LazyFrame) -> None:
         .collect()
     )
     say()
-    say("**Siralama setinin egitimde gorulmemis kombo orani (soguk baslangic riski):**")
+    say("**Share of ranking set combinations never seen in training (cold start risk):**")
     say()
     table(cold)
 
 
 def check_schedule_handle(train: pl.LazyFrame) -> None:
-    section("8. Ikinci tutamak: planlanan blok saati (SCHED_TIME)")
-    say("Kimlik: `MVT_TIME - SCHED_TIME = taxi_out + kalkis_gecikmesi`.")
-    say("`SCHED_TIME_UTC_mvt` siralama setinde bosaltilmamis (D05), yani bu da mesru bir")
-    say("ozniteliktir. Degeri tamamen **kalkis gecikmesinin ne kadar ongorulebilir**")
-    say("olduguna bagli: delay_sec dar dagilirsa hedefi neredeyse verir, genis dagilirsa")
-    say("yalnizca bir ust sinir olur.")
+    section("8. Second handle: scheduled block time (SCHED_TIME)")
+    say("Identity: `MVT_TIME - SCHED_TIME = taxi_out + departure_delay`.")
+    say("`SCHED_TIME_UTC_mvt` is not blanked out in the ranking set (D05), so this is a")
+    say("legitimate feature too. What it is worth depends entirely on **how predictable the**")
+    say("**departure delay is**: a narrow delay_sec distribution nearly hands us the target, a")
+    say("wide one leaves us only an upper bound.")
     say()
     dep = train.filter(
         (pl.col("PHASE_mvt") == "DEP")
@@ -365,7 +369,7 @@ def check_schedule_handle(train: pl.LazyFrame) -> None:
         sched_naive=secs("MVT_TIME_UTC_mvt", "SCHED_TIME_UTC_mvt"),
     )
     g = pl.col("delay_sec")
-    say("**Kalkis gecikmesi (gercek blok - planlanan blok), saniye:**")
+    say("**Departure delay (actual block - scheduled block), seconds:**")
     say()
     table(
         dep.select(
@@ -379,7 +383,7 @@ def check_schedule_handle(train: pl.LazyFrame) -> None:
         ).collect()
     )
     say()
-    say("**`MVT - SCHED` naif tahmincisi (gecikmeyi sifir sayar):**")
+    say("**The `MVT - SCHED` naive predictor (it treats the delay as zero):**")
     say()
     table(
         dep.select(
@@ -388,17 +392,18 @@ def check_schedule_handle(train: pl.LazyFrame) -> None:
         ).collect()
     )
     say()
-    say("Karsilastir: 5. bolumdeki AOBT_3 naif tahmincisi. Iki tutamaktan hangisi daha")
-    say("dar, ikisi birlikte ne kadar kaliyor — mimari karari budur. Gecikmenin std'si")
-    say("bu problemde **indirgenemez belirsizligin buyuk kismini** olusturuyor olabilir.")
+    say("Compare with the AOBT_3 naive predictor in section 5. Which of the two handles is")
+    say("narrower, and how much is left once both are used, is the architecture decision. The")
+    say("standard deviation of the delay may be **most of the irreducible uncertainty** in")
+    say("this problem.")
 
 
-# --------------------------------------------------------------------------- giris
+# --------------------------------------------------------------------------- entry point
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="PRC 2026 taxi-out veri tanisi")
-    ap.add_argument("--data-dir", default=None, help="ham parquet dosyalarinin ust dizini")
+    ap = argparse.ArgumentParser(description="PRC 2026 taxi-out data diagnosis")
+    ap.add_argument("--data-dir", default=None, help="parent directory of the raw parquet files")
     args = ap.parse_args()
 
     data_dir = resolve_data_dir(args.data_dir)
@@ -408,14 +413,14 @@ def main() -> int:
     submit_file = raw / "submitting.parquet"
 
     if not train_files or not rank_file.exists():
-        print("Ham veri bulunamadi: " + str(raw))
-        print("Beklenen: training_2025-*.parquet (12 adet), ranking.parquet, submitting.parquet")
-        print("Takim onayi ve bucket anahtarlari geldiginde buraya indir, sonra tekrar calistir.")
+        print("raw data not found: " + str(raw))
+        print("expected: training_2025-*.parquet (12 files), ranking.parquet, submitting.parquet")
+        print("download it here once the team is approved and the bucket keys arrive, then re-run.")
         return 1
 
-    say("# Veri Tani Raporu")
+    say("# Data Diagnosis Report")
     say()
-    say("Kaynak: `" + str(raw) + "` - egitim dosyasi: " + str(len(train_files)))
+    say("Source: `" + str(raw) + "` - training files: " + str(len(train_files)))
 
     train = load(train_files)
     rank = load([rank_file])
@@ -432,7 +437,7 @@ def main() -> int:
 
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text("\n".join(_lines) + "\n", encoding="utf-8")
-    print("\nRapor yazildi: " + str(REPORT_PATH))
+    print("\nreport written: " + str(REPORT_PATH))
     return 0
 
 
