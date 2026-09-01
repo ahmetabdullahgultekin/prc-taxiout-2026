@@ -115,6 +115,39 @@ def test_runway_scope_is_narrower_than_the_airport() -> None:
     assert out["surface_rwy_at_pushback"].to_list() == [0, 1, 0]
 
 
+def test_a_flight_without_a_network_match_does_not_corrupt_the_counts() -> None:
+    """The bug that made this feature constant on real data.
+
+    The Network Manager has no off-block time for about 1.5 percent of departures. If
+    those flights are counted in the take-off total but not the push-back total, the
+    difference between the two drifts down by the number of unmatched flights seen so
+    far. Over a year at Frankfurt that reached about 46, which buries a real queue of
+    five to twenty and clips the whole column to zero.
+
+    Nothing failed when this happened. The column was simply constant, and the first
+    ablation of it returned numbers that could not be true: removing any one of six
+    columns improved the model by ten seconds.
+
+    Here the second aircraft has no network time. The third must still see the first
+    ahead of it.
+    """
+    mvt = _mvt([
+        ("DEP", "EDDF", "25C", 0, 40, 2400),   # still out at 30
+        ("DEP", "EDDF", "25C", 1, 20, 1140),   # no network match, see below
+        ("DEP", "EDDF", "25C", 30, 45, 900),
+    ])
+    mvt = mvt.with_columns(
+        pl.when(pl.col("MVT_ID_mvt") == 1)
+        .then(None)
+        .otherwise(pl.col("AOBT_3_flt"))
+        .alias("AOBT_3_flt")
+    )
+    out = surface_delay.surface_count(mvt, _dep(mvt)).sort("MVT_ID_mvt")
+    counts = out["surface_apt_at_pushback"].to_list()
+    assert counts[2] == 1, f"the third aircraft should see one ahead, got {counts[2]}"
+    assert min(counts) >= 0
+
+
 def test_arrivals_are_not_counted_as_departures_on_the_surface() -> None:
     mvt = _mvt([
         ("ARR", "EDDF", "25C", 0, 40, 600),

@@ -102,7 +102,18 @@ def surface_count(mvt: pl.DataFrame, dep: pl.DataFrame) -> pl.DataFrame:
     whether the queue was clearing or still building. Airport-wide and per runway,
     because a busy airport with this flight's own runway empty is not a busy runway.
     """
-    departures = mvt.filter(pl.col(PHASE) == Phase.DEPARTURE)
+    # Both totals must run over the SAME flights. The Network Manager has no match for
+    # about 1.5 percent of departures, and counting those in the take-off total but not
+    # the push-back total makes the difference drift down by the number of unmatched
+    # flights seen so far. Over a year that reached about 46 at Frankfurt, which buries a
+    # real queue of five to twenty and clips the whole column to zero. Nothing raised:
+    # the feature was simply constant, and the first ablation of it produced numbers that
+    # could not be true.
+    departures = mvt.filter(
+        (pl.col(PHASE) == Phase.DEPARTURE)
+        & pl.col(AOBT).is_not_null()
+        & pl.col(MVT).is_not_null()
+    )
     out = dep.select(Col.MVT_ID, APT, RWY, _off=pl.col(AOBT), _on=pl.col(MVT))
 
     for scope, group in (("apt", [APT]), ("rwy", [APT, RWY])):
