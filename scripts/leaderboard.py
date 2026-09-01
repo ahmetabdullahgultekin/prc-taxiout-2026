@@ -68,8 +68,12 @@ def main() -> None:
         ours = [r for r in rows if r["teamName"] == args.team]
         if ours and rows:
             fark = ours[0]["score"] - rows[0]["score"]
-            print(f"\n{args.team}: {len([i for i in items if i['teamName'] == args.team])} gonderim, "
-                  f"en iyi {ours[0]['score']:.4f}, lidere fark {fark:+.4f}")
+            n = sum(1 for i in items if i["teamName"] == args.team)
+            print()
+            print(
+                f"{args.team}: {n} gonderim, "
+                f"en iyi {ours[0]['score']:.4f}, lidere fark {fark:+.4f}"
+            )
 
 
 if __name__ == "__main__":
