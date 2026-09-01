@@ -38,6 +38,12 @@ PRODUCED = [
     "sektor_kalkis_onceki_15dk", "sektor_kalkis_onceki_30dk", "sicaklik_c", "sis",
     "sonraki_kalkis_sn", "stand_donus_sn", "tavan_m", "ucus_mesafesi_km",
     "varis_taxi_medyan", "varis_taxi_sayi", "yagis_mm", "yonlendirildi",
+    # airport_state.attach ciktilari (EUROCONTROL gunluk)
+    "atfm_duzenlenen_oran", "atfm_slot_gec_oran", "atfm_slot_erken_oran",
+    "gunluk_kalkis", "gunluk_inis", "varis_atfm_gecikme_dk",
+    "varis_gecikme_hava_dk", "varis_gecikme_atc_kapasite_dk",
+    "varis_gecikme_meydan_kapasite_dk", "varis_gecikme_atc_personel_dk",
+    "varis_gecikme_atc_ekipman_dk",
     # reference.apply_reference ciktilari
     "referans_sn", "referans_seviye", "referans_ornek",
 ]

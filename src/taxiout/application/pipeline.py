@@ -20,7 +20,7 @@ import numpy as np
 import polars as pl
 
 from taxiout.domain import reference
-from taxiout.features import congestion, groups, routing, weather
+from taxiout.features import airport_state, congestion, groups, routing, weather
 
 TARGET = "TAXITIME_SEC_mvt"
 MVT = "MVT_TIME_UTC_mvt"
@@ -73,6 +73,7 @@ class Inputs:
     metar: pl.DataFrame | None = None
     coords: pl.DataFrame | None = None
     runways: pl.DataFrame | None = None
+    atfm_daily: pl.DataFrame | None = None
 
 
 def load_inputs(raw: Path) -> Inputs:
@@ -85,8 +86,13 @@ def load_inputs(raw: Path) -> Inputs:
         p = raw / name
         return pl.read_parquet(p) if p.exists() else None
 
-    return Inputs(mvt, maybe("metar.parquet"), maybe("airport_coords.parquet"),
-                  maybe("airport_runways.parquet"))
+    return Inputs(
+        mvt,
+        maybe("metar.parquet"),
+        maybe("airport_coords.parquet"),
+        maybe("airport_runways.parquet"),
+        maybe("eurocontrol_atfm_daily.parquet"),
+    )
 
 
 # --------------------------------------------------------------------------- oznitelik
@@ -125,6 +131,9 @@ def build_features(inputs: Inputs, causal: bool = False, aobt3: bool = True) -> 
         feats = feats.join(inputs.runways.rename({"icao": APT}), on=APT, how="left")
     if inputs.metar is not None:
         feats = weather.attach(feats, inputs.metar, anchor)
+    if inputs.atfm_daily is not None and not causal:
+        # gun boyunun toplami; nedensel modelde kullanilamaz (bkz. airport_state)
+        feats = airport_state.attach(feats, inputs.atfm_daily, anchor)
     return feats
 
 

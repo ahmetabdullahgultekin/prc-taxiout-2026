@@ -58,6 +58,12 @@ GROUPS: dict[str, list[str]] = {
         r"^AIRCRAFT_TYPE_", r"^WK_TBL_CAT_flt$", r"^MARKET_SEGMENT_flt$",
         r"^AIRCRAFT_OPERATOR_flt$",
     ],
+    # --- EUROCONTROL gunluk havalimani durumu; ayri aile cunku nedensel modda
+    # kullanilamiyor (gun boyunun toplami) ve dis kaynakli
+    "atfm_gunluk": [
+        r"^atfm_duzenlenen_oran$", r"^atfm_slot_", r"^gunluk_kalkis$", r"^gunluk_inis$",
+        r"^varis_atfm_gecikme_dk$", r"^varis_gecikme_",
+    ],
     # --- NM M3 blok saatinden turetilenler; ayri aile cunku tum mimariyi belirliyor (Q02)
     "nm_aobt": [r"^naif_taxi_sn$", r"^nm_eslesti$"],
 }

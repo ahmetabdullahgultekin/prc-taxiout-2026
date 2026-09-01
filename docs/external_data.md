@@ -9,6 +9,8 @@
 | Iowa Environmental Mesonet (IEM) ASOS/METAR arsivi | Sicaklik, cig noktasi, gorus, ruzgar, yagis, mevcut-hava kodlari; **de-icing vekili** | https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py | **Kamu mali** | 2026-09-01 |
 | OurAirports (airports.csv, runways.csv) | Havalimani koordinatlari (kalkis kerterizi / departure-fix vekili), pist sayisi ve uzunluklari | https://davidmegginson.github.io/ourairports-data/ | **Kamu mali** | 2026-09-01 |
 | EUROCONTROL Taxi-Out Additional Time gostergesi | **Yalnizca dogrulama**: ATXOT yeniden uygulamamizin ve METAR de-icing vekilinin bagimsiz kontrolu | https://www.eurocontrol.int/performance/data/download/xls/Taxi-Out_Additional_Time.xlsx | EUROCONTROL kamuya acik yayin | 2026-09-01 |
+| EUROCONTROL ATFM Slot Adherence (gunluk) | Gunun kalkislarindan kaci ATFM slotu altindaydi; slot uyumu — Idris'in "asagi-akis kisitlari" faktorunun dogrudan olcumu | https://www.eurocontrol.int/performance/data/download/xls/ATFM_Slot_Adherence.xlsx | EUROCONTROL kamuya acik yayin | 2026-09-01 |
+| EUROCONTROL Airport Arrival ATFM Delay (gunluk) | Gunluk varis ATFM gecikmesi, neden koduna gore (hava, ATC/meydan kapasitesi, personel, ekipman) | https://www.eurocontrol.int/performance/data/download/xls/Airport_Arrival_ATFM_Delay.xlsx | EUROCONTROL kamuya acik yayin | 2026-09-01 |
 
 ## Aday kaynaklar (henuz kullanilmadi)
 
@@ -63,3 +65,15 @@ soguk havalimanlarinda 0,87-0,98). Sonuclar `docs/deicing_analysis.md`.
 
 **LTAI resmi gostergede hic yok** (24 ay boyunca TF = 0): Antalya EUROCONTROL
 performans semasinda degil.
+
+## Gunluk ATFM serileri — kapsam ve kisitlar
+
+- **Her iki siralama ayini da kapsiyorlar**: 2019-01-01 .. 2026-07-31, 11 havalimaninin
+  tamami (LTAI dahil), 30.451 havalimani-gun.
+- Ocak 2026'da ATFM duzenlemesi altindaki kalkis orani: LSZH %16,6 · LFPG %13,3 ·
+  LEMD %12,3 · EDDM %12,3 · EDDF %12,0 ... LTFM %6,6 · LTAI %5,1.
+- **Nedensel modelde kullanilamaz**: gun boyunun toplamidir (kalkis anindan sonraki
+  saatleri de icerir) ve yayimi aylarca gecikmelidir. `groups.py` bunlari `atfm_gunluk`
+  ailesinde ayri tutuyor; `pipeline.build_features` nedensel kosuda hic eklemiyor.
+- **`D` (de-icing) neden kolonu tamamen bos.** Hipotez sinandi ve reddedildi: de-icing
+  bir *varis* ATFM nedeni olarak kodlanmiyor. De-icing sinyalimiz METAR'dan geliyor.
