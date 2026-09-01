@@ -39,7 +39,7 @@ JULY_AIRPORTS = ("EDDF", "EGLL", "EHAM")
 CATEGORICAL = {
     APT, "RUNWAY_mvt", "STAND_mvt", "AIRCRAFT_TYPE_mvt", "AIRCRAFT_TYPE_flt",
     "WK_TBL_CAT_flt", "MARKET_SEGMENT_flt", "AIRCRAFT_OPERATOR_flt", "reference_level",
-    "dep_runways_in_use", "arr_runways_in_use",
+    "dep_runways_in_use", "arr_runways_in_use", "stand_pier",
 }
 
 # Columns that carry or directly give away the target. `AOBT_3_flt` and
@@ -162,6 +162,17 @@ def build_features(inputs: Inputs, causal: bool = False, aobt3: bool = True) -> 
             .cast(pl.Float32),
             nm_matched=pl.col("AOBT_3_flt").is_not_null(),
         )
+
+    # Stand identifiers are not opaque labels. At Frankfurt, Schiphol and Paris every
+    # one of them is a pier letter followed by a number (A11, B24); at Munich, Heathrow
+    # and Barcelona they are purely numeric. The letter groups stands that sit together
+    # on the same apron, and the number orders them along it, so a stand seen a handful
+    # of times still inherits the taxi distance of its neighbours. Without this the
+    # model has to learn each of the 1,899 stands on its own.
+    feats = feats.with_columns(
+        stand_pier=pl.col("STAND_mvt").str.extract(r"^([A-Za-z]+)"),
+        stand_number=pl.col("STAND_mvt").str.extract(r"(\d+)").cast(pl.Int32, strict=False),
+    )
 
     feats = routing.build(mvt, feats, inputs.coords, anchor)
     if inputs.runways is not None:

@@ -23,6 +23,7 @@ GROUPS: dict[str, list[str]] = {
     # Layout and the unimpeded baseline: static information, before any queueing.
     "geometry": [
         r"^apt_mvt$", r"^RUNWAY_mvt$", r"^STAND_mvt$",
+        r"^stand_pier$", r"^stand_number$",
         r"^runway_count$", r"^longest_runway_ft$", r"^mean_runway_ft$",
         r"^reference_",
     ],

@@ -66,14 +66,29 @@ def build(
 
     runways = np.array([f"{a[-2:]}L" if r else f"{a[-2:]}R"
                         for a, r in zip(apt, rng.random(n) < 0.5, strict=True)])
-    stand = np.array([str(s) for s in rng.integers(1, 21, n)])
+    # Stand identifiers come in two shapes in the real data and the fixture has to carry
+    # both, otherwise the pier features are never exercised and the tests prove nothing
+    # about them. Frankfurt, Schiphol and Paris label every stand with a pier letter and
+    # a number (A11); Munich, Heathrow and Barcelona use bare numbers. Airports at an
+    # even index here get letters, the rest get numbers.
+    stand_no = rng.integers(1, 21, n)
+    lettered = np.isin(apt, [a for i, a in enumerate(airports) if i % 2 == 0])
+    piers = np.array(list("ABCD"))[rng.integers(0, 4, n)]
+    stand = np.where(
+        lettered,
+        np.char.add(piers, stand_no.astype(str)),
+        stand_no.astype(str),
+    )
     actype = rng.choice(TYPES, n)
 
     offsets = rng.integers(0, days * 86400, n)
     block = [start + timedelta(seconds=int(s)) for s in offsets]
 
     # taxi-out: a stand/runway baseline plus a queueing tail; taxi-in is shorter
-    base = 300 + stand.astype(int) * 6 + np.char.endswith(runways, "R") * 120
+    # The pier carries real signal in the fixture too, not just the number: at a real
+    # airport the apron a stand sits on decides most of the taxi distance.
+    pier_penalty = np.where(lettered, np.searchsorted(list("ABCD"), piers) * 45, 0)
+    base = 300 + stand_no * 6 + pier_penalty + np.char.endswith(runways, "R") * 120
     taxi = np.where(phase == "DEP", base + rng.gamma(2.0, 90.0, n), 240 + rng.gamma(1.5, 40.0, n))
     taxi = np.round(taxi).astype(int)
 
