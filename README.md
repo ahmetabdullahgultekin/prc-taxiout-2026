@@ -51,6 +51,24 @@ information value of retrospective observability.
 
 Detailed rationale and licence texts: `docs/external_data.md`.
 
+## Verification
+
+```bash
+PY=D:/prc-taxiout-2026/.venv/Scripts/python.exe
+$PY -m ruff check src tests scripts
+$PY -m pytest tests -q
+```
+
+`.github/workflows/ci.yml` runs the same two checks on every push, then drives the whole
+documented pipeline over synthetic data: fixture, probe, training and a submission file.
+That last step is the one worth having, because it checks the commands in this README
+work from a clean checkout.
+
+Note that GitHub Actions is currently blocked on this account for a billing reason, so
+the workflow is present and correct but does not execute here. It runs normally in a
+fork. Until that is resolved, verification is the two commands above, run locally before
+every commit.
+
 ## Documents
 
 | File | Contents |
