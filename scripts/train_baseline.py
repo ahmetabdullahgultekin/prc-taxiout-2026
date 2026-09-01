@@ -28,7 +28,7 @@ import numpy as np
 import polars as pl
 
 from taxiout.domain import reference
-from taxiout.features import congestion, weather
+from taxiout.features import congestion, routing, weather
 
 TARGET = "TAXITIME_SEC_mvt"
 MVT = "MVT_TIME_UTC_mvt"
@@ -68,7 +68,11 @@ def load_movements(raw: Path) -> pl.DataFrame:
 
 
 def build_features(
-    mvt: pl.DataFrame, metar: pl.DataFrame | None, aobt3: bool = True
+    mvt: pl.DataFrame,
+    metar: pl.DataFrame | None,
+    coords: pl.DataFrame | None = None,
+    runways: pl.DataFrame | None = None,
+    aobt3: bool = True,
 ) -> pl.DataFrame:
     """Tikaniklik + takvim + (varsa) hava ozniteliklerini uretir. Referans SONRA eklenir.
 
@@ -97,6 +101,9 @@ def build_features(
             naif_taxi_sn=(pl.col(MVT) - pl.col("AOBT_3_flt")).dt.total_seconds().cast(pl.Float32),
             nm_eslesti=pl.col("AOBT_3_flt").is_not_null(),
         )
+    feats = routing.build(mvt, feats, coords)
+    if runways is not None:
+        feats = feats.join(runways.rename({"icao": APT}), on=APT, how="left")
     if metar is not None:
         feats = weather.attach(feats, metar)
     return feats
@@ -108,7 +115,8 @@ def feature_columns(df: pl.DataFrame) -> list[str]:
         TARGET, "BLOCK_TIME_UTC_mvt", "MVT_ID_mvt", MVT, "SCHED_TIME_UTC_mvt",
         "FLIGHT_ID_mvt", "FLIGHT_mvt", "CALLSIGN_flt", "PHASE_mvt",
         "LOBT_flt", "IOBT_flt", "EOBT_1_flt", "ARVT_1_flt", "AOBT_3_flt", "ARVT_3_flt",
-        "artik", "saat_kova", "wxcodes", "skyc1",
+        "artik", "saat_kova", "wxcodes", "skyc1", "ADES_mvt", "ADES_flt", "ADES_FILED_flt",
+        "ADEP_flt", "FLIGHT_RULE_mvt", "FLIGHT_RULE_flt", "FLIGHT_TYPE_flt",
     }
     keep = []
     for name, dtype in zip(df.columns, df.dtypes, strict=True):
@@ -192,7 +200,12 @@ def main() -> None:
     metar = pl.read_parquet(metar_path) if metar_path.exists() else None
     print(f"METAR: {'yok' if metar is None else f'{metar.height:,} gozlem'}")
 
-    feats = build_features(mvt, metar, aobt3=not args.no_aobt3)
+    coords_path, rwy_path = raw / "airport_coords.parquet", raw / "airport_runways.parquet"
+    coords = pl.read_parquet(coords_path) if coords_path.exists() else None
+    runways = pl.read_parquet(rwy_path) if rwy_path.exists() else None
+    print(f"havalimani referansi: {'yok' if coords is None else f'{coords.height:,} koordinat'}")
+
+    feats = build_features(mvt, metar, coords, runways, aobt3=not args.no_aobt3)
     feats = feats.filter(pl.col(TARGET).is_not_null())
     print(f"oznitelik tablosu: {feats.height:,} kalkis, {len(feats.columns)} kolon")
 

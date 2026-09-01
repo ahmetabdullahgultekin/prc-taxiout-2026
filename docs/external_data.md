@@ -7,13 +7,13 @@
 |--------|---------|------------|--------|-----------------|
 | EUROCONTROL ATXOT metodoloji dokumani | Resmi referans taxi-out tanimi (P10 / stand-pist) | https://ansperformance.eu/library/ATXOT_indicator_documentation_mar23.pdf | EUROCONTROL kamuya acik yayin | 2026-09-01 |
 | Iowa Environmental Mesonet (IEM) ASOS/METAR arsivi | Sicaklik, cig noktasi, gorus, ruzgar, yagis, mevcut-hava kodlari; **de-icing vekili** | https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py | **Kamu mali** | 2026-09-01 |
+| OurAirports (airports.csv, runways.csv) | Havalimani koordinatlari (kalkis kerterizi / departure-fix vekili), pist sayisi ve uzunluklari | https://davidmegginson.github.io/ourairports-data/ | **Kamu mali** | 2026-09-01 |
 
 ## Aday kaynaklar (henuz kullanilmadi)
 
 | Kaynak | Ne icin | Lisans | Durum |
 |--------|---------|--------|-------|
 | OpenStreetMap (aeroway=taxiway/parking_position) | Seyrek (stand, pist) hucreleri icin gerilemeli mesafe; pist gecisi bayragi | ODbL | Dusuk oncelik — ampirik P10 muhtemelen daha iyi |
-| OurAirports | Pist uzunluk/yon/esik koordinatlari | Kamu malı | Aday |
 
 ## IEM lisans metni (birebir)
 
@@ -32,3 +32,19 @@ Atif JOAS makalesinde ve README'de verilecek.
 - Eksik sicaklik/gorus orani <%0,03; tum havalimanlarinda 577 gunun tamami kapsanmis
 - `report_type` parametresi **bilerek gonderilmiyor**: filtrelemek Avrupa'nin yarim saatlik
   yayinini saatlige dusuruyor ve kosullar aniden degistiginde yayinlanan SPECI raporlarini atiyor
+
+## OurAirports lisans metni (birebir)
+
+> "All data is released to the Public Domain, and comes with no guarantee of accuracy
+> or fitness for use." … "We'd love you to give us credit, like we give credit to our
+> sources, but you're not required to."
+> -- https://ourairports.com/data/ (2026-09-01)
+
+Atif zorunlu degil; yine de makalede ve README'de verilecek.
+
+## Indirilen havalimani verisi
+
+- 86.013 havalimani koordinati (varis noktasi dunyanin herhangi bir yerinde olabilir,
+  kerteriz icin hepsi gerekli) + 11 yarisma havalimaninin acik pist ozeti.
+- Pist sayilari: EHAM 6 · LTFM 6 · LFPG 5 · LEMD 4 · EDDF 4 · LSZH 4 · LIRF 3 · LTAI 3
+  · LEBL 3 · **EDDM 2 · EGLL 2**. En kisitli iki havalimani EDDM ve EGLL.
