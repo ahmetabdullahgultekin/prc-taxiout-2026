@@ -58,6 +58,60 @@ prediction** (531 -> 378). Even though the gain distribution makes the congestio
 close to worthless, the model itself is clearly doing its job.
 
 
+## Data quality audit: the cleaning that is not needed
+
+The BTK Datathon playbook names lowercase-and-trim on the text categories as the largest
+easy win, because there train and test arrived in different formats and a raw category
+became noise on the test side. That check had never been run here, and this competition
+lives in its categorical fields.
+
+It found nothing, and that is the result.
+
+| field | distinct values | after strip and uppercase |
+|---|---:|---:|
+| STAND_mvt | 1,899 | 1,899 |
+| AIRCRAFT_TYPE_mvt | 269 | 269 |
+| RUNWAY_mvt | 53 | 53 |
+| the other six | unchanged | unchanged |
+
+Not one case or whitespace variant in nine fields. This is a machine-generated
+operational feed, not a form somebody typed into, and the cleaning playbook written for
+human-entered data does not transfer. Worth knowing precisely so that no more time goes
+into it.
+
+Cold start is a non-issue too. Twenty stands in the ranking set were never seen in
+training, covering 0.106 percent of its rows; three aircraft types, 0.005 percent; zero
+runways and zero airports. Rare values are similarly thin: 137 stands appear exactly once
+in training, together 0.007 percent of the rows.
+
+### Where the dirt actually is
+
+| condition | rows | share |
+|---|---:|---:|
+| taxi-out zero or negative | 388 | 0.019% |
+| taxi-out above 2 hours | 584 | 0.028% |
+| taxi-out above 6 hours | 69 | 0.003% |
+| network off-block after take-off | 1,012 | 0.049% |
+
+Of the 103 departures above two hours that the Network Manager also recorded, **96
+(93.2%) have a plausible network time**. So the taxi-out is not really twelve hours; the
+airport feed's block time is wrong for that flight.
+
+### Why they are being left alone
+
+The obvious move is to drop or correct those rows, and the evidence says not to.
+Dropping them was measured (E03) and cost 24 and 36 seconds at two thresholds, both far
+outside the noise floor, with the damage growing as the threshold rose.
+
+The reason is what RMSE optimises. Under squared loss the best prediction is the
+conditional mean, and that mean includes the small probability of a very large value.
+Removing those rows removes that mass and shifts every prediction down. Correcting the
+labels shifts them down the same way. The clock errors are unpredictable, but their
+*frequency* is not, and the metric pays for carrying it.
+
+This is worth stating plainly because it runs against the instinct that cleaner training
+data is better. Here it is measurably worse.
+
 ## v3: the learner change transferred to the board
 
 | version | change | local | board |

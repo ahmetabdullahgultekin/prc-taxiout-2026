@@ -158,6 +158,15 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | R14 | Cold start is low: **99.46%** of the ranking combinations were seen in training; the null share for stand and runway is 0 | probe §7 | 2026-09-01 | ✅ |
 | R15 | Departure delay (actual block minus scheduled) has std **2238 s**, 24.2% of it early. The naive `MVT - SCHED` predictor gives RMSE **2412.7** | probe §8 | 2026-09-01 | ✅ SCHED is a far weaker handle than AOBT_3 |
 
+## Data quality (2026-09-01 audit)
+
+| # | Fact | Source | Checked | Status |
+|---|--------|--------|---------|-------|
+| Q01 | **The categorical fields carry no case or whitespace variants at all** (9 fields, 1,899 stands and 269 aircraft types included). A machine-generated feed, so the human-entry cleaning playbook does not transfer | our own audit | 2026-09-01 | ✅ do not spend time on normalisation |
+| Q02 | **Cold start is negligible:** 20 unseen stands (0.106% of ranking rows), 3 unseen aircraft types (0.005%), zero unseen runways or airports | our own audit | 2026-09-01 | ✅ |
+| Q03 | **388 training departures have a taxi-out of zero or less** and 584 are above two hours; of the 103 above two hours with a network match, **96 (93.2%) have a plausible network time**, so the airport feed's block time is the wrong field | our own audit | 2026-09-01 | ✅ label error, not real taxi time |
+| Q04 | **Those rows are kept on purpose.** Dropping them cost 24 and 36 s (E03). Under squared loss the optimal prediction is the conditional mean, which carries the small probability of a huge value; removing it shifts every prediction down | E03 + reasoning | 2026-09-01 | ✅ cleaner training data is measurably worse here |
+
 ## Board (submission results)
 
 | # | Fact | Source | Checked | Status |
