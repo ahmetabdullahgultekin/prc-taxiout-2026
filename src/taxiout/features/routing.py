@@ -66,7 +66,7 @@ def attach_bearing(dep: pl.DataFrame, coords: pl.DataFrame) -> pl.DataFrame:
     ).drop("_lat1", "_lon1", "_lat2", "_lon2")
 
 
-def sector_congestion(dep: pl.DataFrame) -> pl.DataFrame:
+def sector_congestion(dep: pl.DataFrame, anchor: str = MVT) -> pl.DataFrame:
     """Ayni yone giden kalkislarin penceredeki sayisi = departure-fix kuyrugu vekili.
 
     `attach_bearing` sonrasi cagrilmali. Sayim `congestion._counts_in_window` ile ayni
@@ -74,20 +74,25 @@ def sector_congestion(dep: pl.DataFrame) -> pl.DataFrame:
     """
     from taxiout.features.congestion import _counts_in_window
 
-    keys = dep.select("MVT_ID_mvt", APT, "kalkis_sektoru", MVT).sort(MVT)
-    events = keys
+    zaman = list(dict.fromkeys([anchor, MVT]))
+    keys = dep.select("MVT_ID_mvt", APT, "kalkis_sektoru", *zaman).sort(anchor)
     out = keys
     for w in SECTOR_WINDOWS_MIN:
         out = _counts_in_window(
-            out, events, [APT, "kalkis_sektoru"], w, False, f"sektor_kalkis_onceki_{w}dk"
+            out, keys, [APT, "kalkis_sektoru"], w, False,
+            f"sektor_kalkis_onceki_{w}dk", anchor, MVT,
         )
     # ayni sektore giden kalkislarin havalimani genelindeki kalkislara orani:
     # yuzeyin ne kadarinin ayni cikisa yigildigini gosterir
-    return out.drop(APT, "kalkis_sektoru", MVT)
+    return out.drop(APT, "kalkis_sektoru", *zaman)
 
 
-def atfm_pressure(dep: pl.DataFrame) -> pl.DataFrame:
-    """Plan suruklenmesi: ucus yeniden zamanlandi mi, ne kadar?"""
+def atfm_pressure(dep: pl.DataFrame, anchor: str = MVT) -> pl.DataFrame:
+    """Plan suruklenmesi: ucus yeniden zamanlandi mi, ne kadar?
+
+    `lobt_kalkis_farki_sn` cipaya baglidir: nedensel modda kalkis saatini kullanmak
+    dogrudan hedefi sizdirirdi.
+    """
     cols = dep.columns
     exprs = []
     if "IOBT_flt" in cols and "LOBT_flt" in cols:
@@ -97,8 +102,8 @@ def atfm_pressure(dep: pl.DataFrame) -> pl.DataFrame:
         )
     if "LOBT_flt" in cols:
         exprs.append(
-            (pl.col(MVT) - pl.col("LOBT_flt")).dt.total_seconds()
-            .cast(pl.Float32).alias("lobt_kalkis_farki_sn")
+            (pl.col(anchor) - pl.col("LOBT_flt")).dt.total_seconds()
+            .cast(pl.Float32).alias("lobt_cipa_farki_sn")
         )
     if "ADES_FILED_flt" in cols and ADES in cols:
         # dosyalanan varis ile gerceklesen farkliysa ucus yonlendirilmis demektir
@@ -108,7 +113,9 @@ def atfm_pressure(dep: pl.DataFrame) -> pl.DataFrame:
     return dep.with_columns(exprs) if exprs else dep
 
 
-def stand_turnaround(mvt: pl.DataFrame, dep: pl.DataFrame) -> pl.DataFrame:
+def stand_turnaround(
+    mvt: pl.DataFrame, dep: pl.DataFrame, anchor: str = MVT
+) -> pl.DataFrame:
     """Ayni standa en son inen ucak ne kadar once bloga girdi.
 
     Yeni inmis bir ucak stand cevresini ve push-back alanini mesgul eder.
@@ -124,21 +131,30 @@ def stand_turnaround(mvt: pl.DataFrame, dep: pl.DataFrame) -> pl.DataFrame:
             stand_donus_sn=pl.lit(None, dtype=pl.Float32)
         )
     return (
-        dep.select("MVT_ID_mvt", APT, STAND, MVT)
-        .sort(MVT)
-        .join_asof(arr, left_on=MVT, right_on="_varis_blok", by=[APT, STAND], strategy="backward")
+        dep.select("MVT_ID_mvt", APT, STAND, _cipa=pl.col(anchor))
+        .sort("_cipa")
+        .join_asof(
+            arr, left_on="_cipa", right_on="_varis_blok", by=[APT, STAND],
+            strategy="backward",
+        )
         .with_columns(
-            stand_donus_sn=(pl.col(MVT) - pl.col("_varis_blok")).dt.total_seconds()
+            stand_donus_sn=(pl.col("_cipa") - pl.col("_varis_blok")).dt.total_seconds()
             .cast(pl.Float32)
         )
         .select("MVT_ID_mvt", "stand_donus_sn")
     )
 
 
-def build(mvt: pl.DataFrame, dep: pl.DataFrame, coords: pl.DataFrame | None) -> pl.DataFrame:
-    """Tum yonlendirme ozniteliklerini `dep` uzerine ekler."""
-    out = atfm_pressure(dep)
+def build(
+    mvt: pl.DataFrame, dep: pl.DataFrame, coords: pl.DataFrame | None, anchor: str = MVT
+) -> pl.DataFrame:
+    """Tum yonlendirme ozniteliklerini `dep` uzerine ekler.
+
+    `anchor`, `congestion.build` ile ayni anlama gelir: nedensel modda blok
+    cozulme anidir.
+    """
+    out = atfm_pressure(dep, anchor)
     if coords is not None and ADES in out.columns:
         out = attach_bearing(out, coords)
-        out = out.join(sector_congestion(out), on="MVT_ID_mvt", how="left")
-    return out.join(stand_turnaround(mvt, out), on="MVT_ID_mvt", how="left")
+        out = out.join(sector_congestion(out, anchor), on="MVT_ID_mvt", how="left")
+    return out.join(stand_turnaround(mvt, out, anchor), on="MVT_ID_mvt", how="left")

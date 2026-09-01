@@ -146,4 +146,4 @@ def test_atfm_drift_is_signed_difference() -> None:
     )
     out = routing.atfm_pressure(dep)
     assert out["atfm_suruklenme_sn"][0] == pytest.approx(720.0)  # 12 dk geri itilmis
-    assert out["lobt_kalkis_farki_sn"][0] == pytest.approx(480.0)
+    assert out["lobt_cipa_farki_sn"][0] == pytest.approx(480.0)

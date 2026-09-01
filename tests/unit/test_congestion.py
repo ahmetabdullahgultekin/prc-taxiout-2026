@@ -143,3 +143,74 @@ def test_counts_are_correct_when_timestamps_are_minute_rounded(forward: bool) ->
     rows = df.sort("MVT_ID_mvt").to_dicts()
     expected = [_brute_count(rows, i, group, 15, forward) for i in range(len(rows))]
     assert got["n"].to_list() == expected
+
+
+def _sample_with_block(n: int = 400, seed: int = 5) -> pl.DataFrame:
+    """Blok saati de olan ornek: nedensel mod bunu gerektirir."""
+    import numpy as np
+
+    df = _sample(n, seed)
+    rng = np.random.default_rng(seed)
+    taxi = rng.integers(300, 1500, n)
+    return df.with_columns(
+        BLOCK_TIME_UTC_mvt=pl.col("MVT_TIME_UTC_mvt")
+        - pl.duration(seconds=pl.Series(taxi.tolist()))
+    )
+
+
+def test_causal_mode_emits_no_forward_looking_features() -> None:
+    """Nedensel modelin tek anlami bu: gelecege dair hicbir sey bilmemesi.
+
+    Ileriye bakan bir kolon sizarsa model 'gercek zamanli' iddiasini kaybeder ve
+    makaledeki karsilastirma anlamsizlasir. Bu yuzden kolon adlarindan denetlenir.
+    """
+    out = congestion.build(_sample_with_block(), causal=True)
+    forward = [c for c in out.columns if "sonraki" in c]
+    assert forward == [], f"nedensel modda ileriye bakan kolonlar var: {forward}"
+
+
+def test_retrospective_mode_does_emit_forward_features() -> None:
+    """Negatif kontrol: bayrak gercekten bir sey degistiriyor mu."""
+    out = congestion.build(_sample_with_block(), causal=False)
+    assert [c for c in out.columns if "sonraki" in c]
+
+
+def test_causal_counts_are_anchored_at_pushback_not_takeoff() -> None:
+    """Nedensel sayimlar blok cozulme anina baglanmali.
+
+    Ayni satir icin iki mod farkli sayilar vermeli; ayni cikarsa cipa uygulanmamis
+    demektir ve test sessizce gecerdi.
+    """
+    mvt = _sample_with_block()
+    col = "pist_kalkis_onceki_30dk"
+    geri = congestion.build(mvt, causal=True).select("MVT_ID_mvt", col).sort("MVT_ID_mvt")
+    ileri = congestion.build(mvt, causal=False).select("MVT_ID_mvt", col).sort("MVT_ID_mvt")
+    assert geri[col].to_list() != ileri[col].to_list()
+
+
+def test_causal_window_counts_only_takeoffs_before_pushback() -> None:
+    """Elle kurulmus vaka: blok cozulme anindan onceki kalkislar sayilmali."""
+    start = datetime(2025, 6, 1, 12, 0)
+    mvt = pl.DataFrame(
+        {
+            "MVT_ID_mvt": [0, 1, 2],
+            "ADEP_mvt": ["EDDF"] * 3,
+            "RUNWAY_mvt": ["18"] * 3,
+            "STAND_mvt": ["A1"] * 3,
+            "PHASE_mvt": ["DEP"] * 3,
+            # 0 ve 1 erken kalkti; 2 ise 12:20'de blok cozup 12:40'ta kalkiyor
+            "MVT_TIME_UTC_mvt": [
+                start, start + timedelta(minutes=10), start + timedelta(minutes=40)
+            ],
+            "BLOCK_TIME_UTC_mvt": [
+                start - timedelta(minutes=10),
+                start,
+                start + timedelta(minutes=20),
+            ],
+            "TAXITIME_SEC_mvt": [600, 600, 1200],
+        }
+    )
+    out = congestion.build(mvt, causal=True).sort("MVT_ID_mvt")
+    # id=2 icin: blok cozulme 12:20, geriye 30 dk -> (11:50, 12:20] araligindaki
+    # kalkislar: 12:00 (id=0) ve 12:10 (id=1) = 2. Kendi kalkisi 12:40, sayilmamali.
+    assert out.filter(pl.col("MVT_ID_mvt") == 2)["pist_kalkis_onceki_30dk"][0] == 2

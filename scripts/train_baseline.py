@@ -73,6 +73,7 @@ def build_features(
     coords: pl.DataFrame | None = None,
     runways: pl.DataFrame | None = None,
     aobt3: bool = True,
+    causal: bool = False,
 ) -> pl.DataFrame:
     """Tikaniklik + takvim + (varsa) hava ozniteliklerini uretir. Referans SONRA eklenir.
 
@@ -80,32 +81,36 @@ def build_features(
     cikarilir. Bu iki kosunun farki, `AOBT_3_flt` kolonunun gercek bilgi degeridir
     (Q02) ve dogrudan makaleye girer.
     """
-    feats = congestion.build(mvt)
+    anchor = congestion.BLOCK if causal else MVT
+    feats = congestion.build(mvt, causal=causal)
     feats = feats.with_columns(
-        saat=pl.col(MVT).dt.hour().cast(pl.Int8),
-        hafta_gunu=pl.col(MVT).dt.weekday().cast(pl.Int8),
+        saat=pl.col(anchor).dt.hour().cast(pl.Int8),
+        hafta_gunu=pl.col(anchor).dt.weekday().cast(pl.Int8),
         ay=month().cast(pl.Int8),
-        gun_dakikasi=(pl.col(MVT).dt.hour() * 60 + pl.col(MVT).dt.minute()).cast(pl.Int16),
+        gun_dakikasi=(pl.col(anchor).dt.hour() * 60
+                      + pl.col(anchor).dt.minute()).cast(pl.Int16),
         # plana gore sapma: gecikmis ucus daha yogun bir yuzeyle karsilasir
-        plan_sapmasi_sn=(pl.col(MVT) - pl.col("SCHED_TIME_UTC_mvt")).dt.total_seconds()
+        plan_sapmasi_sn=(pl.col(anchor) - pl.col("SCHED_TIME_UTC_mvt")).dt.total_seconds()
         .cast(pl.Float32),
     )
     if "EOBT_1_flt" in feats.columns:
         feats = feats.with_columns(
-            eobt_sapmasi_sn=(pl.col(MVT) - pl.col("EOBT_1_flt")).dt.total_seconds().cast(pl.Float32)
+            eobt_sapmasi_sn=(pl.col(anchor) - pl.col("EOBT_1_flt"))
+            .dt.total_seconds().cast(pl.Float32)
         )
-    if aobt3 and "AOBT_3_flt" in feats.columns:
+    if aobt3 and not causal and "AOBT_3_flt" in feats.columns:
         # NM M3 blok saati, APDF blok saatinin BAGIMSIZ bir olcumu (M13).
         # Siralama setinde bosaltilmamis (D06), yani mesru bir ozniteliktir.
         feats = feats.with_columns(
-            naif_taxi_sn=(pl.col(MVT) - pl.col("AOBT_3_flt")).dt.total_seconds().cast(pl.Float32),
+            naif_taxi_sn=(pl.col(MVT) - pl.col("AOBT_3_flt")).dt.total_seconds()
+            .cast(pl.Float32),
             nm_eslesti=pl.col("AOBT_3_flt").is_not_null(),
         )
-    feats = routing.build(mvt, feats, coords)
+    feats = routing.build(mvt, feats, coords, anchor)
     if runways is not None:
         feats = feats.join(runways.rename({"icao": APT}), on=APT, how="left")
     if metar is not None:
-        feats = weather.attach(feats, metar)
+        feats = weather.attach(feats, metar, anchor)
     return feats
 
 
@@ -186,6 +191,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-dir", default=os.environ.get("TAXIOUT_DATA_DIR", "D:/prc-taxiout-2026"))
     ap.add_argument("--rounds", type=int, default=1500)
+    ap.add_argument("--causal", action="store_true",
+                    help="nedensel mod: oznitelikler blok cozulme anina baglanir, "
+                         "ileriye bakan pencere yok (yalnizca makale icin)")
     ap.add_argument("--no-aobt3", action="store_true",
                     help="NM blok saatinden turetilen ozniteligi cikar (ablation)")
     args = ap.parse_args()
@@ -205,7 +213,11 @@ def main() -> None:
     runways = pl.read_parquet(rwy_path) if rwy_path.exists() else None
     print(f"havalimani referansi: {'yok' if coords is None else f'{coords.height:,} koordinat'}")
 
-    feats = build_features(mvt, metar, coords, runways, aobt3=not args.no_aobt3)
+    feats = build_features(
+        mvt, metar, coords, runways, aobt3=not args.no_aobt3, causal=args.causal
+    )
+    mod = "NEDENSEL (blok cipali)" if args.causal else "retrospektif (kalkis cipali)"
+    print(f"mod: {mod}")
     feats = feats.filter(pl.col(TARGET).is_not_null())
     print(f"oznitelik tablosu: {feats.height:,} kalkis, {len(feats.columns)} kolon")
 

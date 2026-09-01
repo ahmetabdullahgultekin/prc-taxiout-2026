@@ -21,18 +21,22 @@ WEATHER_COLS = [
 ]
 
 
-def attach(dep: pl.DataFrame, metar: pl.DataFrame) -> pl.DataFrame:
-    """`dep` satirlarina en son METAR gozlemini ekler."""
+def attach(dep: pl.DataFrame, metar: pl.DataFrame, anchor: str = MVT) -> pl.DataFrame:
+    """`dep` satirlarina en son METAR gozlemini ekler.
+
+    Nedensel modda `anchor` blok cozulme anidir: kalkis anindaki havayi bilmek
+    gercek zamanli bir modelin elinde olmazdi.
+    """
     obs = (
         metar.select("station", "valid", *WEATHER_COLS)
         .rename({"valid": "_gozlem_ani"})
         .sort("_gozlem_ani")
     )
     joined = (
-        dep.sort(MVT)
+        dep.sort(anchor)
         .join_asof(
             obs,
-            left_on=MVT,
+            left_on=anchor,
             right_on="_gozlem_ani",
             by_left=APT,
             by_right="station",
@@ -40,7 +44,7 @@ def attach(dep: pl.DataFrame, metar: pl.DataFrame) -> pl.DataFrame:
         )
     )
     return joined.with_columns(
-        gozlem_yasi_dk=((pl.col(MVT) - pl.col("_gozlem_ani")).dt.total_seconds() / 60.0)
+        gozlem_yasi_dk=((pl.col(anchor) - pl.col("_gozlem_ani")).dt.total_seconds() / 60.0)
         .cast(pl.Float32),
         # cig noktasi farki: sifira yaklastikca sis/kirlanma riski artar
         cig_farki_c=(pl.col("sicaklik_c") - pl.col("cig_noktasi_c")).cast(pl.Float32),
