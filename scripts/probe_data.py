@@ -287,7 +287,7 @@ def check_target(train: pl.LazyFrame) -> None:
         .collect()
     )
     say()
-    say("**By month (watch the January and July rows: those are the two ranking month_num):**")
+    say("**By month (watch the January and July rows: they are the two ranking months):**")
     say()
     table(monthly)
 
@@ -355,9 +355,9 @@ def check_schedule_handle(train: pl.LazyFrame) -> None:
     section("8. Second handle: scheduled block time (SCHED_TIME)")
     say("Identity: `MVT_TIME - SCHED_TIME = taxi_out + departure_delay`.")
     say("`SCHED_TIME_UTC_mvt` is not blanked out in the ranking set (D05), so this is a")
-    say("legitimate feature too. What it is worth depends entirely on **how predictable the**")
-    say("**departure delay is**: a narrow delay_sec distribution nearly hands us the target, a")
-    say("wide one leaves us only an upper bound.")
+    say("legitimate feature too. What it is worth depends entirely on how predictable the")
+    say("**departure delay** is: a narrow delay_sec distribution nearly hands us the target,")
+    say("a wide one leaves us only an upper bound.")
     say()
     dep = train.filter(
         (pl.col("PHASE_mvt") == "DEP")

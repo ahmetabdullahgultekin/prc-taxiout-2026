@@ -1,181 +1,183 @@
-# Deney Gunlugu
+# Experiment Log
 
-Her satir bir GitHub issue'suna karsilik gelir. **Negatif sonuclar da yazilir** —
-2025 jurisi, ise yaramayan seyleri raporlayan takimlari acikca ovdu. Bu tablo dogrudan
-makalenin ablation bolumu olur.
+Every row corresponds to a GitHub issue. **Negative results are written down too**: the 2025
+jury explicitly praised the teams that reported what did not work. This table becomes the
+ablation section of the paper directly.
 
-Dogrulama semasi: 2025'ten Ocak ve Temmuz cikarilarak egitilir, o iki ayda **ayri ayri** dogrulanir.
-Sebep: sıralama seti Ocak + Temmuz 2026 — iki mevsimsel uc.
+Validation scheme: January and July are removed from 2025 for training, and the model is
+validated on those two months **separately**. The reason: the ranking set is January + July
+2026, two seasonal extremes.
 
-| ID | Hipotez | Degisiklik | OOF RMSE (Oca / Tem / Toplam) | Delta | Karar | Commit |
+| ID | Hypothesis | Change | OOF RMSE (Jan / Jul / Total) | Delta | Decision | Commit |
 |----|---------|-----------|-------------------------------|-------|-------|--------|
-| E00 | veri tanisi | — | — | — | ✅ 15 gercek kaydedildi (facts R01-R15) | 42b6cd0 |
-| E01 | (apt, stand, pist) ortalamasi | taban | — / — / **628,4** | referans | ✅ taban cizgi (probe §7) | 42b6cd0 |
-| E02a | tam oznitelik seti, **ham** hedef | 95 oznitelik, 600 tur, 1 tohum | 423,60 / 240,80 / **378,80** | −249,6 | ✅ tut | 6b095f6 |
-| E02b | tam oznitelik seti, **ATXOT P10 artigi** | ayni | 423,94 / 240,88 / **379,09** | +0,29 | ❌ **kazanc yok** | 6b095f6 |
-| **v1** | ilk gonderim: ham hedef, 800 tur, 3 tohum | — | yerel 378,80 → **BOARD 331,23** | — | ✅ taban board skoru | 6b095f6 |
-| E03a | uc degerleri egitimden cikar (>120 dk) | −4.180 satir | 455,11 / 236,25 / **402,92** | **+24,1** | ❌ **ZARARLI** | bc3c88f |
-| E03b | uc degerleri egitimden cikar (>60 dk) | −7.249 satir | 467,53 / 249,29 / **415,07** | **+36,3** | ❌ **daha da zararli** | bc3c88f |
+| E00 | data diagnosis | - | - | - | ✅ 15 facts recorded (facts R01-R15) | 42b6cd0 |
+| E01 | (apt, stand, runway) mean | baseline | - / - / **628.4** | reference | ✅ baseline (probe §7) | 42b6cd0 |
+| E02a | full feature set, **raw** target | 95 features, 600 rounds, 1 seed | 423.60 / 240.80 / **378.80** | -249.6 | ✅ keep | 6b095f6 |
+| E02b | full feature set, **ATXOT P10 residual** | same | 423.94 / 240.88 / **379.09** | +0.29 | ❌ **no gain** | 6b095f6 |
+| **v1** | first submission: raw target, 800 rounds, 3 seeds | - | local 378.80 -> **BOARD 331.23** | - | ✅ baseline board score | 6b095f6 |
+| E03a | drop outliers from training (>120 min) | -4,180 rows | 455.11 / 236.25 / **402.92** | **+24.1** | ❌ **HARMFUL** | bc3c88f |
+| E03b | drop outliers from training (>60 min) | -7,249 rows | 467.53 / 249.29 / **415.07** | **+36.3** | ❌ **even more harmful** | bc3c88f |
 
-**Yerel ↔ board iliskisi (v1).** Yerel dogrulama 378,80, board 331,23: yerel olcum
-**kotumser**, board %12,6 daha iyi. Bu guvenli yon. Muhtemel sebep 2025 Ocak/Temmuz
-holdout'unun LIRF etiket hatalarini tam dozunda tasimasi. Onemli olan **siralamanin**
-korunup korunmadigi; ikinci gonderimde test edilecek.
+**The local to board relationship (v1).** Local validation gave 378.80, the board 331.23: the
+local measurement is **pessimistic**, the board is 12.6% better. That is the safe direction.
+The likely reason is that the 2025 January/July holdout carries exactly the right dose of LIRF
+label errors. What matters is whether the **ordering** is preserved; that will be tested on the
+second submission.
 
-**E02b notu.** 2025 birincisinin en buyuk kazanci hedefi yeniden parametrelendirmekti
-(yakit tuketimi → yakit akisi, 220,56 → 201,04). Buraya **transfer olmadi**: artik hedef
-ham hedefle istatistiksel olarak ayni (0,29 sn fark, %0,08). Muhtemel sebep, oradaki
-donusumun carpikligi azaltmasiydi; burada ise ATXOT referansi zaten agacin ilk
-bolunmelerinde ogrendigi bir sabit ve cikarmak bilgi eklemiyor. Raporlanacak negative_share
-sonuc.
+**Note on E02b.** The largest gain of the 2025 winner came from reparameterising the target
+(fuel burn -> fuel flow, 220.56 -> 201.04). It **did not transfer** here: the residual target is
+statistically the same as the raw target (a difference of 0.29 s, 0.08%). The likely reason is
+that their transform reduced skew, whereas here the ATXOT reference is already a constant the
+tree learns in its first splits, so subtracting it adds no information. A negative result to
+report.
 
-## Hedef parametrelendirmesi: uc deneme, ucu de basarisiz
+## Target parameterisation: three attempts, all three failed
 
-Ayni holdout, ayni 90 oznitelik, 400 tur:
+Same holdout, same 90 features, 400 rounds:
 
-| yapilandirma | RMSE | Ocak | Temmuz |
+| configuration | RMSE | January | July |
 |---|---:|---:|---:|
-| naif (modelsiz, MVT − AOBT_3) | 531,40 | — | — |
-| **ham hedef** | **377,84** | 422,42 | 240,63 |
-| referans artigi (ATXOT P10) | 379,73 | 424,87 | 240,43 |
-| NM artigi (naif tahmin taban) | 382,74 | 427,05 | 247,22 |
+| naive (no model, MVT - AOBT_3) | 531.40 | - | - |
+| **raw target** | **377.84** | 422.42 | 240.63 |
+| reference residual (ATXOT P10) | 379.73 | 424.87 | 240.43 |
+| NM residual (naive prediction as baseline) | 382.74 | 427.05 | 247.22 |
 
-2025 birincisinin en buyuk kazanci hedefi yeniden parametrelendirmekti (yakit tuketimi →
-yakit akisi, 220,56 → 201,04). Burada **iki ayri taban denendi ve ikisi de zarar verdi**.
-Ham hedef kazaniyor. Muhtemel sebep, oradaki donusumun carpikligi azaltmasiydi; burada
-her iki taban da agacin ilk bolunmelerinde zaten ogrendigi bir sey ve cikarmak bilgi
-eklemiyor, aksine artik hedefin dagilimini bozuyor.
+The largest gain of the 2025 winner came from reparameterising the target (fuel burn -> fuel
+flow, 220.56 -> 201.04). Here **two separate baselines were tried and both did harm**. The raw
+target wins. The likely reason is that their transform reduced skew, whereas here both
+baselines are something the tree already learns in its first splits, so subtracting them adds
+no information and instead distorts the distribution of the residual target.
 
-Ayni tabloda dikkat cekici olan baska bir sey: **model, naif tahmine gore 154 saniye
-kazandiriyor** (531 → 378). Kazanc dagilimi tikaniklik ozniteliklerini neredeyse degersiz
-gosterse de, modelin kendisi acikca isini yapiyor.
+One other thing stands out in the same table: **the model buys 154 seconds over the naive
+prediction** (531 -> 378). Even though the gain distribution makes the congestion features look
+close to worthless, the model itself is clearly doing its job.
 
-## Kazanc dagilimi: tezimi yanlisliyor
+## Gain distribution: it falsifies my thesis
 
-| aile | kazanc | oznitelik sayisi |
+| family | gain | feature count |
 |---|---:|---:|
-| atfm | %36,8 | 5 |
-| geometry | %31,5 | 9 |
-| nm_aobt | %10,4 | 2 |
-| runway_configuration | %5,9 | 3 |
-| atfm_daily | %3,7 | 6 |
-| aircraft | %2,8 | 5 |
-| routing | %2,0 | 5 |
-| weather | %1,8 | 14 |
-| **runway_queue** | **%1,6** | **13** |
-| **airport_flow** | **%1,4** | **21** |
-| stand_turnaround | %1,0 | 1 |
-| calendar | %0,6 | 4 |
-| taxi_in_pressure | %0,5 | 2 |
+| atfm | 36.8% | 5 |
+| geometry | 31.5% | 9 |
+| nm_aobt | 10.4% | 2 |
+| runway_configuration | 5.9% | 3 |
+| atfm_daily | 3.7% | 6 |
+| aircraft | 2.8% | 5 |
+| routing | 2.0% | 5 |
+| weather | 1.8% | 14 |
+| **runway_queue** | **1.6%** | **13** |
+| **airport_flow** | **1.4%** | **21** |
+| stand_turnaround | 1.0% | 1 |
+| calendar | 0.6% | 4 |
+| taxi_in_pressure | 0.5% | 2 |
 
-Tasarimin gerekcesi Idris ve ark.'nin kuyruk degiskeninin burada **gozlenebilir** olmasiydi;
-o gozlenebilirligin avantaj saglayacagini varsaymistim. 34 pencere sayimi toplam kazancin
-%3'unu tasiyor. Tek basina `reference_sec` %18,8.
+The rationale for the design was that the queue variable of Idris et al. is **observable**
+here, and I assumed that observability would give an advantage. The 34 window counts carry 3%
+of the total gain. `reference_sec` on its own carries 18.8%.
 
-Olasi aciklama: `sched_offset_sec` ve `eobt_offset_sec` gecikme durumunu zaten kodluyor ve
-tikanikligi dolayli tasiyor; ayri sayimlar bilgi eklemiyor. Bu, gozlenebilirlik tezinin
-yanlis oldugu anlamina gelmiyor, ama **bu oznitelik bicimiyle** karsiligini vermedigini
-gosteriyor.
+A possible explanation: `sched_offset_sec` and `eobt_offset_sec` already encode the delay
+state and carry congestion indirectly, so separate counts add nothing. That does not mean the
+observability thesis is wrong, but it does show that **in this feature form** it did not pay
+off.
 
-## Hatanin nerede oldugu (2026-09-01)
+## Where the error is (2026-09-01)
 
-Toplam RMSE 378,80 ama **iki havalimani domine ediyor**:
+Total RMSE is 378.80, but **two airports dominate it**:
 
-| havalimani | RMSE | not |
+| airport | RMSE | note |
 |---|---:|---|
-| LIRF | 966,5 | uc degerler |
-| LFPG | 801,5 | uc degerler |
-| EGLL | 297,8 | en uzun taxi (mean 22,7 dk) |
-| LTFM | 228,2 | |
-| LSZH | 220,6 | |
-| EHAM | 201,0 | |
-| EDDF | 189,4 | |
-| EDDM | 187,6 | |
-| LEMD | 165,5 | |
-| LEBL | 151,1 | en kolay |
+| LIRF | 966.5 | outliers |
+| LFPG | 801.5 | outliers |
+| EGLL | 297.8 | the longest taxi (mean 22.7 min) |
+| LTFM | 228.2 | |
+| LSZH | 220.6 | |
+| EHAM | 201.0 | |
+| EDDF | 189.4 | |
+| EDDM | 187.6 | |
+| LEMD | 165.5 | |
+| LEBL | 151.1 | the easiest |
 
-Ay bazinda: **Ocak 423,6 · Temmuz 240,8**. Ocak hem daha zor hem satirlarin %71'i.
+By month: **January 423.6 · July 240.8**. January is both harder and 71% of the rows.
 
-### E03: uc degerleri egitimden cikarmak ZARARLI (beklenenin tersi)
+### E03: dropping outliers from training is HARMFUL (the opposite of what was expected)
 
-| threshold | egitim satiri | LIRF RMSE | total RMSE | Δ |
+| threshold | training rows | LIRF RMSE | total RMSE | Δ |
 |---|---:|---:|---:|---:|
-| yok | 1.870.367 | 966,5 | **378,80** | — |
-| ≤120 dk | 1.866.187 | 1.149,4 | 402,92 | +24,1 |
-| ≤60 dk | 1.863.118 | 1.205,0 | 415,07 | +36,3 |
+| none | 1,870,367 | 966.5 | **378.80** | - |
+| ≤120 min | 1,866,187 | 1,149.4 | 402.92 | +24.1 |
+| ≤60 min | 1,863,118 | 1,205.0 | 415.07 | +36.3 |
 
-Hipotez sunu diyordu: bu satirlar etiket hatasi, L2 kaybi tahmin edilemez gurultuyu
-kovaliyor, cikarirsak bulguya daha iyi oturur. **Yanlis cikti** ve zarar esikle birlikte
-buyuyor. LIRF'in kendi RMSE'si 966'dan 1.205'e cikiyor.
+The hypothesis said: these rows are label errors, the L2 loss chases unpredictable noise, and
+if we drop them the model fits the signal better. **It turned out wrong**, and the harm grows
+with the threshold. LIRF's own RMSE goes from 966 to 1,205.
 
-Aciklamasi: satirlar hatali olsa da modele **kuyrugun var oldugunu** ogretiyorlar.
-Cikarinca model uzun taxi surelerini sistematik olarak dusuk tahmin ediyor, ve L2
-altinda buyuk bir degeri dusuk tahmin etmenin bedeli cok agir. Dogrulama kumesi tam
-kaldigi icin (board da tam) bu bedel dogrudan gorunuyor.
+The explanation: however wrong these rows are, they teach the model **that the tail exists**.
+Once they are removed the model systematically underpredicts long taxi times, and under L2 the
+cost of underpredicting a large value is very heavy. Because the validation set stays complete
+(and the board is complete too), that cost is directly visible.
 
-**Karar: filtre yok.** Uc degerler egitimde kalir. Ayrica bu, hedefi kirpmanin ya da
-Huber gibi saglam bir kaybin da muhtemelen zarar verecegini soyluyor — RMSE ile
-degerlendirilirken kuyrugu gormezden gelen her sey ayni tuzaga duser.
+**Decision: no filter.** The outliers stay in training. This also says that clipping the target
+or using a robust loss such as Huber would probably do harm too: anything that looks away from
+the tail while being evaluated with RMSE falls into the same trap.
 
-### Uc degerlerin kaynagi: etiket hatasi
+### Where the outliers come from: label error
 
-| olcum | deger |
+| measurement | value |
 |---|---|
-| 2 saati asan kalkis | 584 (%0,028) |
-| bunlarin 480'i | LIRF'te |
-| azami taxi-out | LIRF 131.167 sn (36,4 saat), LSZH 87.341, LFPG 84.240 |
-| LIRF'te en ust %1'in varyans payi | **%88,1** (LFPG %48,3, EGLL %32,7) |
-| 2 saati asanlarda NM eslesmesi olan | 103 |
-| bunlarin NM'ye gore **makul** (<2sa) olani | **%94,2** (NM medyan 18 dk, APDF medyan 2,3 saat) |
+| departures over 2 hours | 584 (0.028%) |
+| of those, 480 | are at LIRF |
+| maximum taxi-out | LIRF 131,167 s (36.4 hours), LSZH 87,341, LFPG 84,240 |
+| variance share of the top 1% at LIRF | **88.1%** (LFPG 48.3%, EGLL 32.7%) |
+| of those over 2 hours, with an NM match | 103 |
+| of those, **plausible** according to NM (<2h) | **94.2%** (NM median 18 min, APDF median 2.3 hours) |
 
-Yani bu satirlarda taxi suresi uzun degil, **APDF blok saati yanlis**. Etiket hatasi.
-PRC de resmi gostergesinde 120 dakikayi asanlari eliyor (ATXOT s.13 adim 1).
+So on these rows the taxi time is not long, **the APDF block time is wrong**. A label error.
+The PRC also filters out anything over 120 minutes in its official indicator (ATXOT p.13 step 1).
 
-Sonucu: L2 kaybi tahmin edilemez gurultuyu koveliyor. **Siradaki deney (E03):** hedefi
-threshold asan satirlari yalnizca **egitimden** cikarmak; dogrulama tam kalir cunku board da
-tam olacak. `train_baseline.py --max-train-sec <sn>`.
+The consequence: the L2 loss chases unpredictable noise. **Next experiment (E03):** drop the
+rows above the threshold from **training only**; validation stays complete, because the board
+will be complete too. `train_baseline.py --max-train-sec <s>`.
 
-## Veri gelmeden kapatilan yollar (negative_share sonuclar)
+## Paths closed before the data arrived (negative results)
 
-| Yol | Neden bakildi | Sonuc | Belge |
+| Path | Why we looked | Result | Document |
 |-----|---------------|-------|-------|
-| OPDI ADS-B park pozisyonu olaylari | Bosaltilan blok saatinin bagimsiz olcumu olurdu; acik ve belgeli veri | **ELENDI** — olaylar 11 havalimaninin yalnizca 2'sinde (LSZH, EDDF) var; LTFM/LTAI'de ADS-B yer kapsamasi sifira yakin | `docs/opdi_negative_result.md` |
-| EUROCONTROL varis ATFM gecikmesinde `D` (de-icing) neden kodu | Gunluk, dogrudan de-icing olcumu olurdu | **ELENDI** — kolon tamamen bos; de-icing bir *varis* ATFM nedeni olarak kodlanmiyor | `docs/external_data.md` |
-| EUROCONTROL resmi taxi-out gostergesini **oznitelik** olarak kullanmak | Havalimani-ay bazinda referans/ek sure | **ELENDI** — aylik, ~2 ay gecikmeli yayim, Temmuz 2026 kapsanmiyor; ayrica dairesel olurdu. **Dogrulama icin kullaniliyor** | `docs/deicing_analysis.md` |
+| OPDI ADS-B parking position events | It would be an independent measurement of the blanked block time; open and documented data | **RULED OUT**: the events exist at only 2 of the 11 airports (LSZH, EDDF); ADS-B ground coverage at LTFM/LTAI is close to zero | `docs/opdi_negative_result.md` |
+| The `D` (de-icing) reason code in the EUROCONTROL arrival ATFM delay | It would be a daily, direct measurement of de-icing | **RULED OUT**: the column is entirely empty; de-icing is not coded as an *arrival* ATFM reason | `docs/external_data.md` |
+| Using the official EUROCONTROL taxi-out indicator as a **feature** | Reference and additional time per airport-month | **RULED OUT**: monthly, published with about a two-month lag, July 2026 not covered; and it would be circular anyway. **It is used for validation** | `docs/deicing_analysis.md` |
 
-## Veri gelir gelmez kosulacak sira
+## The order to run in as soon as the data arrives
 
-Bu sira rastgele degil: 2025 birincisinin ablation tablosu (P06) makalenin katkı
-sunumunun ta kendisiydi, ve o tabloyu **dogrudan siralama seti uzerinde** urettiler (P04).
-Yani gonderimlerimiz ayar denemesi degil, **tasarlanmis bir deney** olmali.
+This order is not arbitrary: the ablation table of the 2025 winner (P06) was the presentation
+of the contribution itself, and they produced that table **directly on the ranking set** (P04).
+So our submissions have to be a **designed experiment**, not tuning attempts.
 
-| Sira | Deney | Neden once bu | Komut |
+| Order | Experiment | Why this one first | Command |
 |------|-------|---------------|-------|
-| E00 | Veri tanisi | Mimariyi belirleyen sorular burada cevaplaniyor (Q02, D13, M14) | `scripts/probe_data.py` |
-| E01 | (apt, stand, pist) ortalamasi | Ilk valid gonderim + RMSE tabani | `train_baseline.py` icindeki taban |
-| E02 | Ham hedef vs ATXOT artigi | 2025'te en buyuk tekil kazanc bu turden bir yeniden parametrelendirmeydi (P05) | `train_baseline.py` (ikisini birden kosar) |
-| E03 | `AOBT_3_flt` var / yok | NM blok saatinin gercek bilgi degeri; tum mimariyi belirler | `--no-aobt3` |
-| E04 | Tikaniklik oznitelikleri var / yok | Isin fikri cekirdegi; en buyuk kazanc buradan beklenir | oznitelik grubu kapatilarak |
-| E05 | METAR var / yok, ozellikle Ocak | LSZH/EHAM/EDDM/LTFM Ocak'ta %10-18 de-icing kosulunda (W03) | METAR dosyasi gizlenerek |
-| E06 | Havalimani bazli model vs global | LTFM/LTAI ile LSZH ayni davranmaz | — |
-| E07 | Mevsimsel uzmanlasma (kis/yaz) | Siralama seti iki mevsimsel uc | — |
-| E08 | `SCHED_TIME` tutamagi var / yok | `MVT − SCHED = taxi + delay_sec`; degeri gecikmenin dagilimina bagli (A01-A03) | `run_ablation.py` (`atfm` ailesi) |
-| E09 | Tohum ortalamasi (5 model) | 2024 birincisinin yontemi: ayni veri, ayni hiperparametre, farkli tohum | `--seeds 5` |
+| E00 | Data diagnosis | The questions that decide the architecture are answered here (Q02, D13, M14) | `scripts/probe_data.py` |
+| E01 | (apt, stand, runway) mean | First valid submission plus an RMSE floor | the baseline inside `train_baseline.py` |
+| E02 | Raw target vs ATXOT residual | The largest single gain in 2025 was a reparameterisation of this kind (P05) | `train_baseline.py` (runs both) |
+| E03 | `AOBT_3_flt` present / absent | The real information value of the NM block time; it decides the whole architecture | `--no-aobt3` |
+| E04 | Congestion features present / absent | The intellectual core of the work; the largest gain is expected here | by switching the feature group off |
+| E05 | METAR present / absent, January in particular | LSZH/EHAM/EDDM/LTFM are in de-icing conditions 10-18% of January (W03) | by hiding the METAR file |
+| E06 | Per-airport model vs global | LTFM/LTAI and LSZH do not behave the same | - |
+| E07 | Seasonal specialisation (winter/summer) | The ranking set is two seasonal extremes | - |
+| E08 | The `SCHED_TIME` handle present / absent | `MVT - SCHED = taxi + delay_sec`; its value depends on the distribution of the delay (A01-A03) | `run_ablation.py` (the `atfm` family) |
+| E09 | Seed averaging (5 models) | The method of the 2024 winner: same data, same hyperparameters, different seed | `--seeds 5` |
 
-## Ablation nasil kosulur
+## How to run the ablation
 
 ```bash
 PY=D:/prc-taxiout-2026/.venv/Scripts/python.exe
 $PY scripts/run_ablation.py --data-dir D:/prc-taxiout-2026 --rounds 1200 --seeds 3
-$PY scripts/run_ablation.py --data-dir D:/prc-taxiout-2026 --causal      # makale icin
-$PY scripts/run_ablation.py --data-dir D:/prc-taxiout-2026 --raw-target  # E02 karsilastirmasi
+$PY scripts/run_ablation.py --data-dir D:/prc-taxiout-2026 --causal      # for the paper
+$PY scripts/run_ablation.py --data-dir D:/prc-taxiout-2026 --raw-target  # the E02 comparison
 ```
 
-Her aile icin bir kosu; cikti `docs/ablation_report.md` (git'e girmez, her kosuda
-yeniden uretilir). Negatif Δ o aileyi cikarmanin RMSE'yi **dusurdugu** anlamina gelir —
-yani aile zarar veriyordur ve bu da raporlanacak bir sonuctur.
+One run per family; the output is `docs/ablation_report.md` (not committed, regenerated on
+every run). A negative Δ means removing that family **lowered** the RMSE, that is, the family
+is doing harm, and that is a result worth reporting too.
 
-**Uyari.** Sentetik fixture uzerindeki ablation sayilari anlamsizdir; yalnizca borularin
-calistigini gosterir. Fixture'in kendi uretim sureci bazi aileleri yapay olarak baskin
-gosterir (ornegin `SCHED_TIME` sabit ofsetliyken `atfm` ailesi hedefi birebir
-sizdiriyordu — 2026-09-01'de duzeltildi).
+**Warning.** Ablation numbers on the synthetic fixture are meaningless; they only show that the
+pipes work. The fixture's own generation process makes some families artificially dominant (for
+example, while `SCHED_TIME` had a fixed offset the `atfm` family was leaking the target one for
+one; fixed on 2026-09-01).

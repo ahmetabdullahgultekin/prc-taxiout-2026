@@ -1,40 +1,40 @@
-# Veri Tani Raporu
+# Data Diagnosis Report
 
-Kaynak: `D:\prc-taxiout-2026\00_raw` - egitim dosyasi: 12
+Source: `D:\prc-taxiout-2026\00_raw` - training files: 12
 
-## 1. Sema karsilastirmasi (D05 / D06)
+## 1. Schema comparison (D05 / D06)
 
-- egitim kolon sayisi: **30**, siralama: **30**
-- siralamada olmayan kolonlar: yok
-- siralamada fazladan olan kolonlar: yok
-- submitting.parquet kolonlari: ['MVT_ID_mvt', 'TAXITIME_SEC_mvt']
+- training column count: **30**, ranking: **30**
+- columns absent from ranking: none
+- columns present only in ranking: none
+- submitting.parquet columns: ['MVT_ID_mvt', 'TAXITIME_SEC_mvt']
 
-**Siralama setinde DEP satirlarinda doluluk orani** (0.0 = tamamen bosaltilmis):
+**Fill rate on the DEP rows of the ranking set** (0.0 = blanked out entirely):
 
-- DEP satir sayisi: **215,876**
+- DEP row count: **215,876**
 - `FLIGHT_ID_mvt`: 0.9852
 - `MVT_TIME_UTC_mvt`: 1.0000
-- `BLOCK_TIME_UTC_mvt`: 0.0000  <-- BOSALTILMIS
+- `BLOCK_TIME_UTC_mvt`: 0.0000  <-- BLANKED
 - `SCHED_TIME_UTC_mvt`: 1.0000
 - `RUNWAY_mvt`: 1.0000
 - `STAND_mvt`: 1.0000
-- `TAXITIME_SEC_mvt`: 0.0000  <-- BOSALTILMIS
+- `TAXITIME_SEC_mvt`: 0.0000  <-- BLANKED
 - `LOBT_flt`: 0.9852
 - `IOBT_flt`: 0.9852
 - `EOBT_1_flt`: 0.9852
 - `ARVT_1_flt`: 0.9852
-- `AOBT_3_flt`: 0.9852  <-- **DOLU, kritik bulgu**
+- `AOBT_3_flt`: 0.9852  <-- **FILLED, critical finding**
 - `ARVT_3_flt`: 0.9852
 
-## 2. Taxi-out kimligi: MVT_TIME - BLOCK_TIME == TAXITIME ? (D13)
+## 2. Taxi-out identity: MVT_TIME - BLOCK_TIME == TAXITIME ? (D13)
 
-- DEP satiri: **2,085,047**, ucu de dolu olan: **2,085,047**
-- kimlik <1 sn hata ile tutan oran: **1.0000**
-- en buyuk mutlak sapma: **0 sn**
+- DEP rows: **2,085,047**, rows with all three filled: **2,085,047**
+- share where the identity holds within 1 s: **1.0000**
+- largest absolute deviation: **0 s**
 
-Yorum: oran 1.0 ise TAXITIME turetilmis demektir ve zaman damgalari kendi icinde tutarlidir; 1.0 degilse aradaki fark bagimsiz bir olcum hatasidir ve kuyruk ozelliklerinin gurultu tabanini belirler.
+Reading: a share of 1.0 means TAXITIME is derived and the timestamps are internally consistent; anything below 1.0 means the difference is an independent measurement error, and it sets the noise floor for the queue features.
 
-## 3. Zaman damgasi hassasiyeti (M14)
+## 3. Timestamp precision (M14)
 
 | ADEP_mvt | n | mvt_second_is_zero | block_second_is_zero |
 |---|---|---|---|
@@ -49,11 +49,11 @@ Yorum: oran 1.0 ise TAXITIME turetilmis demektir ve zaman damgalari kendi icinde
 | LSZH | 134,907 | 0.0168 | 0.0198 |
 | LTFM | 272,965 | 0.0833 | 0.0830 |
 
-Oran ~1.0 olan havalimaninda veri **HH:MM** hassasiyetindedir: taxi-out'ta +-60 sn taban gurultu vardir ve o havalimani icin ulasilabilir RMSE alt siniri daha yuksektir.
+An airport whose share is near 1.0 has data at **HH:MM** precision: taxi-out there carries +-60 s of floor noise, so the reachable RMSE lower bound for that airport is higher.
 
-## 4. Network Manager eslesme orani (D10)
+## 4. Network Manager match rate (D10)
 
-**egitim 2025**
+**training 2025**
 
 | ADEP_mvt | n | flight_id_filled | aobt3_filled |
 |---|---|---|---|
@@ -68,7 +68,7 @@ Oran ~1.0 olan havalimaninda veri **HH:MM** hassasiyetindedir: taxi-out'ta +-60 
 | LSZH | 134,907 | 0.9830 | 0.9830 |
 | LTFM | 272,965 | 0.9867 | 0.9866 |
 
-**siralama 2026**
+**ranking 2026**
 
 | ADEP_mvt | n | flight_id_filled | aobt3_filled |
 |---|---|---|---|
@@ -84,9 +84,9 @@ Oran ~1.0 olan havalimaninda veri **HH:MM** hassasiyetindedir: taxi-out'ta +-60 
 | LTFM | 22,396 | 0.9852 | 0.9851 |
 
 
-## 5. KRITIK: AOBT_3_flt ne kadar iyi bir tahmin? (Q02)
+## 5. CRITICAL: how good a predictor is AOBT_3_flt? (Q02)
 
-Naif tahminci: `taxi_out = MVT_TIME_UTC_mvt - AOBT_3_flt`
+Naive predictor: `taxi_out = MVT_TIME_UTC_mvt - AOBT_3_flt`
 
 | n | rmse | mae | bias | median_abs_error |
 |---|---|---|---|---|
@@ -105,9 +105,9 @@ Naif tahminci: `taxi_out = MVT_TIME_UTC_mvt - AOBT_3_flt`
 | LTFM | 269,320 | 530.6 | 236.4 |
 | LIRF | 159,216 | 557.4 | -214.2 |
 
-**Nasil okunur.** Bu RMSE dusukse (orn. <60 sn) yarisma buyuk olcude 'NM blok saatini APDF blok saatiyle uzlastirma + eslesmeyen satirlari doldurma' problemidir ve tum mimari buna gore kurulur. Yuksekse (orn. >200 sn) AOBT_3 yalnizca guclu bir ozelliktir, cozum degildir. Kapsama orani (n / total DEP) en az RMSE kadar onemli: kapsanmayan satirlar icin ayri bir model gerekir.
+**How to read this.** If this RMSE is low (say <60 s) the competition is mostly a 'reconcile the NM block time with the APDF block time and fill in the unmatched rows' problem, and the whole architecture follows from that. If it is high (say >200 s) then AOBT_3 is only a strong feature, not the solution. The coverage share (n / total DEP) matters at least as much as the RMSE: the rows it does not cover need a separate model.
 
-## 6. Hedef dagilimi
+## 6. Target distribution
 
 | ADEP_mvt | n | mean | std | p10 | p50 | p99 | over_120min_share | negative_share |
 |---|---|---|---|---|---|---|---|---|
@@ -122,11 +122,11 @@ Naif tahminci: `taxi_out = MVT_TIME_UTC_mvt - AOBT_3_flt`
 | LSZH | 134,907 | 740.5 | 385.4 | 400.0 | 711.0 | 1,707.0 | 0.0000 | 0.0022 |
 | LTFM | 272,965 | 1,053.0 | 427.6 | 662.0 | 963.0 | 2,587.0 | 0.0001 | 0.0000 |
 
-`over_120min_share` PRC'nin resmi filtresini asan orandir (M08); `negative_share` veri hatasi isaretidir. Ikisi de RMSE'de agir cezalandirilan kuyruktur: kirpma degil, **modelleme** karari gerektirir.
+`over_120min_share` is the share above the official PRC filter (M08); `negative_share` marks a data error. Both are the tail that RMSE punishes hardest: they call for a **modelling** decision, not clipping.
 
-**Aylik (Ocak ve Temmuz satirlarina dikkat: siralama seti o iki ay):**
+**By month (watch the January and July rows: they are the two ranking months):**
 
-| ay | n | mean | std |
+| month_num | n | mean | std |
 |---|---|---|---|
 | 1 | 153,706 | 995.3 | 604.8 |
 | 2 | 143,732 | 1,002.4 | 628.3 |
@@ -141,40 +141,41 @@ Naif tahminci: `taxi_out = MVT_TIME_UTC_mvt - AOBT_3_flt`
 | 11 | 162,332 | 997.0 | 532.0 |
 | 12 | 165,677 | 995.0 | 514.7 |
 
-## 7. Temel modeller ve soguk baslangic
+## 7. Baselines and cold start
 
 | n_validation | combo_coverage | rmse_global_mean | rmse_airport_mean | rmse_combo_mean |
 |---|---|---|---|---|
 | 344,419 | 0.9986 | 686.6 | 660.0 | 628.4 |
 
-`rmse_combo_mean` ilk gercek gonderimimizin tahmini seviyesidir. Bunun uzerine koyacagimiz her sey kuyruk / tikaniklik / weather bilesenidir.
+`rmse_combo_mean` is the expected level of our first real submission. Everything we put on top of it is the queue / congestion / weather component.
 
-**Siralama setinin egitimde gorulmemis kombo orani (soguk baslangic riski):**
+**Share of ranking set combinations never seen in training (cold start risk):**
 
 | n | seen_combo_share | stand_null_share | runway_null_share |
 |---|---|---|---|
 | 215,876 | 0.9946 | 0.0000 | 0.0000 |
 
-## 8. Ikinci tutamak: planlanan blok saati (SCHED_TIME)
+## 8. Second handle: scheduled block time (SCHED_TIME)
 
-Kimlik: `MVT_TIME - SCHED_TIME = taxi_out + kalkis_gecikmesi`.
-`SCHED_TIME_UTC_mvt` siralama setinde bosaltilmamis (D05), yani bu da mesru bir
-ozniteliktir. Degeri tamamen **kalkis gecikmesinin ne kadar ongorulebilir**
-olduguna bagli: delay_sec dar dagilirsa hedefi neredeyse verir, genis dagilirsa
-yalnizca bir ust sinir olur.
+Identity: `MVT_TIME - SCHED_TIME = taxi_out + departure_delay`.
+`SCHED_TIME_UTC_mvt` is not blanked out in the ranking set (D05), so this is a
+legitimate feature too. What it is worth depends entirely on how predictable the
+**departure delay** is: a narrow delay_sec distribution nearly hands us the target,
+a wide one leaves us only an upper bound.
 
-**Kalkis gecikmesi (gercek blok - planlanan blok), saniye:**
+**Departure delay (actual block - scheduled block), seconds:**
 
 | n | mean | std | p10 | p50 | p90 | early_share |
 |---|---|---|---|---|---|---|
 | 2,085,047 | 901.3 | 2,238.0 | -242.0 | 415.0 | 2,396.0 | 0.2421 |
 
-**`MVT - SCHED` naif tahmincisi (gecikmeyi sifir sayar):**
+**The `MVT - SCHED` naive predictor (it treats the delay as zero):**
 
 | rmse | bias |
 |---|---|
 | 2,412.7 | 901.3 |
 
-Karsilastir: 5. bolumdeki AOBT_3 naif tahmincisi. Iki tutamaktan hangisi daha
-dar, ikisi birlikte ne kadar kaliyor — mimari karari budur. Gecikmenin std'si
-bu problemde **indirgenemez belirsizligin buyuk kismini** olusturuyor olabilir.
+Compare with the AOBT_3 naive predictor in section 5. Which of the two handles is
+narrower, and how much is left once both are used, is the architecture decision. The
+standard deviation of the delay may be **most of the irreducible uncertainty** in
+this problem.

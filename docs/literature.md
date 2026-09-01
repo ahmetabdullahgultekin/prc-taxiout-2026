@@ -1,182 +1,184 @@
-# Literatür: taxi-out süresi tahmini
+# Literature: taxi-out time prediction
 
-Tarama 2026-09-01'de OpenAlex üzerinden yapıldı (başlık bazlı, 136 alakalı kayıt;
-ham çıktı `scratchpad/papers/openalex_taxiout.json`). Buradaki her satır okunmuş bir
-özete dayanıyor; okunmamış olan açıkça öyle işaretli.
+The review was done on 2026-09-01 through OpenAlex (title based, 136 relevant records; the raw
+output is in `scratchpad/papers/openalex_taxiout.json`). Every line here rests on an abstract
+that was read; the ones that were not read are marked as such.
 
-Bu dosyanın iki işi var: **(1)** her öznitelik ailesinin neden seçildiğini kaynağa
-bağlamak — 2025 jürisi "öznitelik seçimi için yetersiz gerekçe" diye açıkça eleştirdi;
-**(2)** JOAS makalesinin ilgili-çalışmalar bölümünün taslağı olmak.
+This file has two jobs: **(1)** to tie the choice of each feature family back to a source, since
+the 2025 jury explicitly criticised "insufficient justification for feature selection"; **(2)**
+to serve as the draft of the related work section of the JOAS paper.
 
 ---
 
-## 1. Kuyruk ekolü — problemin fiziği
+## 1. The queueing school: the physics of the problem
 
 **Idris, Clarke, Bhuva, Kang (2002), "Queuing Model for Taxi-Out Time Estimation",
-*Air Traffic Control Quarterly* 10(1). 176 atıf.** ([doi](https://doi.org/10.2514/atcq.10.1.1))
+*Air Traffic Control Quarterly* 10(1). 176 citations.** ([doi](https://doi.org/10.2514/atcq.10.1.1))
 
-Boston Logan'da taxi-out'u belirleyen dört ana nedensel faktör: **pist konfigürasyonu,
-havayolu/terminal, aşağı-akış kısıtları (downstream restrictions) ve kalkış kuyruğu
-büyüklüğü.** Bunlardan **kuyruk büyüklüğü en önemlisi**; tanımı: uçağın push-back'i ile
-kendi kalkışı arasında gerçekleşen kalkış sayısı.
+Four main causal factors determine taxi-out at Boston Logan: **runway configuration,
+airline/terminal, downstream restrictions, and departure queue size.** Of those, **queue size
+is the most important**; it is defined as the number of take-offs that occur between an
+aircraft's push-back and its own take-off.
 
-Kritik nokta: modelleri kuyruk büyüklüğünü **tahmin etmek** zorunda, çünkü uçağın taxi
-sırasında ne kadar "geçilme" (passing) yaşayacağı bilinmiyor. Karşılaştırma tabanı
-14 günlük hareketli ortalama (ETMS'in o zamanki üretim yöntemi).
+The key point: their model has to **predict** the queue size, because it is not known how much
+passing an aircraft will experience while taxiing. The comparison baseline is a 14-day moving
+average (the production method of ETMS at the time).
 
-> **Bizim için anlamı.** Bu değişken bizde **gözlenebilir**: sıralama setinde her
-> kalkışın kalkış saati duruyor. Ama tam sayımı push-back saatini gerektirir, o da
-> hedefimiz — bu yüzden `congestion.py` sabit pencereli (5/10/15/30/60 dk) dairesel
-> olmayan vekiller kullanıyor. Dört faktörün üçü doğrudan uyguladığımız öznitelikler:
-> pist konfigürasyonu, operatör/stand, kuyruk yoğunluğu.
+> **What it means for us.** This variable is **observable** for us: the take-off time of every
+> departure is present in the ranking set. But an exact count requires the push-back time,
+> which is our target, so `congestion.py` uses fixed-window (5/10/15/30/60 min) non-circular
+> proxies. Three of the four factors are features we implement directly: runway configuration,
+> operator/stand, queue intensity.
 
 **Simaiakis & Balakrishnan (2015), "A Queuing Model of the Airport Departure Process",
-*Transportation Science*. 108 atıf.** ([doi](https://doi.org/10.1287/trsc.2015.0603))
+*Transportation Science*. 108 citations.** ([doi](https://doi.org/10.1287/trsc.2015.0603))
 
-Taxi-out'u **engelsiz taxi-out + kalkış kuyruğu + tıkanıklık gecikmesi** olarak
-ayrıştırır; pist kuyruğunu D/Eₖ/1 sisteminin geçici (transient) analiziyle modeller.
-_(Özet okundu; tam metin okunmadı.)_
-
----
-
-## 2. Engelsiz (unimpeded) süre — PRC'nin yöntemine doğrudan eleştiri
-
-**Yin ve ark. (2017), "Methods for determining unimpeded aircraft taxiing time and
-evaluating airport taxiing performance", *Chinese Journal of Aeronautics* 30(2).
-43 atıf, açık erişim.** ([doi](https://doi.org/10.1016/j.cja.2017.01.002))
-
-Bu makale **tam olarak PRC'nin kullandığı türden yöntemleri gözden geçirip yerine
-regresyon öneriyor**. Bulguları:
-
-- Farklı ANSP'lerin yaygın yöntemleri (yüzdelik tabanlı referanslar) inceleniyor ve
-  **ekonometrik regresyon modelleri güçlü biçimde öneriliyor** — daha az ayrıntılı veri
-  gerektiriyor ve genel performans analizine yetiyor.
-- Önerilen model mevcutları geçiyor çünkü **daha fazla açıklayıcı değişken** ekliyor:
-  özellikle **uçakların birbirini geçmesi (passing/over-passing)** kuyruk uzunluğu
-  hesabına katılıyor, ayrıca **pist konfigürasyonu, ground delay programı ve weather
-  durumu** modele giriyor.
-- Ana sonuç: **"taxiway sistemindeki kuyruk uzunluğu ve kuyruklar arası etkileşim uzun
-  taxi-out sürelerinin başlıca katkı sağlayıcılarıdır."**
-
-> **Bizim için anlamı — bu, tezin çekirdeği.** PRC'nin resmî göstergesi (ATXOT) referansı
-> stand-pist kombosunun **P10'u** olarak tanımlıyor ve uçak tipini bilerek dışarıda
-> bırakıyor (bkz. `atxot-notes.md` M10, M11). Literatür ise tam bu noktada regresyonun
-> üstün olduğunu söylüyor. Katkımız spekülatif bir boşluğa değil, **kurumun kendi
-> belgelediği ve literatürün adını koyduğu** bir boşluğa oturuyor.
+Decomposes taxi-out as **unimpeded taxi-out + departure queue + congestion delay**; models the
+runway queue through the transient analysis of a D/Eₖ/1 system.
+_(The abstract was read; the full text was not.)_
 
 ---
 
-## 3. Avrupa havalimanlarında yerleşim tabanlı regresyon
+## 2. Unimpeded time: a direct criticism of the PRC's method
 
-**Ravizza, Atkin, Maathuis, Burke (2013), "A combined statistical approach and ground
-movement model for improving taxi time estimations at airports", *JORS* 64(9).
-74 atıf.** ([doi](https://doi.org/10.1057/jors.2012.123))
+**Yin et al. (2017), "Methods for determining unimpeded aircraft taxiing time and evaluating
+airport taxiing performance", *Chinese Journal of Aeronautics* 30(2). 43 citations, open
+access.** ([doi](https://doi.org/10.1016/j.cja.2017.01.002))
 
-İki büyük Avrupa hub'ında (**Stockholm-Arlanda ve Zürih**) çoklu doğrusal regresyon:
-havalimanı yerleşimi + geçmiş taxi süreleri. Motivasyon bizimkiyle aynı sorunun tersi:
-geçmiş verideki **havalimanı yükü etkisini nicelleştirip ayıklamak**.
+This paper **reviews exactly the kind of methods the PRC uses and proposes regression in their
+place**. Its findings:
+
+- It examines the common methods of different ANSPs (percentile-based references) and
+  **strongly recommends econometric regression models**: they need less detailed data and are
+  sufficient for general performance analysis.
+- The proposed model beats the existing ones because it adds **more explanatory variables**: in
+  particular **aircraft passing each other (passing / over-passing)** enters the queue length
+  calculation, and **runway configuration, the ground delay program and the weather state**
+  enter the model.
+- Main conclusion: **"queue length in the taxiway system and the interaction between queues are
+  the principal contributors to long taxi-out times."**
+
+> **What it means for us, and this is the core of the thesis.** The official PRC indicator
+> (ATXOT) defines the reference as the **P10** of the stand-runway combination and deliberately
+> leaves aircraft type out (see `atxot-notes.md` M10, M11). The literature says regression is
+> superior on exactly that point. Our contribution sits in a gap that **the institution
+> documents itself and the literature has named**, not in a speculative one.
+
+---
+
+## 3. Layout-based regression at European airports
+
+**Ravizza, Atkin, Maathuis, Burke (2013), "A combined statistical approach and ground movement
+model for improving taxi time estimations at airports", *JORS* 64(9). 74 citations.**
+([doi](https://doi.org/10.1057/jors.2012.123))
+
+Multiple linear regression at two large European hubs (**Stockholm-Arlanda and Zurich**):
+airport layout plus historical taxi times. The motivation is the mirror image of ours: to
+**quantify and remove the airport load effect** in historical data.
 
 **Ravizza, Atkin, Burke (2013), "Aircraft taxi time prediction: Comparisons and insights",
-*Applied Soft Computing*. 64 atıf.** ([doi](https://doi.org/10.1016/j.asoc.2013.10.004))
+*Applied Soft Computing*. 64 citations.** ([doi](https://doi.org/10.1016/j.asoc.2013.10.004))
 
-TSK bulanık kural tabanlı sistem, SVM regresyon / M5 model ağaçları / klasik
-regresyonun üzerine çıkıyor. **ARN'de %58,21, ZRH'de %64,05 oranında ±1 dakika
-doğruluk.** _(Sayılar aramadan; tam metin okunmadı.)_
+A TSK fuzzy rule based system beats SVM regression, M5 model trees and classical regression.
+**Accuracy within ±1 minute of 58.21% at ARN and 64.05% at ZRH.** _(Figures from the search;
+the full text was not read.)_
 
-**LSZH bizim veri setimizde.** Bu, sahip olduğumuz tek doğrudan karşılaştırılabilir
-ZRH referansı: **±1 dk içinde ~%64**.
+**LSZH is in our data set.** That is the only directly comparable ZRH reference we have:
+**about 64% within ±1 min**.
 
-**Ravizza ve ark. (2020), "Aircraft taxi time prediction: Feature importance and their
-implications", *Transportation Research Part C* 112. 70 atıf.**
+**Ravizza et al. (2020), "Aircraft taxi time prediction: Feature importance and their
+implications", *Transportation Research Part C* 112. 70 citations.**
 ([doi](https://doi.org/10.1016/j.trc.2020.102892))
 
-En önemli öznitelikler: **taxi mesafesi, dönüş açılarının toplamı, kalkış/varış ayrımı
-ve uçak taxi yaparken ortamdaki trafik miktarı.** _(Özet erişilemedi; bulgu arama
-sonucundan, tam metin okunmadı — makalede alıntılamadan önce doğrula.)_
+The most important features: **taxi distance, the sum of turning angles, the departure/arrival
+distinction, and the amount of traffic around the aircraft while it taxis.** _(The abstract was
+not reachable; the finding comes from the search result and the full text was not read, so
+verify before citing it in the paper.)_
 
-> **Bizim için anlamı.** Taxi mesafesi ve dönüş açısı bizde **yok** (rota verisi yok).
-> Ama ampirik P10, o stand-pist çifti için gerçekte kullanılan rotanın süresini içerir —
-> teorik en kısa yoldan daha iyi bir vekildir. OSM taxiway grafiği bu yüzden çekirdek
-> değil, yalnızca seyrek hücreler için geri düşüş adayı.
+> **What it means for us.** We do **not** have taxi distance or turning angle (there is no route
+> data). But the empirical P10 contains the duration of the route actually used for that
+> stand-runway pair, which is a better proxy than the theoretical shortest path. That is why the
+> OSM taxiway graph is not core but only a fallback candidate for sparse cells.
 
 ---
 
-## 4. Makine öğrenmesi uygulamaları — hangi öznitelikler, hangi hata
+## 4. Machine learning applications: which features, which error
 
-**Herrema ve ark. (2018), "Taxi-Out Time Prediction Model at Charles de Gaulle Airport",
-*Journal of Aerospace Information Systems*. 37 atıf.**
+**Herrema et al. (2018), "Taxi-Out Time Prediction Model at Charles de Gaulle Airport",
+*Journal of Aerospace Information Systems*. 37 citations.**
 ([doi](https://doi.org/10.2514/1.i010502))
 
-**LFPG bizim veri setimizde.** Sinir ağı, regresyon ağacı, pekiştirmeli öğrenme ve MLP
-karşılaştırılıyor; metrik olarak RMSE seçilmiş. **En iyi yöntem regresyon ağacı,
-herhangi bir günde ortalama hata ≈ 1,6 dakika (≈ 96 saniye).**
+**LFPG is in our data set.** They compare a neural network, a regression tree, reinforcement
+learning and an MLP, with RMSE as the metric. **The best method is the regression tree, with a
+mean error on any given day of about 1.6 minutes (about 96 seconds).**
 
-> Bu, sahip olduğumuz **en somut hedef büyüklük**: bizim havalimanlarımızdan birinde,
-> aynı metrikle, yayınlanmış bir sonuç. 11 heterojen havalimanı ve rota verisi olmadan
-> daha kötüsü beklenir; ama büyüklük mertebesini verir.
+> That is the **most concrete target magnitude** we have: a published result at one of our
+> airports, with the same metric. With 11 heterogeneous airports and no route data, worse is to
+> be expected; but it gives the order of magnitude.
 
 **Lee, Malik, Jung (2016), "Taxi-Out Time Prediction for Departures at Charlotte Airport
-Using Machine Learning Techniques", AIAA ATIO. 53 atıf.**
+Using Machine Learning Techniques", AIAA ATIO. 53 citations.**
 ([doi](https://doi.org/10.2514/6.2016-3910))
 
-Seçilen değişkenler: **terminal concourse, spot, pist, departure fix ve ağırlık sınıfı**;
-ayrıca farklı trafik akışı ve weather koşulları. Doğrusal regresyon ve rastgele orman en
-iyi RMSE'yi veriyor.
+The variables selected: **terminal concourse, spot, runway, departure fix and weight class**;
+plus different traffic flow and weather conditions. Linear regression and random forest give the
+best RMSE.
 
-> **Yeni öznitelik fikri buradan çıktı: departure fix.** Aynı çıkış noktasına/yönüne
-> giden kalkışlar birbirinden daha fazla ayrılmak zorundadır (rota ve girdap ayırması),
-> dolayısıyla komşuları kendisiyle aynı yöne gidiyorsa uçak daha çok bekler. Bizde
-> departure fix yok, ama `ADES_mvt` var: kalkış havalimanından varış havalimanına
-> **kerteriz** hesaplanıp sektöre yuvarlanabilir ve penceredeki aynı-sektör kalkış
-> sayısı sayılabilir. `features/routing.py` bunu yapıyor.
+> **The new feature idea came from here: the departure fix.** Departures heading for the same
+> exit point or direction have to be separated further from each other (route and wake vortex
+> separation), so an aircraft waits longer when its neighbours are going the same way as it is.
+> We have no departure fix, but we do have `ADES_mvt`: the **bearing** from the departure airport
+> to the arrival airport can be computed, rounded into a sector, and the number of same-sector
+> departures in the window can be counted. `features/routing.py` does this.
 
-**Wang ve ark. (2018), "Machine Learning Techniques for Taxi-out Time Prediction with a
-Macroscopic Network Topology", DASC. 30 atıf.**
+**Wang et al. (2018), "Machine Learning Techniques for Taxi-out Time Prediction with a
+Macroscopic Network Topology", DASC. 30 citations.**
 ([doi](https://doi.org/10.1109/dasc.2018.8569664))
 
-Şangay Pudong. Tahmin edicileri **dört aileye** ayırıyor — bu taksonomiyi olduğu gibi
-benimseyip makalede atıfla kullanacağız:
+Shanghai Pudong. It splits the predictors into **four families**, and we adopt that taxonomy as
+it stands and cite it in the paper:
 
-| Aile | Açılım | Bizdeki karşılığı |
+| Family | Expansion | Our equivalent |
 |------|--------|-------------------|
 | SIFI | surface **instantaneous** flow indices | `apt_dep_prev_5m`, `apt_arr_prev_5m` |
-| SCFI | surface **cumulative** flow indices | 30/60 dk pencereleri |
-| AQLI | aircraft **queue length** indices | `pist_kalkis_onceki_*`, `rwy_service_interval_sec` |
-| SRDI | **slot resource demand** indices | `sched_offset_sec`, ATFM sürüklenmesi (LOBT−IOBT) |
+| SCFI | surface **cumulative** flow indices | the 30/60 min windows |
+| AQLI | aircraft **queue length** indices | `rwy_dep_prev_*`, `rwy_service_interval_sec` |
+| SRDI | **slot resource demand** indices | `sched_offset_sec`, ATFM drift (LOBT - IOBT) |
 
-Bir aylık örnekle eğitilen rastgele orman, bir günlükle eğitilenleri belirgin biçimde
-geçiyor — örnek boyutu kritik. Bizde bir yıl var.
+A random forest trained on a month of samples clearly beats ones trained on a single day, so
+sample size is critical. We have a year.
 
 **Diana (2018), "Can machines learn how to forecast taxi-out time? … Seattle/Tacoma",
-*Transportation Research Part E* 119. 39 atıf.**
-([doi](https://doi.org/10.1016/j.tre.2018.10.003)) _(Özet erişilemedi.)_
+*Transportation Research Part E* 119. 39 citations.**
+([doi](https://doi.org/10.1016/j.tre.2018.10.003)) _(The abstract was not reachable.)_
 
 **Balakrishna, Ganesan, Sherry (2010), "Accuracy of reinforcement learning algorithms
-for predicting aircraft taxi-out times: Tampa Bay", *TR-C* 18(6). 116 atıf.**
-([doi](https://doi.org/10.1016/j.trc.2010.03.003)) _(Özet erişilemedi.)_
+for predicting aircraft taxi-out times: Tampa Bay", *TR-C* 18(6). 116 citations.**
+([doi](https://doi.org/10.1016/j.trc.2010.03.003)) _(The abstract was not reachable.)_
 
 ---
 
-## 5. Boşluklar — katkımızın oturduğu yer
+## 5. The gaps: where our contribution sits
 
-1. **Ölçek ve heterojenlik.** Yukarıdaki çalışmaların hemen hepsi **tek havalimanı**
-   (Logan, CDG, Charlotte, Pudong, Seattle, ZRH+ARN). 11 havalimanını tek çatı altında,
-   ortak öznitelik tanımlarıyla modelleyen bir çalışma bulamadık. LTFM ve LTAI üzerine
-   yayınlanmış taxi-out çalışması **hiç** bulunamadı.
-2. **Retrospektif gözlenebilirlik.** Idris'in kuyruk değişkeni operasyonda tahmin
-   edilmek zorunda; post-ops kurguda gözlenebilir. Bu farkın **bilgi değerini ölçen**
-   bir çalışma görmedik. Makalede iki model varyantı (retrospektif / nedensel)
-   raporlanacak; aradaki RMSE farkı, gerçek zamanlı sistemler için ulaşılabilir
-   iyileştirmenin üst sınırıdır.
-3. **De-icing.** PRC resmî göstergede AOBT sonrası de-icing yapan uçuşları **eliyor**
-   (ATXOT s.13). Ham taxi-out tahmininde bu satırlar elenemez. Ocak 2026'da de-icing
-   koşulu oranı LSZH %18 · EHAM %13 · EDDM %11 · LTFM %10 (kendi METAR analizimiz, W03).
-   Bu rejimi açıkça modelleyen bir taxi-out çalışması görmedik.
+1. **Scale and heterogeneity.** Almost every study above is **a single airport** (Logan, CDG,
+   Charlotte, Pudong, Seattle, ZRH+ARN). We found no study that models 11 airports under one
+   roof with shared feature definitions. We found **no** published taxi-out study on LTFM or
+   LTAI at all.
+2. **Retrospective observability.** Idris's queue variable has to be predicted in operation; in
+   a post-ops setup it is observable. We saw no study that **measures the information value** of
+   that difference. The paper will report two model variants (retrospective / causal); the RMSE
+   difference between them is the upper bound of the improvement reachable for real-time
+   systems.
+3. **De-icing.** In the official indicator the PRC **filters out** flights that de-ice after
+   AOBT (ATXOT p.13). Those rows cannot be filtered out when predicting raw taxi-out. In January
+   2026 the share of de-icing conditions was LSZH 18% · EHAM 13% · EDDM 11% · LTFM 10% (our own
+   METAR analysis, W03). We saw no taxi-out study that models this regime explicitly.
 
-## Doğrulanması gereken alıntılar
+## Citations that need verifying
 
-Makalede kullanmadan önce tam metni okunacaklar (şu an yalnızca özet/arama düzeyinde):
+To be read in full before being used in the paper (currently only at abstract or search level):
 
-- Ravizza 2020 öznitelik önem sıralaması (dspace/storre 403 döndü, kurumsal erişim gerek)
-- Ravizza 2013 ±1 dk doğruluk sayıları (%58,21 / %64,05)
-- Diana 2018, Balakrishna 2010, Simaiakis 2015 tam metinleri
+- The Ravizza 2020 feature importance ranking (dspace/storre returned 403, institutional access
+  needed)
+- The Ravizza 2013 accuracy figures within ±1 min (58.21% / 64.05%)
+- The full texts of Diana 2018, Balakrishna 2010, Simaiakis 2015

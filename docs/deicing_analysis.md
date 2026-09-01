@@ -1,22 +1,22 @@
-# De-icing rejimi: METAR vekilinin bagimsiz dogrulanmasi
+# De-icing regime: independent validation of the METAR proxy
 
-Uretildigi komut: `python scripts/analyse_deicing.py --raw-dir <yol>`
-**Yarisma verisi kullanilmaz** — iki acik kaynak: IEM METAR ve EUROCONTROL'un
-yayimladigi Taxi-Out Additional Time gostergesi. Kapsam: 180 havalimani-ay.
+Produced by: `python scripts/analyse_deicing.py --raw-dir <path>`
+**No competition data is used**, only two open sources: IEM METAR and the Taxi-Out
+Additional Time indicator published by EUROCONTROL. Coverage: 180 airport-months.
 
-## Neden bu karsilastirma anlamli
+## Why this comparison is meaningful
 
-PRC resmi gostergesinde **AOBT sonrasi de-icing yapan ucuslari hesaptan atiyor**
-(ATXOT s.13, adim 1). Dolayisiyla gostergenin "valid referansi olmayan flights orani"
-alani, kis aylarinda buyuk olcude de-icing'i tasir. Bu, METAR'dan turettigimiz
-`deicing_proxy` alani icin **bagimsiz** bir olcumdur.
+In its official indicator the PRC **discards flights that de-ice after AOBT**
+(ATXOT p.13, step 1). The indicator's "share of flights without a valid reference" field
+therefore carries mostly de-icing during the winter months. That is an **independent**
+measurement of the `deicing_proxy` field we derive from METAR.
 
-## Sonuc: vekil calisiyor
+## Result: the proxy works
 
-Tum veri uzerinde korelasyon **r = 0.757** (de-icing vekili ↔ referanssiz
-flights orani). Havalimani icinde, aylar arasinda:
+Over the whole data set the correlation is **r = 0.757** (de-icing proxy
+against the share of flights without a reference). Within an airport, across months:
 
-| apt | ay_sayisi | r_referanssiz | r_ek_sure | ort_deicing | ort_referanssiz |
+| apt | n_months | r_no_reference | r_additional | mean_deicing | mean_no_reference |
 |---|---|---|---|---|---|
 | LTFM | 18 | 0.982 | -0.061 | 0.020 | 0.010 |
 | LSZH | 18 | 0.967 | -0.392 | 0.025 | 0.037 |
@@ -29,15 +29,16 @@ flights orani). Havalimani icinde, aylar arasinda:
 | EGLL | 18 | 0.275 | -0.109 | 0.001 | 0.000 |
 | EHAM | 18 | 0.009 | 0.982 | 0.017 | 0.010 |
 
-Soguk havalimanlarinda korelasyon 0.87–0.98; sicak olanlarda (LIRF, LEBL, EGLL)
-de-icing neredeyse hic olmadigi icin korelasyon gurultudur, dusuk olmasi beklenir.
+At the cold airports the correlation is 0.87 to 0.98; at the warm ones (LIRF, LEBL, EGLL)
+there is almost no de-icing, so the correlation is noise and is expected to be low.
 
-## Asil bulgu: havalimanlarinin de-icing rejimi farkli
+## The real finding: airports have different de-icing regimes
 
-De-icing vekili ile **ek taxi-out suresi** arasindaki korelasyon genelde
--0.131, yani neredeyse yok — ama havalimani bazinda tablo ikiye ayriliyor:
+The correlation between the de-icing proxy and the **additional taxi-out time** is
+-0.131 overall, that is, effectively none. But per airport the table splits
+in two:
 
-| apt | r_ek_sure | kis_ek_sure | yaz_ek_sure | kis_yaz_farki |
+| apt | r_additional | winter_additional | summer_additional | winter_summer_diff |
 |---|---|---|---|---|
 | LTFM | -0.061 | 4.52 | 5.13 | -0.60 |
 | LSZH | -0.392 | 3.12 | 3.51 | -0.39 |
@@ -50,41 +51,42 @@ De-icing vekili ile **ek taxi-out suresi** arasindaki korelasyon genelde
 | EGLL | -0.109 | 6.03 | 6.80 | -0.77 |
 | EHAM | 0.982 | 4.40 | 2.94 | 1.46 |
 
-**EHAM tek basina ayri duruyor.** Amsterdam'da referanssiz flights orani yil boyunca
-sabit (~%1) kaliyor ama ek taxi-out suresi kisin belirgin sekilde artiyor. EDDM ve
-LSZH'de ise tam tersi: kisin ucuslarin buyuk bolumu gostergeden **dusuyor**
-(Munih'te Ocak 2026'da %31), ek sure ise artmiyor.
+**EHAM stands apart on its own.** At Amsterdam the share of flights without a reference
+stays flat through the year (~1%), yet the additional taxi-out time rises clearly in
+winter. At EDDM and LSZH it is the other way round: in winter a large share of flights
+**drops out** of the indicator (31% at Munich in January 2026), while the additional time
+does not rise.
 
-Onemli bir kayit: ek taxi-out suresi **her havalimaninda** kisin yazdan dusuk
-(-0,25 ile -2,82 dk arasi), cunku yaz trafik zirvesi kuyrugu buyutuyor. EHAM'in
-+1,46 dk'lik farki bu tabana ragmen olusuyor; yani anomaliyi zayiflatan degil,
-guclendiren bir arka plan.
+One caveat worth recording: the additional taxi-out time is lower in winter than in summer
+at **every** airport (between -0.25 and -2.82 min), because the summer traffic peak makes
+the queue longer. EHAM's +1.46 min appears in spite of that baseline, so the background
+strengthens the anomaly rather than weakening it.
 
-Yorum: kis gecikmesinin **ne kadarinin taxi-out'un icine dustugu** havalimanina gore
-degisiyor. Amsterdam'da icine dusuyor ve hedefi buyutuyor; Munih ve Zurih'te etkilenen
-ucuslar isaretlenip resmi hesaptan cikariliyor.
+Reading: **how much of the winter delay lands inside taxi-out** varies by airport. At
+Amsterdam it lands inside and inflates the target; at Munich and Zurich the affected
+flights are flagged and taken out of the official calculation.
 
-Bu, kesin bir nedensellik iddiasi degil: elimizde de-icing kayitlari yok, yalnizca weather
-kosulu vekili ile resmi gostergenin iki alani var. Ancak iki bagimsiz kaynagin ayni
-mevsimsel yapiyi gostermesi ve havalimanlarinin iki farkli desene ayrilmasi, yarisma
-verisi geldiginde **ilk sinanacak hipotezi** belirlemek icin yeterli.
+This is not a firm causal claim: we have no de-icing records, only a weather condition
+proxy and two fields of the official indicator. But two independent sources showing the
+same seasonal structure, and the airports splitting into two distinct patterns, is enough
+to fix **the first hypothesis to test** once the competition data arrives.
 
-## Bizim icin sonucu
+## What it means for us
 
-Biz **ham taxi-out'u** tahmin ediyoruz ve hicbir satiri atamayiz. Yani:
+We predict **raw taxi-out** and we cannot discard any row. So:
 
-- EHAM'da weather etkisi dogrudan hedefte gorunur ve ogrenilebilir.
-- EDDM ve LSZH'de, resmi gostergenin **attigi** ucuslar bizim veri setimizde duruyor ve
-  uc degerler olarak Ocak hatamizi domine edecek. Yayimlanmis hicbir taxi-out modeli bu
-  ucuslari tahmin etmek zorunda kalmadi, cunku standart metodoloji onlari eliyor.
-- Hava etkisi **havalimanina gore degisiyor**; global bir weather katsayisi yerine
-  havalimani x weather etkilesimi (ya da havalimani bazli model) gerekiyor.
+- At EHAM the weather effect shows up directly in the target and can be learned.
+- At EDDM and LSZH the flights the official indicator **discards** are still in our data
+  set, and as outliers they will dominate our January error. No published taxi-out model
+  has had to predict those flights, because the standard methodology filters them out.
+- The weather effect **varies by airport**; instead of one global weather coefficient we
+  need an airport x weather interaction (or a per-airport model).
 
-## Kapsam disi
+## Out of scope
 
-Resmi gostergede **hic verisi olmayan** havalimani: LTAI
-Antalya EUROCONTROL performans semasinda degil; bu havalimani icin dis dogrulama
-kaynagimiz yok ve veri kalitesinin farkli olabilecegi akilda tutulmali.
+Airports with **no data at all** in the official indicator: LTAI
+Antalya is not in the EUROCONTROL performance scheme; we have no external validation source
+for that airport, and its data quality may differ, which is worth keeping in mind.
 
-Siralama aylarindan **Temmuz 2026 henuz yayimlanmamis** (seri Haziran 2026'da bitiyor),
-dolayisiyla bu gosterge ozellik olarak kullanilamaz — yalnizca dogrulama icindir.
+Of the two ranking months, **July 2026 has not been published yet** (the series ends in
+June 2026), so this indicator cannot be used as a feature. It is for validation only.

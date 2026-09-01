@@ -1,79 +1,85 @@
-# Dis Veri Setleri
+# External Data Sets
 
-**Odul uygunlugu sarti:** kullanilan tum ek veri setleri acik erisimli/acik lisansli ve belgelenmis olmali
-(dc2026/eligibility.html). Bu dosya o belgelemedir. Bir veri kaynagi eklerken **once burayi doldur.**
+**Prize eligibility condition:** every additional data set used must be openly accessible,
+openly licensed and documented (dc2026/eligibility.html). This file is that documentation.
+When adding a data source, **fill this in first.**
 
-| Kaynak | Ne icin | Erisim URL | Lisans | Eklendigi tarih |
+| Source | Used for | Access URL | Licence | Date added |
 |--------|---------|------------|--------|-----------------|
-| EUROCONTROL ATXOT metodoloji dokumani | Resmi referans taxi-out tanimi (P10 / stand-pist) | https://ansperformance.eu/library/ATXOT_indicator_documentation_mar23.pdf | EUROCONTROL kamuya acik yayin | 2026-09-01 |
-| Iowa Environmental Mesonet (IEM) ASOS/METAR arsivi | Sicaklik, cig noktasi, gorus, ruzgar, yagis, mevcut-weather kodlari; **de-icing vekili** | https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py | **Kamu mali** | 2026-09-01 |
-| OurAirports (airports.csv, runways.csv) | Havalimani koordinatlari (kalkis kerterizi / departure-fix vekili), pist sayisi ve uzunluklari | https://davidmegginson.github.io/ourairports-data/ | **Kamu mali** | 2026-09-01 |
-| EUROCONTROL Taxi-Out Additional Time gostergesi | **Yalnizca dogrulama**: ATXOT yeniden uygulamamizin ve METAR de-icing vekilinin bagimsiz kontrolu | https://www.eurocontrol.int/performance/data/download/xls/Taxi-Out_Additional_Time.xlsx | EUROCONTROL kamuya acik yayin | 2026-09-01 |
-| EUROCONTROL ATFM Slot Adherence (gunluk) | Gunun kalkislarindan kaci ATFM slotu altindaydi; slot uyumu — Idris'in "asagi-akis kisitlari" faktorunun dogrudan olcumu | https://www.eurocontrol.int/performance/data/download/xls/ATFM_Slot_Adherence.xlsx | EUROCONTROL kamuya acik yayin | 2026-09-01 |
-| EUROCONTROL Airport Arrival ATFM Delay (gunluk) | Gunluk varis ATFM gecikmesi, neden koduna gore (weather, ATC/meydan kapasitesi, personel, ekipman) | https://www.eurocontrol.int/performance/data/download/xls/Airport_Arrival_ATFM_Delay.xlsx | EUROCONTROL kamuya acik yayin | 2026-09-01 |
+| EUROCONTROL ATXOT methodology document | The official reference taxi-out definition (P10 / stand-runway) | https://ansperformance.eu/library/ATXOT_indicator_documentation_mar23.pdf | EUROCONTROL public publication | 2026-09-01 |
+| Iowa Environmental Mesonet (IEM) ASOS/METAR archive | Temperature, dew point, visibility, wind, precipitation, present weather codes; **the de-icing proxy** | https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py | **Public domain** | 2026-09-01 |
+| OurAirports (airports.csv, runways.csv) | Airport coordinates (departure bearing / departure-fix proxy), runway counts and lengths | https://davidmegginson.github.io/ourairports-data/ | **Public domain** | 2026-09-01 |
+| EUROCONTROL Taxi-Out Additional Time indicator | **Validation only**: an independent check on our ATXOT reimplementation and on the METAR de-icing proxy | https://www.eurocontrol.int/performance/data/download/xls/Taxi-Out_Additional_Time.xlsx | EUROCONTROL public publication | 2026-09-01 |
+| EUROCONTROL ATFM Slot Adherence (daily) | How many of the day's departures were under an ATFM slot, and slot adherence; a direct measurement of Idris's "downstream restrictions" factor | https://www.eurocontrol.int/performance/data/download/xls/ATFM_Slot_Adherence.xlsx | EUROCONTROL public publication | 2026-09-01 |
+| EUROCONTROL Airport Arrival ATFM Delay (daily) | Daily arrival ATFM delay by reason code (weather, ATC / aerodrome capacity, staffing, equipment) | https://www.eurocontrol.int/performance/data/download/xls/Airport_Arrival_ATFM_Delay.xlsx | EUROCONTROL public publication | 2026-09-01 |
 
-## Aday kaynaklar (henuz kullanilmadi)
+## Candidate sources (not used yet)
 
-| Kaynak | Ne icin | Lisans | Durum |
+| Source | Used for | Licence | Status |
 |--------|---------|--------|-------|
-| OpenStreetMap (aeroway=taxiway/parking_position) | Seyrek (stand, pist) hucreleri icin gerilemeli mesafe; pist gecisi bayragi | ODbL | Dusuk oncelik — ampirik P10 muhtemelen daha iyi |
+| OpenStreetMap (aeroway=taxiway/parking_position) | Fallback distance for sparse (stand, runway) cells; a runway crossing flag | ODbL | Low priority, the empirical P10 is probably better |
 
-## IEM lisans metni (birebir)
+## The IEM licence text (verbatim)
 
 > "The materials found on this website are in the public domain and may be used freely
 > by anyone for any lawful purpose. Attributing the Iowa Environmental Mesonet of Iowa
 > State University would be appreciated."
 > -- https://mesonet.agron.iastate.edu/disclaimer.php (2026-09-01)
 
-Feragatname: "we provide this information without any warranty of accuracy."
-Atif JOAS makalesinde ve README'de verilecek.
+Disclaimer: "we provide this information without any warranty of accuracy."
+The attribution will be given in the JOAS paper and in the README.
 
-## Indirilen METAR verisi
+## The METAR data downloaded
 
-- Cekim: `python -m taxiout.adapters.metar_iem --start 2025-01-01 --end 2026-08-01`
-- 11 havalimani x 2025-01-01..2026-07-31 = **306.222 gozlem**, havalimani basina gunde 48 (yarim saatlik)
-- Eksik sicaklik/gorus orani <%0,03; tum havalimanlarinda 577 gunun tamami kapsanmis
-- `report_type` parametresi **bilerek gonderilmiyor**: filtrelemek Avrupa'nin yarim saatlik
-  yayinini saatlige dusuruyor ve kosullar aniden degistiginde yayinlanan SPECI raporlarini atiyor
+- Fetch: `python -m taxiout.adapters.metar_iem --start 2025-01-01 --end 2026-08-01`
+- 11 airports x 2025-01-01 to 2026-07-31 = **306,222 observations**, 48 a day per airport
+  (half hourly)
+- The share of missing temperature or visibility is <0.03%; all 577 days are covered at
+  every airport
+- The `report_type` parameter is **deliberately not sent**: filtering on it drops Europe's
+  half-hourly publication to hourly and throws away the SPECI reports issued when
+  conditions change suddenly
 
-## OurAirports lisans metni (birebir)
+## The OurAirports licence text (verbatim)
 
 > "All data is released to the Public Domain, and comes with no guarantee of accuracy
 > or fitness for use." … "We'd love you to give us credit, like we give credit to our
 > sources, but you're not required to."
 > -- https://ourairports.com/data/ (2026-09-01)
 
-Atif zorunlu degil; yine de makalede ve README'de verilecek.
+Attribution is not required; it will be given in the paper and in the README anyway.
 
-## Indirilen havalimani verisi
+## The airport data downloaded
 
-- 86.013 havalimani koordinati (varis noktasi dunyanin herhangi bir yerinde olabilir,
-  kerteriz icin hepsi gerekli) + 11 yarisma havalimaninin acik pist ozeti.
-- Pist sayilari: EHAM 6 · LTFM 6 · LFPG 5 · LEMD 4 · EDDF 4 · LSZH 4 · LIRF 3 · LTAI 3
-  · LEBL 3 · **EDDM 2 · EGLL 2**. En kisitli iki havalimani EDDM ve EGLL.
+- 86,013 airport coordinates (the arrival point can be anywhere in the world, so all of them
+  are needed for the bearing) plus an open runway summary for the 11 competition airports.
+- Runway counts: EHAM 6 · LTFM 6 · LFPG 5 · LEMD 4 · EDDF 4 · LSZH 4 · LIRF 3 · LTAI 3
+  · LEBL 3 · **EDDM 2 · EGLL 2**. The two most constrained airports are EDDM and EGLL.
 
-## EUROCONTROL gostergesi — neden ozellik degil, dogrulama
+## The EUROCONTROL indicator: why validation and not a feature
 
-Seri **aylik** ve yayimi yaklasik iki ay gecikmeli: 2026-09-01 itibariyla Haziran
-2026'da bitiyor. Siralama aylarindan **Temmuz 2026 kapsanmiyor**, dolayisiyla ozellik
-olarak kullanilamaz. Ayrica ayni temel veriden turetildigi icin ozellik olarak
-kullanilmasi dairesel olurdu.
+The series is **monthly** and published with about a two-month lag: as of 2026-09-01 it ends in
+June 2026. Of the ranking months, **July 2026 is not covered**, so it cannot be used as a
+feature. And since it is derived from the same underlying data, using it as a feature would be
+circular.
 
-Dogrulama degeri yuksek: `scripts/analyse_deicing.py` METAR de-icing vekilimizi bu
-serinin "valid referansi olmayan flights orani" alanina karsi olcuyor (genel r = 0,757;
-soguk havalimanlarinda 0,87-0,98). Sonuclar `docs/deicing_analysis.md`.
+Its validation value is high: `scripts/analyse_deicing.py` measures our METAR de-icing proxy
+against the "share of flights without a valid reference" field of this series (r = 0.757
+overall; 0.87 to 0.98 at the cold airports). The results are in `docs/deicing_analysis.md`.
 
-**LTAI resmi gostergede hic yok** (24 ay boyunca TF = 0): Antalya EUROCONTROL
-performans semasinda degil.
+**LTAI is entirely absent from the official indicator** (TF = 0 across 24 months): Antalya is
+not in the EUROCONTROL performance scheme.
 
-## Gunluk ATFM serileri — kapsam ve kisitlar
+## The daily ATFM series: coverage and constraints
 
-- **Her iki siralama ayini da kapsiyorlar**: 2019-01-01 .. 2026-07-31, 11 havalimaninin
-  tamami (LTAI dahil), 30.451 havalimani-gun.
-- Ocak 2026'da ATFM duzenlemesi altindaki kalkis orani: LSZH %16,6 · LFPG %13,3 ·
-  LEMD %12,3 · EDDM %12,3 · EDDF %12,0 ... LTFM %6,6 · LTAI %5,1.
-- **Nedensel modelde kullanilamaz**: gun boyunun toplamidir (kalkis anindan sonraki
-  saatleri de icerir) ve yayimi aylarca gecikmelidir. `groups.py` bunlari `atfm_daily`
-  ailesinde ayri tutuyor; `pipeline.build_features` nedensel kosuda hic eklemiyor.
-- **`D` (de-icing) neden kolonu tamamen bos.** Hipotez sinandi ve reddedildi: de-icing
-  bir *varis* ATFM nedeni olarak kodlanmiyor. De-icing sinyalimiz METAR'dan geliyor.
+- **They cover both ranking months**: 2019-01-01 to 2026-07-31, all 11 airports (LTAI
+  included), 30,451 airport-days.
+- Share of departures under ATFM regulation in January 2026: LSZH 16.6% · LFPG 13.3% ·
+  LEMD 12.3% · EDDM 12.3% · EDDF 12.0% ... LTFM 6.6% · LTAI 5.1%.
+- **They cannot be used in the causal model**: they are a whole-day total (they include the
+  hours after the departure instant) and they are published months late. `groups.py` keeps
+  them apart in the `atfm_daily` family; `pipeline.build_features` never adds them in a causal
+  run.
+- **The `D` (de-icing) reason column is entirely empty.** The hypothesis was tested and
+  rejected: de-icing is not coded as an *arrival* ATFM reason. Our de-icing signal comes from
+  METAR.
