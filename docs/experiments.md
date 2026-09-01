@@ -57,6 +57,29 @@ One other thing stands out in the same table: **the model buys 154 seconds over 
 prediction** (531 -> 378). Even though the gain distribution makes the congestion features look
 close to worthless, the model itself is clearly doing its job.
 
+
+## v2: a local gain that did not transfer
+
+| submission | configuration | local holdout | **board** |
+|---|---|---:|---:|
+| v1 | lr 0.05, 127 leaves, 800 rounds, 3 seeds | 378.80 | **331.23** |
+| v2 | lr 0.02, 255 leaves, 380 rounds, 5 seeds | ~372 | **331.80** |
+
+The change was significant on the local paired test in both seed pairings, at 5.4 and
+3.4 seconds against a noise floor near 5. On the board it moved 0.57 the wrong way.
+
+So local significance is not sufficient. The holdout is January and July 2025 and the
+board is January and July 2026, and since the score is set by a few hundred extreme rows
+in each, the two sets do not have to agree about which model is better. A paired test
+tells you a difference is real *on those rows*; it says nothing about whether the same
+rows exist next year.
+
+The practical rule, which is now measured rather than assumed: **the local holdout picks
+what is worth submitting, and only the board decides.** Ranking uses each team's best
+score, so a submission that does not improve costs nothing but the run.
+
+v1 stays our best at 331.23.
+
 ## How large a difference can this holdout resolve?
 
 Measured before trusting any more comparisons, because RMSE here is dominated by a few

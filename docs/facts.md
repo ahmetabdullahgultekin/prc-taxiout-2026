@@ -177,6 +177,8 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | M24 | Despite its name `LOBT_flt` is **not the actual block time**, it is nearly identical to IOBT (740 vs 740), so it is a planned time | our own measurement | 2026-09-01 | ✅ |
 | M25 | On the holdout the **naive prediction is 531.40** and the model 377.84. The model buys **154 s** over the naive prediction | our own measurement | 2026-09-01 | ✅ the modelling effort pays for itself |
 
+| B08 | **v2 board 331.7983** (lr 0.02, 255 leaves, 380 rounds, 5 seeds) vs **v1 331.2256**. Locally v2 was significantly better by the paired test; on the board it was 0.57 worse | bucket result.json | 2026-09-01 | ✅ **local significance does not imply board improvement** |
+
 ## Open questions
 
 | # | Question | How it closes |
