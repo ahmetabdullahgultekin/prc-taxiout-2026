@@ -26,7 +26,7 @@ def build(start: datetime, days: int, per_day: int, seed: int) -> pl.DataFrame:
     n = days * per_day
     apt = rng.choice(AIRPORTS, n)
     rwy = np.array([rng.choice(RUNWAYS[a]) for a in apt])
-    stand = np.array([f"{rng.integers(1, 60)}" for _ in range(n)])
+    stand = np.array([f"{rng.integers(1, 21)}" for _ in range(n)])
     actype = rng.choice(TYPES, n)
     phase = rng.choice(["DEP", "ARR"], n)
 
@@ -91,7 +91,7 @@ def build(start: datetime, days: int, per_day: int, seed: int) -> pl.DataFrame:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
-    ap.add_argument("--per-day", type=int, default=200)
+    ap.add_argument("--per-day", type=int, default=600)
     args = ap.parse_args()
 
     out = Path(args.out)

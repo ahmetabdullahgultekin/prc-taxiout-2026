@@ -19,7 +19,10 @@ Ezberden kural veya kolon adi soyleme — sicilde yoksa dogrula ve sicile ekle.
 1. **Mutlak yol yazma.** Veri yolu `TAXIOUT_DATA_DIR` ortam degiskeni veya `--data-dir`
    bayragindan gelir. 2025 jurisi hardcoded Windows yollarini acikca elestirdi.
 2. **pandas kullanma, polars kullan.** 16 GB RAM'de 4.2M satir x cok kolon pandas'ta patlar.
-   Toplu okuma icin `polars.scan_parquet` (lazy) veya duckdb.
+   Toplu okuma icin `polars.scan_parquet` (lazy) veya duckdb. LightGBM sinirinda da
+   pandas'a gecilmez: kategorikler tamsayi koda cevrilip float32 numpy verilir
+   (`scripts/train_baseline.py:to_matrix`). Kategori seviye sozlugu egitimden dogrulamaya
+   **tasinmali**, yoksa ayni kategori iki tarafta farkli koda duser ve model sessizce bozulur.
 3. **Kayip fonksiyonu L2.** RMSE'nin optimal tahmincisi kosullu ortalamadir. Huber/MAE/quantile
    veya duzeltmesiz log-hedef sistematik sapma yaratir. Denenirse `docs/experiments.md`'ye
    negatif sonuc olarak yazilir.
@@ -50,12 +53,28 @@ Deger testedilebilir saf fonksiyonlarda ve tekrar uretilebilirlikte.
 ## Komutlar
 
 ```bash
-PY=D:/prc-taxiout-2026/.venv/Scripts/python
+PY=D:/prc-taxiout-2026/.venv/Scripts/python.exe
 
-$PY scripts/probe_data.py           # veri tanı: sema, sizinti, kalite
-$PY -m pytest -q                    # testler
-$PY -m ruff check src tests scripts # lint
+# veri tanisi (veri iner inmez ilk calistirilacak)
+$PY scripts/probe_data.py
+
+# dis veri: METAR (zaten indirildi, yeniden cekmek gerekmez)
+$PY -m taxiout.adapters.metar_iem --start 2025-01-01 --end 2026-08-01     --out D:/prc-taxiout-2026/00_raw/metar.parquet
+
+# uctan uca taban model + degerlendirme
+$PY scripts/train_baseline.py --data-dir D:/prc-taxiout-2026
+$PY scripts/train_baseline.py --data-dir D:/prc-taxiout-2026 --no-aobt3   # ablation
+
+# gercek veri gelmeden borulari denemek icin sentetik fixture
+$PY tests/make_fixture.py --out D:/prc-taxiout-2026/99_fixture/00_raw
+$PY scripts/train_baseline.py --data-dir D:/prc-taxiout-2026/99_fixture --rounds 300
+
+$PY -m pytest tests/unit -q
+$PY -m ruff check src tests scripts
 ```
+
+Veri seti indirmesi (anahtarlar gelince): `mc` istemcisi `~/bin/mc.exe` altinda kurulu.
+Gonderim de ayni bucket'a yapiliyor (P02).
 
 `make` bu makinede kurulu degil — Makefile yok, dogrudan python cagriliyor.
 

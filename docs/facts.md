@@ -62,11 +62,27 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | M13 | **AOBT kaynağı yalnızca havalimanı APDF akışı** (alternatif kaynak yok); NM akışı sadece kalkış saatini tamamlamak için kullanılıyor | ATXOT s.17, Tablo 3 | 2026-09-01 | ✅ **→ `BLOCK_TIME_UTC_mvt` = APDF AOBT, `AOBT_3_flt` = NM M3 AOBT: aynı olayın FARKLI iki ölçümü, birebir aynı değil** |
 | M14 | Zaman damgaları bazı kaynaklarda yalnızca HH:MM hassasiyetinde olabilir | ATXOT s.15, §4 | 2026-09-01 | ✅ |
 
+## Onceki edisyonlar ve altyapi (2026-09-01 arastirmasi)
+
+| # | Gerçek | Kaynak | Kontrol | Durum |
+|---|--------|--------|---------|-------|
+| P01 | Takim adlari **otomatik atanir** (adjective-noun): `resourceful-quiver`, `jubilant-vase`, `team_likable_jelly` | 2024+2025 GitHub org listeleri | 2026-09-01 | ✅ isim bizim kararimiz degil |
+| P02 | Gonderim **MinIO bucket**'a yapiliyor: `mc ls opensky/prc-2025-<takim>/`, dosya `<takim>_v<N>.parquet` | resourceful-quiver/scripts/check_submission_ver.sh | 2026-09-01 | ✅ `mc.exe` kuruldu (~/bin) |
+| P03 | 2025 birincisi (resourceful-quiver) **TU Delft Havacilik Fakultesi**; 2024 birincisi ENAC hocalari | PRC_2025_report.pdf, 2024 duyurusu | 2026-09-01 | ✅ alan akademik agirlikli |
+| P04 | 2025 birincisi ablation'i **CV ile degil dogrudan sıralama seti (leaderboard) ile** yapmis; "k-fold'u rapordan cikardik, sıralama RMSE'si daha degerli" | PRC_2025_report.pdf §6 | 2026-09-01 | ✅ ~18 gonderimlik ablation → gercek limit yok |
+| P05 | 2025'te en buyuk tekil kazanc **hedefin yeniden parametrelendirilmesiydi**: yakit tuketimi yerine yakit *akisi* ile egitim (RMSE 220.56 → 201.04), tum oznitelik gruplarindan buyuk | PRC_2025_report.pdf §6.3 | 2026-09-01 | ✅ **bizdeki karsiligi: ham taxi-out yerine P10 referansi uzerinden artik** |
+| P06 | 2025 birincisinin makalesi 14 sayfa, JOAS on-baski formati: Abstract/Keywords/Abbreviations + Giris, Veri, On-isleme, Oznitelik, Model, Sonuclar, Vargi; katkinin sunumu **tek bir oznitelik x RMSE ablation tablosu** | PRC_2025_report.pdf | 2026-09-01 | ✅ sablon |
+| P07 | 2026'da **yorunge (ADS-B) verisi YOK** — yalnizca hareket kayitlari. 2024/2025 ADS-B + OpenAP/aerodinamik uzmanligi gerektiriyordu | dc2026/data.html | 2026-09-01 | ✅ **havacilik-disi tabular ekipler icin saha duzlesti** |
+| W01 | IEM ASOS/METAR 11 havalimaninin tamamini kapsiyor, 2025-01-01..2026-07-31 arasi 577 gunun hepsi, gunde 48 gozlem, eksik <%0,03 | kendi indirmemiz | 2026-09-01 | ✅ 306.222 satir indirildi |
+| W02 | IEM verisi **kamu mali**, atif takdir ediliyor | mesonet.agron.iastate.edu/disclaimer.php | 2026-09-01 | ✅ odul sartini karsiliyor |
+| W03 | Ocak 2026 de-icing kosulu orani: **LSZH %18,0 · EHAM %13,4 · EDDM %11,2 · LTFM %9,9 · EDDF %8,3**; LTAI/LEBL/LIRF **%0** | kendi METAR analizimiz | 2026-09-01 | ✅ **Ocak hatasi bu bes havalimaninda toplanacak; LTAI'de de-icing yok** |
+| W04 | De-icing vekili mevsimsel saglamayi geciyor: 2025-01 %2,3 → 2026-07 %0,04 | kendi METAR analizimiz | 2026-09-01 | ✅ |
+
 ## Açık sorular
 
 | # | Soru | Nasıl kapanır |
 |---|------|---------------|
-| Q01 | Günlük/toplam gönderim limiti var mı? | Discord #prc-data-competition'da sor |
+| Q01 | Günlük/toplam gönderim limiti var mı? | Discord'da sor. P04 dolaylı kanıt: 2025 birincisi ~18 gönderimlik ablation yapmış, sıkı bir limit yok görünüyor |
 | Q02 | `AOBT_3_flt` ranking.parquet'te dolu mu, doluysa ne kadar iyi? | Veri iner inmez `scripts/probe_ranking.py` |
 | Q03 | Leaderboard canlı mı, skor ne zaman görünüyor? | İlk gönderimde ölç |
-| Q04 | Takım adı ne olacak? | Kullanıcı kararı — forma yazılacak |
+| Q04 | ~~Takım adı ne olacak?~~ | **KAPANDI (P01):** otomatik atanıyor |
