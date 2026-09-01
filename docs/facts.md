@@ -182,6 +182,9 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | B09 | **v3 board 306.4068** (XGBoost+CatBoost, 400 rounds, 1 seed) against v1 331.2256. A gain of 24.82 s, local predicted 27.30 | result.json | 2026-09-01 | ✅ second place, 7.37 s behind the leader |
 | B10 | **A large local gain DOES transfer; a small one does not.** v2 moved a few seconds locally and lost 0.57 on the board; v3 moved 27 s locally and gained 24.8. The noise floor of ~5 s is the dividing line | v1/v2/v3 boards | 2026-09-01 | ✅ |
 | B11 | **`mc` silently turns an unknown alias into a local directory copy and reports success.** The alias is `prc`, not `opensky`; the first v3 upload never left the machine. `scripts/submit.py` now verifies the object is in the remote bucket | our own measurement | 2026-09-01 | ✅ control closed |
+| B12 | **v4 board 297.0769** (XGBoost + CatBoost depth 10, 1000 rounds, plus the two stand features) against v3 306.4068 | result.json | 2026-09-02 | ✅ third place, 22.3 s behind |
+| B13 | **75 teams registered, all on the first day; only 9 had submitted by the end of it.** In 2025, 53 of 179 registrants ever submitted, so the effective field is ~25-40 | teams/index.html, dc2025 outcome | 2026-09-02 | ✅ |
+| B14 | **The 2025 winner made about 250 ranking submissions** and refused to report cross-validation: "the RMSE from the ranking set already provide a more valuable insight". We have made 4 | resourceful-quiver repo, PRC_2025_report.pdf | 2026-09-02 | ⏳ our submission rate is far too low |
 
 ## Model findings (2026-09-01 measurements)
 

@@ -58,6 +58,65 @@ prediction** (531 -> 378). Even though the gain distribution makes the congestio
 close to worthless, the model itself is clearly doing its job.
 
 
+## v4: 297.08, and how a broken feature announced itself
+
+| version | change | local | board |
+|---|---|---:|---:|
+| v1 | LightGBM, 800 rounds, 3 seeds | 378.80 | 331.23 |
+| v2 | LightGBM, slower rate, wider trees | ~372 | 331.80 |
+| v3 | XGBoost + CatBoost depth 8, 400 rounds | 351.69 | 306.41 |
+| **v4** | **XGBoost + CatBoost depth 10, 1000 rounds, stand features** | - | **297.08** |
+
+Another 9.33 seconds, third place, 22.3 behind the leader. Two changes went in together,
+CatBoost depth 8 to 10 (measured at 9.4 seconds on the holdout) and the two stand
+features, so the board number does not separate them. Depth is almost certainly most of
+it.
+
+### The bug the next experiment found
+
+The surface features went in straight after v4 and were ablated. The result could not
+be true:
+
+| configuration | features | RMSE |
+|---|---:|---:|
+| everything | 98 | 359.44 |
+| without the surface family | 92 | 361.20 |
+| without `surface_apt_at_pushback` | 97 | **347.66** |
+| without `surface_apt_at_takeoff` | 97 | **347.66** |
+| without `surface_rwy_at_takeoff` | 97 | **346.75** |
+
+Removing one column improved the model by ten seconds, six times over, while removing all
+six made it worse. And two different columns gave a score identical to two decimal
+places, which cannot happen unless they hold the same values.
+
+They did. Both were zero for every row in the training set: mean 0.000, standard
+deviation 0.000, maximum 0.000.
+
+**The cause.** The surface count is the difference of two running totals, aircraft that
+have pushed back and aircraft that have taken off. The Network Manager has no off-block
+time for 1.5 percent of departures. Those flights entered the take-off total and not the
+push-back total, so the difference drifted downward by the number of unmatched flights
+seen so far. At Frankfurt over a year that reached about 46, against a real queue of
+five to twenty, and the clip at zero did the rest.
+
+Fixed by filtering to flights present in both totals. The column now reads: mean 10.08
+aircraft on the airport surface at push-back, median 9, maximum 44; per runway 6.70,
+median 6. Physically sensible for a large European airport, and the airport count is now
+never below the runway count, which it had no way of satisfying before.
+
+### What it says about the tests
+
+Ten unit tests passed throughout, including hand-counted queue scenarios. They could not
+have caught this: every fixture row had a network match, so the two totals ran over the
+same flights by construction. There is now a case with an unmatched flight, and it fails
+against the old code.
+
+That is the third time in this project that arithmetic over the movement stream has
+returned a plausible wrong number rather than an error, after the wrong movement airport
+and the unsigned counter wrap. The pattern is specific enough to name: **a feature built
+by counting does not fail, it goes quiet.** Worth checking every such column for being
+constant before trusting an ablation of it.
+
 ## Data quality audit: the cleaning that is not needed
 
 The BTK Datathon playbook names lowercase-and-trim on the text categories as the largest
