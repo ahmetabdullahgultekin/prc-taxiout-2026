@@ -23,3 +23,14 @@ __pycache__/
 mlruns/
 docs/data_probe_report.md
 docs/ablation_report.md
+
+# LaTeX derleme ciktilari
+docs/paper/build/
+docs/paper/*.pdf
+docs/paper/*.aux
+docs/paper/*.bbl
+docs/paper/*.bcf
+docs/paper/*.blg
+docs/paper/*.log
+docs/paper/*.out
+docs/paper/*.run.xml

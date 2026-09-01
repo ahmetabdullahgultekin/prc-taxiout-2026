@@ -81,6 +81,18 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | A02 | Blok saatine **iki bagimsiz tutamak** var: NM'in `AOBT_3_flt` olcumu ve planlanan `SCHED_TIME`. Problemin cekirdegi bu ikisini uzlastirip artik belirsizligi modellemek | kendi analizimiz | 2026-09-01 | ⏳ ikisinin RMSE'si `probe_data.py` §5 ve §8'de olculecek |
 | A03 | Indirgenemez belirsizligin buyuk kismi **kalkis gecikmesinin** (gercek blok − planlanan blok) dagiliminda; std'si taxi-out'un kendi std'siyle kiyaslanmali | kendi analizimiz | 2026-09-01 | ⏳ §8 |
 
+## JOAS makalesi (2026-09-01 arastirmasi)
+
+| # | Gerçek | Kaynak | Kontrol | Durum |
+|---|--------|--------|---------|-------|
+| J01 | **LaTeX zorunlu**, Word reddediliyor; sablon `github.com/open-aviation/joas-template` | joas/about/submissions | 2026-09-01 | ✅ sablon repoya alindi |
+| J02 | Tum icerik **tek `main.tex`** dosyasinda; `\input{}`/`\include{}` yasak; dosya adlari degistirilemez | joas-template/main.tex | 2026-09-01 | ✅ |
+| J03 | Ozet **tek paragraf ≤300 kelime**, dort ogeyi icermeli (amac, tasarim, bulgular, yorum); baslik ≤12 kelime | joas-template/main.tex | 2026-09-01 | ✅ |
+| J04 | **Open data statement** ve **Reproducibility statement** ZORUNLU bolumler | joas-template/main.tex | 2026-09-01 | ✅ iskelette var |
+| J05 | Kisaltma ancak metinde **10'dan fazla** geciyorsa tanimlanir; tablolar basit `tabular` olmali (ozel tasarim HTML surumunu bozuyor) | joas-template/main.tex | 2026-09-01 | ✅ |
+| J06 | Gonderim: derlenmis PDF + LaTeX kaynaginin ZIP'i. Hakemlik **acik** (kimlikler paylasilir, degerlendirmeler yayimlanir). Ucret yok | joas/about/submissions | 2026-09-01 | ✅ |
+| J07 | Makale turu: `manuscript=article` (Research Article, General). "Open Software Focus" yazarin yazilimin ana gelistiricisi olmasini ve odagin yazilim olmasini istiyor — bizim katkimiz yontem | joas/about/submissions | 2026-09-01 | ✅ karar verildi |
+
 ## Açık sorular
 
 | # | Soru | Nasıl kapanır |

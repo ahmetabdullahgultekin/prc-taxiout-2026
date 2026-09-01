@@ -1,0 +1,188 @@
+%% JOAS makale taslagi -- PRC Data Challenge 2026 (taxi-out suresi tahmini)
+%%
+%% Sablon kurallari (docs/paper/NOTLAR.md'de tam liste):
+%%   - TEK dosya: \input{} ya da \include{} KULLANMA
+%%   - dosya adlarini degistirme: main.tex, figures/, reference.bib
+%%   - baslik 12 kelimeyi asmasin, Title Case
+%%   - ozet TEK paragraf, <=300 kelime, dort ogeyi de icersin
+%%   - "Figure \ref{}" yaz, "Fig." yazma
+%%   - basit tabular kullan; ozel tablo tasarimi HTML surumunu bozuyor
+%%   - kisaltmayi ancak metinde 10'dan fazla geciyorsa tanimla
+%%
+%% [SAYI] isaretli her yer gercek veri gelince doldurulacak.
+
+\documentclass[
+  manuscript=article,
+  layout=preprint,
+  year=2026,
+  volume=x,
+]{extra/joas}
+
+\doi{xx.xxxxx/joas.xxxx.xxxx}
+
+\received {x}
+\revised  {x}
+\accepted {x}
+\published{x}
+
+\addbibresource{reference.bib}
+
+% Baslik: 12 kelime siniri. Aday -- katkiyi one cikaran, havalimani sayisini veren.
+\title{Retrospective Taxi-Out Time Prediction at Eleven European Airports}
+
+\author{Ahmet Abdullah Gultekin \orcid{0000-0000-0000-0000}}
+\affiliation{Institution, City, Turkiye}
+\email{correspondence@email.domain}
+
+\keywords{taxi-out time; airport surface operations; departure queue; gradient boosting;
+          post-operations analysis}
+
+% Kisaltma yalnizca 10'dan fazla geciyorsa. Yazim bitince gozden gecir ve buda.
+\abbreviations{
+    ATXOT: Additional Taxi-Out Time,
+    RMSE: Root Mean Square Error
+}
+
+\begin{document}
+
+\begin{abstract}
+  % TEK paragraf, <=300 kelime. Dort oge zorunlu:
+  %   1) calismanin amaci ve arastirilan problem
+  %   2) arastirma yaklasiminin temel tasarimi
+  %   3) analizin basli ca bulgulari
+  %   4) yorum ve sonuclarin kisa ozeti
+  % En sona yazilacak; simdilik iskelet.
+  Taxi-out time---the interval between off-block and take-off---is a primary driver of
+  excess fuel burn on the airport surface, yet it is both hard to observe and hard to
+  predict. [AMAC] This study predicts taxi-out time for departures at eleven major
+  European airports using one full year of movement records. [TASARIM] We decompose the
+  problem following EUROCONTROL's own additional taxi-out time indicator, reproducing its
+  reference component and learning the residual with gradient boosting over congestion,
+  routing and meteorological features. [BULGULAR] [SAYI: RMSE, en iyi yapilandirma,
+  aile katkilari] [YORUM] We further separate a retrospective model, appropriate for
+  post-operations analysis, from a causal one usable in real time, and quantify the
+  information value of retrospective observability. [SAYI: iki modelin farki]
+\end{abstract}
+
+
+\section{Introduction}
+% - taxi-out neden onemli: fazla yakit ve CO2, PRC'nin gostergesi
+% - neden zor: elde etmesi zor bir buyukluk (rationale.html), degiskenligi cok nedenli
+% - bu calismanin sorusu: 11 heterojen havalimaninda, yorunge verisi OLMADAN,
+%   yalnizca hareket kayitlarindan ne kadar iyi tahmin edilebilir?
+% - katki maddeleri (asagidaki uc madde), sonra makale plani
+
+
+\section{Related Work}
+% docs/literature.md'den gelistirilecek. Uc ekol:
+% - kuyruk teorisi: Idris ve ark. (2002) dort faktor, kuyruk buyuklugu en onemlisi;
+%   Simaiakis ve Balakrishnan (2015) ayristirma
+% - engelsiz sure yontemleri: Yin ve ark. (2017) yuzdelik yontemleri elestirip
+%   regresyon oneriyor -- bizim katkimiz tam bu boslukta
+% - Avrupa yerlesim tabanli regresyon: Ravizza ve ark. (2013), ZRH veri setimizde
+% - ML uygulamalari: Herrema ve ark. (2018) LFPG'de regresyon agaci ~1.6 dk;
+%   Lee ve ark. (2016) departure fix; Wang ve ark. (2018) SIFI/SCFI/AQLI/SRDI taksonomisi
+% Boslugun ifadesi: hepsi tek havalimani; LTFM ve LTAI uzerine yayin yok.
+
+
+\section{Data}
+\subsection{Challenge Dataset}
+% 11 havalimani, 2025 tam yili, 4.167.797 hareket; siralama seti Ocak + Temmuz 2026.
+% Kalkislarda yalnizca blok saati ve taxi suresi bosaltilmis -- kurgunun tarifi.
+% [SAYI] havalimani basina kalkis sayisi, taxi-out dagilimi, eksiklik oranlari
+
+\subsection{External Data}
+% METAR (Iowa State IEM, kamu mali): [SAYI] gozlem, 11 havalimani.
+% OurAirports (kamu mali): koordinatlar (kalkis kerterizi), pist sayilari.
+% Ikisi de docs/external_data.md'de lisansiyla belgeli.
+
+\subsection{Data Quality}
+% [SAYI] MVT - BLOCK == TAXITIME kimligi tutuyor mu
+% [SAYI] havalimani bazinda zaman damgasi hassasiyeti (HH:MM olan var mi)
+% [SAYI] NM eslesme orani
+
+
+\section{Method}
+\subsection{Reference Taxi-Out Time}
+% EUROCONTROL ATXOT'un sadik yeniden uygulamasi: kombo = (havalimani, stand, pist),
+% referans = P10, gecerlilik = P10 altinda >=10 ucus, filtreler (>120 dk, helikopter,
+% AOBT sonrasi de-icing).
+% Iki bilincli sapma ve gerekcesi:
+%   1) gecerli referansi olmayan satirlar dusurulemez -> hiyerarsik geri dusus zinciri
+%   2) kayan 12 ay yerine sabit 2025
+% [SAYI] resmi seviyede kapsama orani, havalimani bazinda
+
+\subsection{Congestion Features}
+% Idris'in kuyruk degiskeni ve dairesellik sorunu; sabit pencereli vekiller.
+% Wang ve ark. taksonomisine esleme (SIFI/SCFI/AQLI/SRDI).
+% Varislarin bosaltilmamis olmasinin degeri: taxi-in medyani canli tikaniklik gostergesi.
+
+\subsection{Retrospective and Causal Anchoring}
+% Ayni kodun iki cipasi. Neden mesru: yarismanin amaci post-ops analiz.
+% Nedensel varyantin ne ise yaradigi: A-CDM, TSAT, DMAN.
+% Ikisi ayni dogrulama kumesinde karsilastirilabilir.
+
+\subsection{Target Parameterisation}
+% Ham taxi-out vs ATXOT referansi uzerinde artik. Gerekce ve [SAYI] fark.
+
+\subsection{Model and Validation}
+% LightGBM, L2 amac (RMSE'nin optimal tahmincisi kosullu ortalamadir), tohum ortalamasi.
+% Dogrulama: 2025'ten Ocak ve Temmuz tutuldu -- rastgele K-fold neden yaniltici.
+
+
+\section{Results}
+% ANA TABLO: oznitelik ailesi x RMSE (scripts/run_ablation.py ciktisi).
+% Havalimani bazinda RMSE tablosu.
+% Retrospektif vs nedensel karsilastirmasi.
+% [SAYI] hepsi.
+
+\begin{table}[htbp!]
+  \centering
+  \small
+  \caption{Feature family ablation. Negative delta means removing the family improves
+           the model.}
+  \label{tb:ablation}
+  \begin{tabular}{lrrr}
+  \toprule
+  \textbf{Configuration} & \textbf{Features} & \textbf{RMSE (s)} & \textbf{$\Delta$} \\
+  \midrule
+  Full model & [SAYI] & [SAYI] & --- \\
+  \bottomrule
+  \end{tabular}
+\end{table}
+
+
+\section{Discussion}
+% - hangi aileler tasidi, hangileri tasimadi (negatif sonuclar burada, acikca)
+% - havalimanlari neden farkli: pist sayisi (EDDM/EGLL 2, LTFM/EHAM 6), de-icing maruziyeti
+% - Ocak vs Temmuz farki ve de-icing rejimi
+% - PRC'nin resmi gostergesine gore ne kazandirdigimiz
+% - sinirliliklar: rota/hiz verisi yok, referans kaymiyor, tek yil
+
+
+\section{Conclusion}
+
+
+\section*{Acknowledgement}
+% EUROCONTROL PRC ve OpenSky Network'e veri icin; IEM ve OurAirports'a acik veri icin.
+
+\section*{Funding statement}
+% Yoksa acikca belirt.
+
+% Veri beyani ZORUNLU
+\section*{Open data statement}
+% Yarisma veri seti: PRC Data Challenge 2026, kamuya acilinca DOI'si buraya.
+% Dis veri: IEM ASOS/METAR (kamu mali) ve OurAirports (kamu mali) -- erisim URL'leri.
+% Turetilmis veri paylasilabilir mi: yarisma sarti geregi 2026 seti kamuya acilana kadar
+% paylasilamaz; bu kisit burada acikca yazilacak.
+
+% Tekrar uretilebilirlik beyani ZORUNLU
+\section*{Reproducibility statement}
+% Kaynak kod: github.com/<kullanici>/prc-taxiout-2026, GNU GPLv3.
+% Sekillerin ve tablolarin kodu: scripts/run_ablation.py, scripts/probe_data.py.
+% Ortam: pyproject.toml + uv.lock; mutlak yol yok, veri yolu ortam degiskeninden.
+% Testler: pytest tests/ ([SAYI] test).
+
+\printbibliography
+
+\end{document}
