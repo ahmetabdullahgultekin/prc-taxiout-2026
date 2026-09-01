@@ -162,10 +162,10 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 
 | # | Fact | Source | Checked | Status |
 |---|--------|--------|---------|-------|
-| Q01 | **The categorical fields carry no case or whitespace variants at all** (9 fields, 1,899 stands and 269 aircraft types included). A machine-generated feed, so the human-entry cleaning playbook does not transfer | our own audit | 2026-09-01 | ✅ do not spend time on normalisation |
-| Q02 | **Cold start is negligible:** 20 unseen stands (0.106% of ranking rows), 3 unseen aircraft types (0.005%), zero unseen runways or airports | our own audit | 2026-09-01 | ✅ |
-| Q03 | **388 training departures have a taxi-out of zero or less** and 584 are above two hours; of the 103 above two hours with a network match, **96 (93.2%) have a plausible network time**, so the airport feed's block time is the wrong field | our own audit | 2026-09-01 | ✅ label error, not real taxi time |
-| Q04 | **Those rows are kept on purpose.** Dropping them cost 24 and 36 s (E03). Under squared loss the optimal prediction is the conditional mean, which carries the small probability of a huge value; removing it shifts every prediction down | E03 + reasoning | 2026-09-01 | ✅ cleaner training data is measurably worse here |
+| DQ01 | **The categorical fields carry no case or whitespace variants at all** (9 fields, 1,899 stands and 269 aircraft types included). A machine-generated feed, so the human-entry cleaning playbook does not transfer | our own audit | 2026-09-01 | ✅ do not spend time on normalisation |
+| DQ02 | **Cold start is negligible:** 20 unseen stands (0.106% of ranking rows), 3 unseen aircraft types (0.005%), zero unseen runways or airports | our own audit | 2026-09-01 | ✅ |
+| DQ03 | **388 training departures have a taxi-out of zero or less** and 584 are above two hours; of the 103 above two hours with a network match, **96 (93.2%) have a plausible network time**, so the airport feed's block time is the wrong field | our own audit | 2026-09-01 | ✅ label error, not real taxi time |
+| DQ04 | **Those rows are kept on purpose.** Dropping them cost 24 and 36 s (E03). Under squared loss the optimal prediction is the conditional mean, which carries the small probability of a huge value; removing it shifts every prediction down | E03 + reasoning | 2026-09-01 | ✅ cleaner training data is measurably worse here |
 
 ## Board (submission results)
 
@@ -187,16 +187,16 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 
 | # | Fact | Source | Checked | Status |
 |---|--------|--------|---------|-------|
-| M20 | The model is best at **round 328** (RMSE 377.28); by 500 rounds it degrades to 379.04. The v1 submission used 800 rounds, so it **overfitted** | early stopping run | 2026-09-01 | ✅ the round count will be lowered |
-| M21 | **Gain distribution:** atfm 36.8% · geometry 31.5% · nm_aobt 10.4% · runway_configuration 5.9% · weather 1.8% · **runway_queue 1.6%** · **airport_flow 1.4%** | LightGBM gain | 2026-09-01 | 🔴 **the congestion features (34 of them) come to 3% in total** |
-| M22 | The strongest single features: `reference_sec` 18.8% · `eobt_offset_sec` 16.0% · `sched_offset_sec` 15.4% · `nm_naive_taxi_sec` 10.4% · `STAND_mvt` 7.5% | LightGBM gain | 2026-09-01 | ✅ |
-| M23 | **Block time handles, naive RMSE:** AOBT_3 385 · EOBT_1 677 · IOBT 740 · LOBT 740 · SCHED 2413. All of them have the same coverage (98.92%) | our own measurement | 2026-09-01 | ✅ AOBT_3 is the best by a wide margin, there is no hidden handle |
-| M24 | Despite its name `LOBT_flt` is **not the actual block time**, it is nearly identical to IOBT (740 vs 740), so it is a planned time | our own measurement | 2026-09-01 | ✅ |
-| M25 | On the holdout the **naive prediction is 531.40** and the model 377.84. The model buys **154 s** over the naive prediction | our own measurement | 2026-09-01 | ✅ the modelling effort pays for itself |
+| MF20 | The model is best at **round 328** (RMSE 377.28); by 500 rounds it degrades to 379.04. The v1 submission used 800 rounds, so it **overfitted** | early stopping run | 2026-09-01 | ✅ the round count will be lowered |
+| MF21 | **Gain distribution:** atfm 36.8% · geometry 31.5% · nm_aobt 10.4% · runway_configuration 5.9% · weather 1.8% · **runway_queue 1.6%** · **airport_flow 1.4%** | LightGBM gain | 2026-09-01 | 🔴 **the congestion features (34 of them) come to 3% in total** |
+| MF22 | The strongest single features: `reference_sec` 18.8% · `eobt_offset_sec` 16.0% · `sched_offset_sec` 15.4% · `nm_naive_taxi_sec` 10.4% · `STAND_mvt` 7.5% | LightGBM gain | 2026-09-01 | ✅ |
+| MF23 | **Block time handles, naive RMSE:** AOBT_3 385 · EOBT_1 677 · IOBT 740 · LOBT 740 · SCHED 2413. All of them have the same coverage (98.92%) | our own measurement | 2026-09-01 | ✅ AOBT_3 is the best by a wide margin, there is no hidden handle |
+| MF24 | Despite its name `LOBT_flt` is **not the actual block time**, it is nearly identical to IOBT (740 vs 740), so it is a planned time | our own measurement | 2026-09-01 | ✅ |
+| MF25 | On the holdout the **naive prediction is 531.40** and the model 377.84. The model buys **154 s** over the naive prediction | our own measurement | 2026-09-01 | ✅ the modelling effort pays for itself |
 
-| M26 | **The learner was the largest lever found so far.** Same features, same split, 400 rounds: LightGBM 378.99, XGBoost 357.80, CatBoost 353.59, XGBoost+CatBoost 351.69. The paired noise floor is ~5 s | our own measurement | 2026-09-01 | ✅ the model layer is now a port with one adapter per library |
-| M27 | **Adding LightGBM to the blend makes it worse** (357.49 for all three against 351.69 for the pair), so it contributes error rather than a different view | our own measurement | 2026-09-01 | ✅ |
-| M28 | XGBoost applies **no categorical handling at all** and still beats LightGBM by 21 s, which points at LightGBM's categorical splitting overfitting the 1,899 stands and the hashed operator | our own measurement | 2026-09-01 | ⏳ `lightgbm-nocat` will test it |
+| MF26 | **The learner was the largest lever found so far.** Same features, same split, 400 rounds: LightGBM 378.99, XGBoost 357.80, CatBoost 353.59, XGBoost+CatBoost 351.69. The paired noise floor is ~5 s | our own measurement | 2026-09-01 | ✅ the model layer is now a port with one adapter per library |
+| MF27 | **Adding LightGBM to the blend makes it worse** (357.49 for all three against 351.69 for the pair), so it contributes error rather than a different view | our own measurement | 2026-09-01 | ✅ |
+| MF28 | XGBoost applies **no categorical handling at all** and still beats LightGBM by 21 s, which points at LightGBM's categorical splitting overfitting the 1,899 stands and the hashed operator | our own measurement | 2026-09-01 | ⏳ `lightgbm-nocat` will test it |
 
 ## Open questions
 
