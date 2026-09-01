@@ -159,6 +159,9 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 | B02 | Gonderim sonrasi bucket'a **iki dosya** dusuyor: `<ad>_result.json` (skor) ve `<ad>_persist.json` (durum). Sonuc ~15 saniyede geliyor | ayni | 2026-09-01 | ✅ hizli geri bildirim, leaderboard beklemeye gerek yok |
 | B03 | Gercek hedef `prc-2026-testsets/truthing.parquet`'te tutuluyor (bize kapali) | result.json `inputs` alani | 2026-09-01 | ✅ |
 | B04 | **Yerel dogrulama board'dan KOTUMSER:** yerel 378,80 → board 331,23 (%12,6 daha iyi). Guvenli yon; yerel iyilesme board'a gecerse gecer | kendi olcumumuz | 2026-09-01 | ⏳ ikinci gonderimde iliski dogrulanacak |
+| B05 | **Canli lider tablosu REST API'de:** `https://datacomp.opensky-network.org/api/competitions/bb3693e1-26bc-4a9e-8619-4fe78b4eab0c/leaderboard` — sayfada tablo gorunmuyor, Observable ile gomulu. `scripts/leaderboard.py` ceker | dc2026/ranking.html icinden cikarildi | 2026-09-01 | ✅ |
+| B06 | **32 takim kayitli**, hepsi 2026-09-01'de. `vibrant-lollipop` Turkiye olarak listede | dc2026/teams.html | 2026-09-01 | ✅ |
+| B07 | 2026-09-01 15:35 durumu: **yalnizca 2 takim gonderim yapmis.** enthusiastic-daisy 304,98 (v2) · **vibrant-lollipop 331,23 (v1)** · enthusiastic-daisy 485,23 (v1) | leaderboard API | 2026-09-01 | ✅ lidere fark 26,25 |
 
 ## Açık sorular
 
@@ -166,5 +169,5 @@ Durumlar: ✅ doğrulandı · ⏳ veri gelince ölçülecek · ⚠️ teyit gere
 |---|------|---------------|
 | Q01 | Günlük/toplam gönderim limiti var mı? | Discord'da sor. P04 dolaylı kanıt: 2025 birincisi ~18 gönderimlik ablation yapmış, sıkı bir limit yok görünüyor |
 | Q02 | ~~`AOBT_3_flt` ne kadar iyi?~~ | **KAPANDI (R08):** %98,52 dolu, naif RMSE 384,9 sn. Guclu ozellik, cozum degil |
-| Q03 | Leaderboard canlı mı, skor ne zaman görünüyor? | İlk gönderimde ölç |
+| Q03 | ~~Leaderboard canlı mı?~~ | **KAPANDI (B02, B05):** skor ~15 sn içinde bucket'a JSON olarak düşüyor; sıralama REST API'de |
 | Q04 | ~~Takım adı ne olacak?~~ | **KAPANDI:** `vibrant-lollipop` atandı (T01) |

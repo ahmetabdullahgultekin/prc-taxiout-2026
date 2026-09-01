@@ -14,6 +14,8 @@ Sebep: sıralama seti Ocak + Temmuz 2026 — iki mevsimsel uc.
 | E02a | tam oznitelik seti, **ham** hedef | 95 oznitelik, 600 tur, 1 tohum | 423,60 / 240,80 / **378,80** | −249,6 | ✅ tut | 6b095f6 |
 | E02b | tam oznitelik seti, **ATXOT P10 artigi** | ayni | 423,94 / 240,88 / **379,09** | +0,29 | ❌ **kazanc yok** | 6b095f6 |
 | **v1** | ilk gonderim: ham hedef, 800 tur, 3 tohum | — | yerel 378,80 → **BOARD 331,23** | — | ✅ taban board skoru | 6b095f6 |
+| E03a | uc degerleri egitimden cikar (>120 dk) | −4.180 satir | 455,11 / 236,25 / **402,92** | **+24,1** | ❌ **ZARARLI** | bc3c88f |
+| E03b | uc degerleri egitimden cikar (>60 dk) | −7.249 satir | 467,53 / 249,29 / **415,07** | **+36,3** | ❌ **daha da zararli** | bc3c88f |
 
 **Yerel ↔ board iliskisi (v1).** Yerel dogrulama 378,80, board 331,23: yerel olcum
 **kotumser**, board %12,6 daha iyi. Bu guvenli yon. Muhtemel sebep 2025 Ocak/Temmuz
@@ -45,6 +47,27 @@ Toplam RMSE 378,80 ama **iki havalimani domine ediyor**:
 | LEBL | 151,1 | en kolay |
 
 Ay bazinda: **Ocak 423,6 · Temmuz 240,8**. Ocak hem daha zor hem satirlarin %71'i.
+
+### E03: uc degerleri egitimden cikarmak ZARARLI (beklenenin tersi)
+
+| esik | egitim satiri | LIRF RMSE | toplam RMSE | Δ |
+|---|---:|---:|---:|---:|
+| yok | 1.870.367 | 966,5 | **378,80** | — |
+| ≤120 dk | 1.866.187 | 1.149,4 | 402,92 | +24,1 |
+| ≤60 dk | 1.863.118 | 1.205,0 | 415,07 | +36,3 |
+
+Hipotez sunu diyordu: bu satirlar etiket hatasi, L2 kaybi tahmin edilemez gurultuyu
+kovaliyor, cikarirsak bulguya daha iyi oturur. **Yanlis cikti** ve zarar esikle birlikte
+buyuyor. LIRF'in kendi RMSE'si 966'dan 1.205'e cikiyor.
+
+Aciklamasi: satirlar hatali olsa da modele **kuyrugun var oldugunu** ogretiyorlar.
+Cikarinca model uzun taxi surelerini sistematik olarak dusuk tahmin ediyor, ve L2
+altinda buyuk bir degeri dusuk tahmin etmenin bedeli cok agir. Dogrulama kumesi tam
+kaldigi icin (board da tam) bu bedel dogrudan gorunuyor.
+
+**Karar: filtre yok.** Uc degerler egitimde kalir. Ayrica bu, hedefi kirpmanin ya da
+Huber gibi saglam bir kaybin da muhtemelen zarar verecegini soyluyor — RMSE ile
+degerlendirilirken kuyrugu gormezden gelen her sey ayni tuzaga duser.
 
 ### Uc degerlerin kaynagi: etiket hatasi
 
