@@ -58,6 +58,49 @@ prediction** (531 -> 378). Even though the gain distribution makes the congestio
 close to worthless, the model itself is clearly doing its job.
 
 
+## v3: the learner change transferred to the board
+
+| version | change | local | board |
+|---|---|---:|---:|
+| v1 | LightGBM, lr 0.05, 127 leaves, 800 rounds, 3 seeds | 378.80 | 331.23 |
+| v2 | LightGBM, lr 0.02, 255 leaves, 380 rounds, 5 seeds | ~372 | 331.80 |
+| **v3** | **XGBoost + CatBoost, 400 rounds, 1 seed** | **351.69** | **306.41** |
+
+A gain of **24.82 seconds** on the board against a locally measured 27.30. The local
+measurement predicted the board result to within 2.5 seconds, and this is the first
+change in this project for which that is true.
+
+That is worth being precise about, because the opposite has been recorded here twice.
+v2 was locally significant and did not transfer. The difference is size: v2 moved the
+score by a few seconds, inside the region where a holdout dominated by a few hundred
+rows cannot tell one model from another, while the learner change is five times the
+noise floor. Small local differences still do not carry. Large structural ones do.
+
+The board position moves from fourth to second, and the gap to the leader from 32.19
+seconds to 7.37.
+
+### What this cost and what it did not
+
+Nothing was added to the model. The features are identical, 90 of them, the split is
+identical, the target is identical. v3 uses **fewer** rounds than v1 (400 against 800)
+and **one** seed against three. The entire gain came from which library fits the trees.
+
+### A silent failure on the way
+
+The first upload of v3 never happened. `make_submission.py` printed
+
+    mc cp <file> opensky/prc-2026-<team>/
+
+and the configured alias is `prc`, not `opensky`. `mc` does not treat an unknown alias
+as an error; it reads the argument as a relative local path, creates the directory, and
+copies the file into it. It reported success. The only visible symptom was the transfer
+rate, 122 MiB/s for what should have been an upload, and no result file ever appeared.
+
+`scripts/submit.py` now performs the upload: it refuses to run unless the alias resolves
+to an https endpoint, checks the object is listed in the remote bucket afterwards, and
+polls for the score. A control that reports success without checking anything is worse
+than no control, and this is the second one found in this project.
+
 ## The learner itself was the largest lever found so far
 
 Every result up to this point was measured with LightGBM, and the choice was never

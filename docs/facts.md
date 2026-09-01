@@ -170,6 +170,9 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | B06 | **32 teams registered**, all of them on 2026-09-01. `vibrant-lollipop` is listed under Turkey | dc2026/teams.html | 2026-09-01 | ✅ |
 | B07 | State at 2026-09-01 15:35: **only 2 teams have submitted.** enthusiastic-daisy 304.98 (v2) · **vibrant-lollipop 331.23 (v1)** · enthusiastic-daisy 485.23 (v1) | leaderboard API | 2026-09-01 | ✅ 26.25 behind the leader |
 | B08 | **v2 board 331.7983** (lr 0.02, 255 leaves, 380 rounds, 5 seeds) vs **v1 331.2256**. Locally v2 was significantly better by the paired test; on the board it was 0.57 worse | bucket result.json | 2026-09-01 | ✅ **local significance does not imply board improvement** |
+| B09 | **v3 board 306.4068** (XGBoost+CatBoost, 400 rounds, 1 seed) against v1 331.2256. A gain of 24.82 s, local predicted 27.30 | result.json | 2026-09-01 | ✅ second place, 7.37 s behind the leader |
+| B10 | **A large local gain DOES transfer; a small one does not.** v2 moved a few seconds locally and lost 0.57 on the board; v3 moved 27 s locally and gained 24.8. The noise floor of ~5 s is the dividing line | v1/v2/v3 boards | 2026-09-01 | ✅ |
+| B11 | **`mc` silently turns an unknown alias into a local directory copy and reports success.** The alias is `prc`, not `opensky`; the first v3 upload never left the machine. `scripts/submit.py` now verifies the object is in the remote bucket | our own measurement | 2026-09-01 | ✅ control closed |
 
 ## Model findings (2026-09-01 measurements)
 

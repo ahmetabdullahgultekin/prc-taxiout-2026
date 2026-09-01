@@ -134,7 +134,9 @@ def main() -> None:
     for w in warnings:
         print(f"  warning: {w}")
     print(f"\nwritten: {out_path}   ({time.time() - t0:,.0f} s)")
-    print(f"upload:  mc cp {out_path} opensky/prc-2026-{args.team}/")
+    # Not a bare mc command: the alias is `prc`, and mc silently turns an unknown alias
+    # into a local directory copy that reports success. scripts/submit.py checks.
+    print(f"upload:  python scripts/submit.py --team {args.team} --version {version}")
 
 
 if __name__ == "__main__":
