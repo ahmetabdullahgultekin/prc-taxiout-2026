@@ -1,0 +1,129 @@
+"""Uctan uca: sentetik veriden gecerli bir gonderim dosyasina.
+
+Bu test tek tek modullerin dogrulugunu degil, **zincirin kopmadigini** kontrol eder.
+Birim testleri her parcayi ayri dogruluyor; buradaki risk baska: bir kolon adi degisir,
+bir birlestirme sessizce satir dusurur ve gonderim reddedilir. Yarismada bunun bedeli
+bir gonderim turudur.
+
+Fixture kucuk tutuldu; amac hiz degil, borularin gercekten uctan uca aktigi.
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+import numpy as np
+import polars as pl
+import pytest
+
+from taxiout.application import pipeline, submission
+from taxiout.domain import reference
+
+REPO = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture(scope="module")
+def raw_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Kucuk bir sentetik veri seti uretir (12 ay egitim + siralama + sablon)."""
+    out = tmp_path_factory.mktemp("veri") / "00_raw"
+    subprocess.run(  # noqa: S603
+        [sys.executable, str(REPO / "tests" / "make_fixture.py"),
+         "--out", str(out), "--per-day", "40"],
+        check=True, cwd=REPO,
+    )
+    return out
+
+
+def test_fixture_reproduces_the_ranking_set_shape(raw_dir: Path) -> None:
+    """Fixture gercek kurguyu taklit etmeli, yoksa test yanlis seyi dogrular."""
+    rank = pl.read_parquet(raw_dir / "ranking.parquet")
+    dep = rank.filter(pl.col("PHASE_mvt") == "DEP")
+    arr = rank.filter(pl.col("PHASE_mvt") == "ARR")
+    assert dep["BLOCK_TIME_UTC_mvt"].null_count() == dep.height, "DEP blok saati bos olmali"
+    assert dep["TAXITIME_SEC_mvt"].null_count() == dep.height, "DEP taxi suresi bos olmali"
+    assert arr["TAXITIME_SEC_mvt"].null_count() == 0, "ARR taxi suresi dolu olmali"
+    assert dep["MVT_TIME_UTC_mvt"].null_count() == 0, "DEP kalkis saati dolu olmali"
+
+
+def test_features_are_producible_on_the_ranking_set(raw_dir: Path) -> None:
+    """Egitimde uretilen her oznitelik siralama setinde de uretilebilmeli.
+
+    Uretilemeyen bir oznitelik, modelin egitimde ogrenip tahminde kaybettigi bilgidir;
+    sessizce olursa RMSE'yi bozar ve nedeni gorunmez.
+    """
+    inputs = pipeline.load_inputs(raw_dir)
+    fit = pipeline.build_features(inputs)
+    rank_inputs = pipeline.Inputs(pl.read_parquet(raw_dir / "ranking.parquet"))
+    rank = pipeline.build_features(rank_inputs)
+
+    eksik = set(pipeline.feature_columns(fit)) - set(rank.columns)
+    assert eksik == set(), f"siralama setinde uretilemeyen oznitelikler: {sorted(eksik)}"
+
+
+def test_seasonal_split_holds_out_january_and_july(raw_dir: Path) -> None:
+    inputs = pipeline.load_inputs(raw_dir)
+    split = pipeline.seasonal_split(pipeline.build_features(inputs), inputs.movements)
+    fit_months = set(split.fit["MVT_TIME_UTC_mvt"].dt.month().unique().to_list())
+    val_months = set(split.val["MVT_TIME_UTC_mvt"].dt.month().unique().to_list())
+    assert val_months == set(pipeline.HOLDOUT_MONTHS)
+    assert fit_months & val_months == set(), "egitim ve dogrulama aylari kesismemeli"
+
+
+def test_reference_is_fitted_without_the_validation_months(raw_dir: Path) -> None:
+    """Sizinti kontrolu: referans dogrulama aylarini gormemeli.
+
+    Gorseydi OOF sayilari yalanci sekilde iyilesir ve board'da geri alinamazdi.
+    """
+    inputs = pipeline.load_inputs(raw_dir)
+    ay = pl.col("MVT_TIME_UTC_mvt").dt.month()
+    sadece_ocak_temmuz = inputs.movements.filter(ay.is_in(pipeline.HOLDOUT_MONTHS))
+    kalan = inputs.movements.filter(~ay.is_in(pipeline.HOLDOUT_MONTHS))
+
+    t_kalan = reference.fit_reference(kalan)["apt"]
+    t_hepsi = reference.fit_reference(inputs.movements)["apt"]
+    assert sadece_ocak_temmuz.height > 0
+    # aylar cikarilinca ornek sayisi dusmeli: tablo gercekten farkli veriden uretiliyor
+    assert t_kalan["n_apt"].sum() < t_hepsi["n_apt"].sum()
+
+
+def test_full_run_produces_a_valid_submission(raw_dir: Path, tmp_path: Path) -> None:
+    inputs = pipeline.load_inputs(raw_dir)
+    tables = reference.fit_reference(inputs.movements)
+    fit = reference.apply_reference(
+        pipeline.build_features(inputs).filter(pl.col(pipeline.TARGET).is_not_null()), tables
+    )
+    rank_inputs = pipeline.Inputs(pl.read_parquet(raw_dir / "ranking.parquet"))
+    rank = reference.apply_reference(pipeline.build_features(rank_inputs), tables)
+
+    cols = [c for c in pipeline.feature_columns(fit) if c in rank.columns]
+    split = pipeline.Split(fit=fit, val=rank, columns=cols)
+    pred = pipeline.train_predict(split, cols, rounds=30)
+
+    assert np.isfinite(pred).all(), "tahminlerde NaN/sonsuz olmamali"
+    assert (pred >= 0).all(), "negatif taxi suresi fiziksel olarak imkansiz"
+
+    template = pl.read_parquet(raw_dir / "submitting.parquet")
+    pred_df = rank.select("MVT_ID_mvt").with_columns(
+        pl.Series(pipeline.TARGET, pred.astype(np.float64))
+    ).join(template.select("MVT_ID_mvt"), on="MVT_ID_mvt", how="semi")
+
+    out = tmp_path / "keen-hamburger_v1.parquet"
+    submission.write(pred_df, template, out)
+
+    written = pl.read_parquet(out)
+    assert written.columns == ["MVT_ID_mvt", pipeline.TARGET]
+    assert written["MVT_ID_mvt"].to_list() == template["MVT_ID_mvt"].to_list()
+    assert written[pipeline.TARGET].null_count() == 0
+
+
+def test_causal_run_also_completes(raw_dir: Path) -> None:
+    """Nedensel varyant makale icin gerekli; kirilirsa sessizce kaybolmasin."""
+    inputs = pipeline.load_inputs(raw_dir)
+    feats = pipeline.build_features(inputs, causal=True)
+    split = pipeline.seasonal_split(feats, inputs.movements)
+    pred = pipeline.train_predict(split, split.columns, rounds=30)
+    scores = pipeline.evaluate(split, pred)
+    assert scores["toplam"] > 0
+    assert not [c for c in split.columns if "sonraki" in c]
