@@ -111,6 +111,38 @@ def test_the_tree_agrees_with_the_definition_on_random_input() -> None:
         assert np.array_equal(d3, want3), (start, end, d3, want3)
 
 
+def test_the_derived_counters_agree_with_the_definition() -> None:
+    """D1 and D4 are assembled from other counts rather than counted directly, so they
+    are checked against a literal transcription of what they are supposed to mean.
+
+    D1: already out when this one pushed back, and gone before it left.
+    D4: pushed back during its taxi, still out when it left.
+
+    Deliberate ties again. The first two attempts at this both used D2 for a comparison
+    that needs to include equal end times, and both were wrong only where flights share
+    a timestamp, which is most of them.
+    """
+    rng = np.random.default_rng(7)
+    for _ in range(30):
+        n = int(rng.integers(2, 40))
+        start = rng.integers(0, max(3, n // 2), n)
+        end = start + rng.integers(1, max(3, n // 3), n)
+        d1, d4 = overlap._companions(start, end)
+
+        want1 = np.array([
+            sum(1 for j in range(n) if j != i
+                and start[j] < start[i] and start[i] < end[j] < end[i])
+            for i in range(n)
+        ])
+        want4 = np.array([
+            sum(1 for j in range(n) if j != i
+                and end[j] > end[i] and start[i] < start[j] < end[i])
+            for i in range(n)
+        ])
+        assert np.array_equal(d1, want1), (start, end, d1, want1)
+        assert np.array_equal(d4, want4), (start, end, d4, want4)
+
+
 def test_aircraft_sharing_an_off_block_minute_do_not_overtake_each_other() -> None:
     """Two flights push back in the same minute; one flies earlier.
 

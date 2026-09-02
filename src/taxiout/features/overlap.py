@@ -140,8 +140,52 @@ def _dominance_counts(start: np.ndarray, end: np.ndarray) -> tuple[np.ndarray, n
     )
 
 
+def _companions(
+    start: np.ndarray, end: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """D1 and D4: the queue this flight joined, and the one that formed behind it.
+
+    D1 counts aircraft that had already pushed back when this one did and took off
+    during its taxi: the queue it joined the back of. D4 counts those that pushed back
+    during its taxi and were still out when it left: the queue that formed behind it.
+
+    Both are one-dimensional counts minus a dominance count:
+
+        D1 = #{start_j < start_i, end_j < end_i} - #{end_j <= start_i}
+        D4 = #{start_i < start_j < end_i}        - #{start_j > start_i, end_j <= end_i}
+
+    The subtracted terms simplify because a flight cannot take off before it pushes
+    back: `end_j <= start_i` already implies `start_j < start_i`, and `end_j <= end_i`
+    with `start_j > start_i` already implies `start_j < end_i`.
+
+    Both shortcuts were first written with `D2` standing in for the second dominance
+    count, and both were wrong, in the same way and for the same reason. `D2` compares
+    the ends strictly, and these two need `<=`; off-block and take-off times are shared
+    by many flights, so the ties are not an edge case. `end + 1` turns `<=` into `<` for
+    the integer timestamps this is called with, which is what makes the strict routine
+    answer the non-strict question. The tests caught both.
+
+    `start` and `end` must be integers, epoch seconds, for that trick to hold.
+    """
+    # `start_j < start_i and end_j < end_i`: the sign flip turns the first comparison
+    # around so the same strict routine answers it.
+    both_earlier = _count_dominated(-start, end, -start, end)
+    gone_before = np.searchsorted(np.sort(end), start, side="right")
+
+    sorted_start = np.sort(start)
+    pushed_during = (
+        np.searchsorted(sorted_start, end, side="left")
+        - np.searchsorted(sorted_start, start, side="right")
+    )
+    later_start_not_later_end = _count_dominated(start, end + 1, start, end)
+
+    d1 = np.maximum(both_earlier - gone_before, 0)
+    d4 = np.maximum(pushed_during - later_start_not_later_end, 0)
+    return d1.astype(np.int32), d4.astype(np.int32)
+
+
 def _overtaking(dep: pl.DataFrame) -> pl.DataFrame:
-    """D2 and D3 per departure, computed within each airport."""
+    """D1 to D4 per departure, computed within each airport."""
     frames = []
     for (airport,), part in dep.group_by([APT], maintain_order=True):
         usable = part.filter(pl.col("_start").is_not_null() & pl.col("_end").is_not_null())
@@ -149,17 +193,22 @@ def _overtaking(dep: pl.DataFrame) -> pl.DataFrame:
             frames.append(part.select(Col.MVT_ID).with_columns(
                 overtaken_by=pl.lit(None, dtype=pl.Int32),
                 overtook=pl.lit(None, dtype=pl.Int32),
+                queue_ahead=pl.lit(None, dtype=pl.Int32),
+                queue_behind=pl.lit(None, dtype=pl.Int32),
             ))
             continue
         start = usable["_start"].dt.epoch("s").to_numpy().astype(np.int64)
         end = usable["_end"].dt.epoch("s").to_numpy().astype(np.int64)
         d2, d3 = _dominance_counts(start, end)
+        d1, d4 = _companions(start, end)
         frames.append(usable.select(Col.MVT_ID).with_columns(
             overtaken_by=pl.Series(d2), overtook=pl.Series(d3),
+            queue_ahead=pl.Series(d1), queue_behind=pl.Series(d4),
         ))
         _ = airport
     return pl.concat(frames, how="vertical") if frames else pl.DataFrame(
-        schema={str(Col.MVT_ID): pl.Float64, "overtaken_by": pl.Int32, "overtook": pl.Int32}
+        schema={str(Col.MVT_ID): pl.Float64, "overtaken_by": pl.Int32,
+                "overtook": pl.Int32, "queue_ahead": pl.Int32, "queue_behind": pl.Int32}
     )
 
 
@@ -234,6 +283,9 @@ def build(mvt: pl.DataFrame, dep: pl.DataFrame) -> pl.DataFrame:
     return out.with_columns(
         overtaken_by=pl.col("overtaken_by").cast(pl.Int32),
         overtook=pl.col("overtook").cast(pl.Int32),
+        queue_ahead=pl.col("queue_ahead").cast(pl.Int32),
+        queue_behind=pl.col("queue_behind").cast(pl.Int32),
+        queue_ahead_rate=(pl.col("queue_ahead") / minutes).cast(pl.Float32),
         net_overtaking=(pl.col("overtaken_by") - pl.col("overtook")).cast(pl.Int32),
         overtaken_rate=(pl.col("overtaken_by") / minutes).cast(pl.Float32),
         arrivals_inside_rate=(pl.col("arrivals_inside") / minutes).cast(pl.Float32),
@@ -244,6 +296,7 @@ def build(mvt: pl.DataFrame, dep: pl.DataFrame) -> pl.DataFrame:
             / (pl.col("overtaken_by") + pl.col("arrivals_inside")).replace(0, None)
         ).cast(pl.Float32),
     ).select(
-        Col.MVT_ID, "overtaken_by", "overtook", "net_overtaking",
-        "overtaken_rate", "arrivals_inside", "arrivals_inside_rate", "departure_share",
+        Col.MVT_ID, "overtaken_by", "overtook", "net_overtaking", "overtaken_rate",
+        "queue_ahead", "queue_behind", "queue_ahead_rate",
+        "arrivals_inside", "arrivals_inside_rate", "departure_share",
     )

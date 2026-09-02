@@ -61,6 +61,7 @@ GROUPS: dict[str, list[str]] = {
     # Manager off-block time, so unavailable to the causal model.
     "overlap": [
         r"^overtaken_by$", r"^overtook$", r"^net_overtaking$", r"^overtaken_rate$",
+        r"^queue_ahead$", r"^queue_behind$", r"^queue_ahead_rate$",
         r"^arrivals_inside$", r"^arrivals_inside_rate$", r"^departure_share$",
         r"^window_sec$",
     ],

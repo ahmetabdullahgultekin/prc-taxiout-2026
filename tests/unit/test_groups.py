@@ -52,6 +52,7 @@ PRODUCED = [
     "surface_excess_sec", "surface_excess_n",
     # overlap.build outputs
     "overtaken_by", "overtook", "net_overtaking", "overtaken_rate",
+    "queue_ahead", "queue_behind", "queue_ahead_rate",
     "arrivals_inside", "arrivals_inside_rate", "departure_share", "window_sec",
     # icing.attach outputs
     "atmap_freezing", "atmap_moisture", "frost_risk",
