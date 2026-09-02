@@ -185,6 +185,13 @@ class CatBoost:
         )
 
 
+def _segmented(inner: str):
+    """Deferred import: segmented builds its inner learners through `build` below."""
+    from taxiout.models.segmented import Segmented
+
+    return Segmented(inner)
+
+
 _REGISTRY: dict[str, type | object] = {
     "lightgbm": lambda: LightGbm(categorical=True),
     "lightgbm-nocat": lambda: LightGbm(categorical=False),
@@ -192,6 +199,10 @@ _REGISTRY: dict[str, type | object] = {
     "catboost": CatBoost,
     "catboost-d8": lambda: CatBoost(depth=8),
     "catboost-d12": lambda: CatBoost(depth=12),
+    # One model for the flights the Network Manager matched and another for the rest.
+    # 1.25 percent of rows carry 62 percent of the squared error; see models/segmented.py
+    "segmented-xgboost": lambda: _segmented("xgboost"),
+    "segmented-catboost": lambda: _segmented("catboost"),
 }
 
 
