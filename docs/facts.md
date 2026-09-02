@@ -200,6 +200,10 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | MF26 | **The learner was the largest lever found so far.** Same features, same split, 400 rounds: LightGBM 378.99, XGBoost 357.80, CatBoost 353.59, XGBoost+CatBoost 351.69. The paired noise floor is ~5 s | our own measurement | 2026-09-01 | ✅ the model layer is now a port with one adapter per library |
 | MF27 | **Adding LightGBM to the blend makes it worse** (357.49 for all three against 351.69 for the pair), so it contributes error rather than a different view | our own measurement | 2026-09-01 | ✅ |
 | MF28 | XGBoost applies **no categorical handling at all** and still beats LightGBM by 21 s, which points at LightGBM's categorical splitting overfitting the 1,899 stands and the hashed operator | our own measurement | 2026-09-01 | ⏳ `lightgbm-nocat` will test it |
+| MF29 | **The overlap counters are worth 10.76 s**, the largest feature result here. Counting who overtook this flight beats counting traffic in a window; the fixed-window families carry ~3% by comparison | our own measurement | 2026-09-02 | ✅ |
+| MF30 | **Every single overlap column costs more alone (7.5 to 12.4 s) than the family costs together (10.8)**, so they substitute for one another and the model needs several views rather than one | our own measurement | 2026-09-02 | ✅ |
+| MF31 | The window families cost **13.28 s with the overlap counters present and 1.35 without them**: the two are complementary, not substitutes | our own measurement | 2026-09-02 | ✅ both stay |
+| MF32 | **Correlation with the target does not predict marginal value in a tree.** The source paper rates `overtook` low; it is worth 10.40 s here, and the strongest single column is an arrival counter the paper also rates low | our own measurement vs Zhang et al. 2024 | 2026-09-02 | ✅ all eight shapes built |
 
 ## Open questions
 

@@ -58,6 +58,86 @@ prediction** (531 -> 378). Even though the gain distribution makes the congestio
 close to worthless, the model itself is clearly doing its job.
 
 
+## The overlap counters: the largest feature result so far
+
+Every congestion feature in this project counted movements in a fixed window around the
+flight. Zhang et al. (Applied Sciences 14(21):9968, 2024) enumerate eight ways of
+defining the overlap between one flight's taxi and another's, measure each at Shanghai
+Pudong, and report that the choice of definition matters more than the choice of model:
+their strongest counter reaches 0.81 against taxi time and the FAA-style definition,
+which is the shape our windows approximate, reaches 0.17.
+
+Measured here, same holdout, same run, XGBoost at 400 rounds:
+
+| configuration | features | RMSE |
+|---|---:|---:|
+| everything | 105 | **347.74** |
+| without the overlap family | 98 | 358.50 |
+| without the fixed-window families | 69 | 361.02 |
+| without either | 62 | 359.85 |
+
+**The overlap family is worth 10.76 seconds.** For scale, the fixed-window congestion
+families this project was designed around carried about three percent of the gain before
+this, and the whole distance between our board score and the leader's on the day this was
+measured was 47.
+
+### The two are complementary, not substitutes
+
+The window families cost 13.28 seconds when the overlap counters are present and 1.35
+when they are absent. Whatever the fixed windows carry, the model can only use it once it
+also knows who actually passed this aircraft. Both stay.
+
+### What each column is worth
+
+| removed | RMSE | cost |
+|---|---:|---:|
+| `arrivals_inside` | 360.12 | **+12.38** |
+| `overtaken_rate` | 359.69 | **+11.95** |
+| `overtaken_by` | 358.16 | +10.42 |
+| `overtook` | 358.08 | +10.40 |
+| `net_overtaking` | 356.94 | +9.20 |
+| `arrivals_inside_rate` | 355.69 | +7.95 |
+| `departure_share` | 355.28 | +7.54 |
+
+Every one of the seven costs more on its own than the family costs as a whole, which
+means they substitute heavily for one another: the model needs several views of the same
+underlying quantity and does not much mind which. That is also why dropping any single
+one looks catastrophic and dropping all seven does not.
+
+`overtaken_rate` being second is the interesting part. It is `overtaken_by` divided by
+the length of the taxi window, and the division is the point: a forty-minute taxi
+contains more of everything than an eight-minute one, so the raw count is partly
+arithmetic. The rate is what is left after that is taken out, and the model values it
+more than the count it came from.
+
+### A methodological correction
+
+The paper rates six of the eight counters "low" and only two worth having. On this data
+the departure counter it rates low, `overtook`, is worth 10.40 seconds, and the highest
+single column is an arrival counter at 12.38. **Correlation with the target is not
+marginal value inside a gradient boosted tree**, and reading the paper's ranking as a
+build order would have left four counters unwritten. All eight shapes are built.
+
+### Three bugs on the way, all of the same kind
+
+The dominance counting is arithmetic over the movement stream, which does not fail
+loudly. It returns a column of plausible integers.
+
+1. **D3 derived instead of counted.** `D2 - D3 = rank(end) - rank(start)` holds only when
+   no two flights share a timestamp. Off-block times are recorded to the minute and
+   dozens of departures share an instant, so ties are the normal case, not an edge one.
+2. **The same mistake again**, in the two counters assembled from D2, where the
+   subtracted term needs to include equal take-off times and D2 excludes them. Adding one
+   second to the integer timestamps turns the non-strict comparison into a strict one and
+   lets the audited routine answer it.
+3. **An unbounded window.** A flight whose off-block time is wrong by a day has a taxi
+   window of a day, and the first run counted 21,167 arrivals inside one window against a
+   median of 1.
+
+Each was caught by a test comparing against a literal transcription of the definition on
+inputs built to collide, not by inspection. That is now the standard for anything in this
+family.
+
 ## v4: 297.08, and how a broken feature announced itself
 
 | version | change | local | board |
