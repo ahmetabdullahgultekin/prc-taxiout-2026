@@ -56,6 +56,14 @@ GROUPS: dict[str, list[str]] = {
     # baseline right now. Both are derived from the Network Manager off-block time, so
     # they share the fate of the nm_aobt family: unavailable to the causal model.
     "surface": [r"^surface_"],
+    # Overlap counters after Zhang et al. (2024): who passed this flight during its own
+    # taxi, and which arrivals landed and parked inside its window. Needs the Network
+    # Manager off-block time, so unavailable to the causal model.
+    "overlap": [
+        r"^overtaken_by$", r"^overtook$", r"^net_overtaking$", r"^overtaken_rate$",
+        r"^arrivals_inside$", r"^arrivals_inside_rate$", r"^departure_share$",
+        r"^window_sec$",
+    ],
     # Weather: the family that carries the January de-icing regime.
     "weather": [
         r"^temperature_c$", r"^dewpoint_c$", r"^dewpoint_spread_c$", r"^visibility_km$",

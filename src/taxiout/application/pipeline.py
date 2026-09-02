@@ -25,6 +25,7 @@ from taxiout.features import (
     airport_state,
     congestion,
     groups,
+    overlap,
     routing,
     surface_delay,
     weather,
@@ -192,6 +193,7 @@ def build_features(inputs: Inputs, causal: bool = False, aobt3: bool = True) -> 
         feats = feats.join(
             surface_delay.build(mvt, feats), on=Col.MVT_ID, how="left"
         )
+        feats = feats.join(overlap.build(mvt, feats), on=Col.MVT_ID, how="left")
 
     feats = routing.build(mvt, feats, inputs.coords, anchor)
     if inputs.runways is not None:

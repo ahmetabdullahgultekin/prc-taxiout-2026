@@ -50,6 +50,9 @@ PRODUCED = [
     "surface_apt_at_pushback", "surface_apt_at_takeoff",
     "surface_rwy_at_pushback", "surface_rwy_at_takeoff",
     "surface_excess_sec", "surface_excess_n",
+    # overlap.build outputs
+    "overtaken_by", "overtook", "net_overtaking", "overtaken_rate",
+    "arrivals_inside", "arrivals_inside_rate", "departure_share", "window_sec",
 ]
 
 
