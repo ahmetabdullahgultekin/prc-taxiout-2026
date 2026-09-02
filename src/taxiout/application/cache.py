@@ -44,20 +44,34 @@ def _hash_sources() -> dict[str, str]:
 
 @dataclass
 class Cached:
+    """`fit` and `val` are the seasonal split, for experiments.
+
+    `fit_full` and `rank` are the submission pair, and they exist separately because
+    the reference table differs. The split's reference is fitted WITHOUT the holdout
+    months, so that validation does not score against a baseline that saw its own
+    answers. A submission has no such constraint and wants all of 2025. Training on one
+    reference and predicting against the other would shift every prediction by the
+    difference between them, quietly.
+    """
+
     fit: pl.DataFrame
     val: pl.DataFrame
     columns: list[str]
     rank: pl.DataFrame | None = None
+    fit_full: pl.DataFrame | None = None
 
 
 def write(directory: Path, fit: pl.DataFrame, val: pl.DataFrame,
-          columns: list[str], rank: pl.DataFrame | None = None) -> None:
+          columns: list[str], rank: pl.DataFrame | None = None,
+          fit_full: pl.DataFrame | None = None) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     fit.write_parquet(directory / "fit.parquet")
     val.write_parquet(directory / "val.parquet")
     pl.DataFrame({"column": columns}).write_parquet(directory / "columns.parquet")
     if rank is not None:
         rank.write_parquet(directory / "rank.parquet")
+    if fit_full is not None:
+        fit_full.write_parquet(directory / "fit_full.parquet")
     (directory / FINGERPRINT).write_text(
         json.dumps({"sources": _hash_sources(), "columns": columns}, indent=2),
         encoding="utf-8",
@@ -91,18 +105,20 @@ def read(directory: Path, want_rank: bool = False, force: bool = False) -> Cache
             "use it anyway. A stale cache does not fail, it quietly answers for a model "
             "that no longer exists."
         )
-    rank = None
+    rank = fit_full = None
     if want_rank:
-        rank_path = directory / "rank.parquet"
-        if not rank_path.exists():
-            raise SystemExit(
-                f"no ranking features in {directory}. Build them with "
-                "scripts/cache_features.py --ranking"
-            )
-        rank = pl.read_parquet(rank_path)
+        for name in ("rank", "fit_full"):
+            if not (directory / f"{name}.parquet").exists():
+                raise SystemExit(
+                    f"no {name} features in {directory}. Build them with "
+                    "scripts/cache_features.py --ranking"
+                )
+        rank = pl.read_parquet(directory / "rank.parquet")
+        fit_full = pl.read_parquet(directory / "fit_full.parquet")
     return Cached(
         fit=pl.read_parquet(directory / "fit.parquet"),
         val=pl.read_parquet(directory / "val.parquet"),
         columns=pl.read_parquet(directory / "columns.parquet")["column"].to_list(),
         rank=rank,
+        fit_full=fit_full,
     )

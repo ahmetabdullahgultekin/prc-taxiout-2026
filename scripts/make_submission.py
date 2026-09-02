@@ -25,7 +25,7 @@ import numpy as np
 import polars as pl
 
 from taxiout import config
-from taxiout.application import pipeline, submission
+from taxiout.application import cache, pipeline, submission
 from taxiout.domain import reference
 from taxiout.features import groups
 
@@ -47,6 +47,12 @@ def main() -> None:
                     help="feature families to drop, for ablation")
     ap.add_argument("--version", type=int, default=None,
                     help="explicit version; defaults to the next one")
+    ap.add_argument("--use-cache", action="store_true",
+                    help="load features from scripts/cache_features.py --ranking "
+                         "instead of rebuilding them, which is most of the run time")
+    ap.add_argument("--force-cache", action="store_true",
+                    help="use the cache even when its fingerprint says the feature code "
+                         "has changed since it was built")
     args = ap.parse_args()
 
     t0 = time.time()
@@ -57,28 +63,38 @@ def main() -> None:
         if not p.exists():
             raise SystemExit(f"not found: {p}")
 
-    # --- training side
-    inputs = pipeline.load_inputs(raw)
-    print(f"training movements: {inputs.movements.height:,}")
-    fit_feats = pipeline.build_features(inputs).filter(pl.col(TARGET).is_not_null())
+    if args.use_cache:
+        # Both sides come from scripts/cache_features.py --ranking. The cache carries a
+        # fingerprint of the code that built it and refuses to load when that has moved,
+        # so this cannot quietly submit a model built from features that no longer exist.
+        cached = cache.read(config.cache(args.data_dir), want_rank=True,
+                            force=args.force_cache)
+        fit = cached.fit_full
+        rank_feats = cached.rank
+        print(f"cached features: fit {fit.height:,}, ranking {rank_feats.height:,}")
+    else:
+        # --- training side
+        inputs = pipeline.load_inputs(raw)
+        print(f"training movements: {inputs.movements.height:,}")
+        fit_feats = pipeline.build_features(inputs).filter(pl.col(TARGET).is_not_null())
 
-    # reference from ALL of 2025: there is no month_num to hold out for the ranking set
-    tables = reference.fit_reference(inputs.movements)
-    fit = reference.apply_reference(fit_feats, tables)
+        # reference from ALL of 2025: there is no month_num to hold out for the ranking set
+        tables = reference.fit_reference(inputs.movements)
+        fit = reference.apply_reference(fit_feats, tables)
 
-    # --- ranking side: features come from its own movement stream
-    # the external data must be the SAME as on the training side; passed by field name
-    # because a positional call silently drops a field whenever a new one is added to
-    # Inputs (this happened once)
-    rank_inputs = pipeline.Inputs(
-        movements=pipeline.prepare_movements(pl.read_parquet(rank_path)),
-        metar=inputs.metar,
-        coords=inputs.coords,
-        runways=inputs.runways,
-        atfm_daily=inputs.atfm_daily,
-    )
-    print(f"ranking movements: {rank_inputs.movements.height:,}")
-    rank_feats = reference.apply_reference(pipeline.build_features(rank_inputs), tables)
+        # --- ranking side: features come from its own movement stream
+        # the external data must be the SAME as on the training side; passed by field
+        # name because a positional call silently drops a field whenever a new one is
+        # added to Inputs (this happened once)
+        rank_inputs = pipeline.Inputs(
+            movements=pipeline.prepare_movements(pl.read_parquet(rank_path)),
+            metar=inputs.metar,
+            coords=inputs.coords,
+            runways=inputs.runways,
+            atfm_daily=inputs.atfm_daily,
+        )
+        print(f"ranking movements: {rank_inputs.movements.height:,}")
+        rank_feats = reference.apply_reference(pipeline.build_features(rank_inputs), tables)
 
     cols = [c for c in pipeline.feature_columns(fit) if c in rank_feats.columns]
     missing = set(pipeline.feature_columns(fit)) - set(cols)
