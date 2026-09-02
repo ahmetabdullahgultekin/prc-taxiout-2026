@@ -73,6 +73,9 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | P05 | The single largest gain in 2025 was **reparameterising the target**: training on fuel *flow* instead of fuel burn (RMSE 220.56 -> 201.04), larger than any of the feature groups | PRC_2025_report.pdf §6.3 | 2026-09-01 | ✅ **our equivalent: the residual over the P10 reference instead of raw taxi-out** |
 | P06 | The 2025 winner's paper is 14 pages in JOAS preprint format: Abstract/Keywords/Abbreviations + Introduction, Data, Preprocessing, Features, Model, Results, Conclusion; the contribution is presented as **a single feature x RMSE ablation table** | PRC_2025_report.pdf | 2026-09-01 | ✅ template |
 | P07 | There is **NO trajectory (ADS-B) data in 2026**, only movement records. 2024 and 2025 required ADS-B plus OpenAP / aerodynamics expertise | dc2026/data.html | 2026-09-01 | ✅ **the field is levelled for non-aviation tabular teams** |
+| P08 | **The 2024 winners were announced at the 12th OpenSky Symposium (Hamburg, 7-8 November 2024)**, so there is a symposium after the competition where the winners are announced | search result, the page itself was not read | 2026-09-01 | ⚠️ needs confirmation for 2026 |
+| P09 | JOAS ran a **special issue** for the 2025 competition (Vol. 4 No. 3, 2026: "EUROCONTROL PRC 2025 Data Challenge"), so there is a ready publication route for the paper | journals.open.tudelft.nl/joas/issue/view/1058 | 2026-09-01 | ✅ |
+| P10 | The 2026 page **does not say how the prize is split across the top 3**; in 2025 it was 2500/1750/750. It also does not give the payment method or date | dc2026/index.html | 2026-09-01 | ⚠️ ask challenge@opensky-network.org if needed |
 | W01 | IEM ASOS/METAR covers all 11 airports, all 577 days between 2025-01-01 and 2026-07-31, 48 observations a day, less than 0.03% missing | our own download | 2026-09-01 | ✅ 306,222 rows downloaded |
 | W02 | IEM data is **public domain**, attribution appreciated | mesonet.agron.iastate.edu/disclaimer.php | 2026-09-01 | ✅ meets the prize condition |
 | W03 | Share of de-icing conditions in January 2026: **LSZH 18.0% · EHAM 13.4% · EDDM 11.2% · LTFM 9.9% · EDDF 8.3%**; LTAI/LEBL/LIRF **0%** | our own METAR analysis | 2026-09-01 | ✅ **the January error will pile up at these five airports; there is no de-icing at LTAI** |
@@ -114,6 +117,10 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | S03 | **2.08M of the 4.17M movements are departures**; 114 raw columns, 95 modellable features | our own measurement | 2026-09-01 | ⏳ to be confirmed on the real data |
 | S04 | A full ablation (13 configurations x 1500 rounds) is estimated at **~1.7 hours**, ~8.5 hours with 5 seeds | scaled from S01 | 2026-09-01 | ✅ an overnight run can be planned |
 
+## External data sources (2026-09-01 investigation)
+
+| # | Fact | Source | Checked | Status |
+|---|--------|--------|---------|-------|
 | O01 | OPDI (the open PRC + OpenSky initiative) publishes flight events derived from ADS-B; v0.0.2 includes **parking position entry/exit**, covering 2022-01 to 2026-08-08 (both ranking months) | opdi.aero/flight-event-data.html | 2026-09-01 | ✅ |
 | O02 | **Parking position events exist only at LSZH and EDDF**; there are **zero** at EHAM/LIRF/LTAI/LTFM. The reason: OPDI derives these events from OSM parking position polygons, and those polygons are missing at most airports | our own measurement, a 10-day file | 2026-09-01 | ✅ **RULED OUT** (docs/opdi_negative_result.md) |
 | O03 | **Open ADS-B ground coverage at LTFM and LTAI is nearly zero** (25 and 119 runway entries in 10 days), so any ADS-B based approach would collapse at exactly the two Turkish airports | our own measurement | 2026-09-01 | ✅ |
@@ -151,6 +158,15 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | R14 | Cold start is low: **99.46%** of the ranking combinations were seen in training; the null share for stand and runway is 0 | probe §7 | 2026-09-01 | ✅ |
 | R15 | Departure delay (actual block minus scheduled) has std **2238 s**, 24.2% of it early. The naive `MVT - SCHED` predictor gives RMSE **2412.7** | probe §8 | 2026-09-01 | ✅ SCHED is a far weaker handle than AOBT_3 |
 
+## Data quality (2026-09-01 audit)
+
+| # | Fact | Source | Checked | Status |
+|---|--------|--------|---------|-------|
+| DQ01 | **The categorical fields carry no case or whitespace variants at all** (9 fields, 1,899 stands and 269 aircraft types included). A machine-generated feed, so the human-entry cleaning playbook does not transfer | our own audit | 2026-09-01 | ✅ do not spend time on normalisation |
+| DQ02 | **Cold start is negligible:** 20 unseen stands (0.106% of ranking rows), 3 unseen aircraft types (0.005%), zero unseen runways or airports | our own audit | 2026-09-01 | ✅ |
+| DQ03 | **388 training departures have a taxi-out of zero or less** and 584 are above two hours; of the 103 above two hours with a network match, **96 (93.2%) have a plausible network time**, so the airport feed's block time is the wrong field | our own audit | 2026-09-01 | ✅ label error, not real taxi time |
+| DQ04 | **Those rows are kept on purpose.** Dropping them cost 24 and 36 s (E03). Under squared loss the optimal prediction is the conditional mean, which carries the small probability of a huge value; removing it shifts every prediction down | E03 + reasoning | 2026-09-01 | ✅ cleaner training data is measurably worse here |
+
 ## Board (submission results)
 
 | # | Fact | Source | Checked | Status |
@@ -162,22 +178,36 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | B05 | **The live leaderboard is behind a REST API:** `https://datacomp.opensky-network.org/api/competitions/bb3693e1-26bc-4a9e-8619-4fe78b4eab0c/leaderboard`. The page shows no table, it is embedded through Observable. `scripts/leaderboard.py` fetches it | extracted from dc2026/ranking.html | 2026-09-01 | ✅ |
 | B06 | **32 teams registered**, all of them on 2026-09-01. `vibrant-lollipop` is listed under Turkey | dc2026/teams.html | 2026-09-01 | ✅ |
 | B07 | State at 2026-09-01 15:35: **only 2 teams have submitted.** enthusiastic-daisy 304.98 (v2) · **vibrant-lollipop 331.23 (v1)** · enthusiastic-daisy 485.23 (v1) | leaderboard API | 2026-09-01 | ✅ 26.25 behind the leader |
-| P08 | **The 2024 winners were announced at the 12th OpenSky Symposium (Hamburg, 7-8 November 2024)**, so there is a symposium after the competition where the winners are announced | search result, the page itself was not read | 2026-09-01 | ⚠️ needs confirmation for 2026 |
-| P09 | JOAS ran a **special issue** for the 2025 competition (Vol. 4 No. 3, 2026: "EUROCONTROL PRC 2025 Data Challenge"), so there is a ready publication route for the paper | journals.open.tudelft.nl/joas/issue/view/1058 | 2026-09-01 | ✅ |
-| P10 | The 2026 page **does not say how the prize is split across the top 3**; in 2025 it was 2500/1750/750. It also does not give the payment method or date | dc2026/index.html | 2026-09-01 | ⚠️ ask challenge@opensky-network.org if needed |
+| B08 | **v2 board 331.7983** (lr 0.02, 255 leaves, 380 rounds, 5 seeds) vs **v1 331.2256**. Locally v2 was significantly better by the paired test; on the board it was 0.57 worse | bucket result.json | 2026-09-01 | ✅ **local significance does not imply board improvement** |
+| B09 | **v3 board 306.4068** (XGBoost+CatBoost, 400 rounds, 1 seed) against v1 331.2256. A gain of 24.82 s, local predicted 27.30 | result.json | 2026-09-01 | ✅ second place, 7.37 s behind the leader |
+| B10 | **A large local gain DOES transfer; a small one does not.** v2 moved a few seconds locally and lost 0.57 on the board; v3 moved 27 s locally and gained 24.8. The noise floor of ~5 s is the dividing line | v1/v2/v3 boards | 2026-09-01 | ✅ |
+| B11 | **`mc` silently turns an unknown alias into a local directory copy and reports success.** The alias is `prc`, not `opensky`; the first v3 upload never left the machine. `scripts/submit.py` now verifies the object is in the remote bucket | our own measurement | 2026-09-01 | ✅ control closed |
+| B12 | **v4 board 297.0769** (XGBoost + CatBoost depth 10, 1000 rounds, plus the two stand features) against v3 306.4068 | result.json | 2026-09-02 | ✅ third place, 22.3 s behind |
+| B13 | **75 teams registered, all on the first day; only 9 had submitted by the end of it.** In 2025, 53 of 179 registrants ever submitted, so the effective field is ~25-40 | teams/index.html, dc2025 outcome | 2026-09-02 | ✅ |
+| B14 | **The 2025 winner made about 250 ranking submissions** and refused to report cross-validation: "the RMSE from the ranking set already provide a more valuable insight". We have made 4 | resourceful-quiver repo, PRC_2025_report.pdf | 2026-09-02 | ⏳ our submission rate is far too low |
+| B15 | **v5 board 300.5141**, worse than v4's 297.0769, despite the overlap family measuring +10.76 s on the holdout | result.json | 2026-09-02 | ✅ the largest local gain here did not transfer |
+| B16 | **Board ablation, XGBoost alone, paired:** all 111 features 317.10; without the surface family 313.35; without the overlap family 310.07. **Both families hurt on the board**, by 3.75 and 7.03 s, against local gains of 5.59 and 10.76 | v6/v7/v8 | 2026-09-02 | ✅ both dropped from the submission |
+| B17 | The mechanical explanations were ruled out first: arrival block times are 0% null in the ranking set, and the counter distributions match between the two sides | our own measurement | 2026-09-02 | ✅ the features are correct, the transfer is not |
+| B18 | **With the feature cache a board probe takes 6 minutes instead of 90.** Three submissions isolated a two-variable regression in half an hour | our own measurement | 2026-09-02 | ✅ |
 
 ## Model findings (2026-09-01 measurements)
 
 | # | Fact | Source | Checked | Status |
 |---|--------|--------|---------|-------|
-| M20 | The model is best at **round 328** (RMSE 377.28); by 500 rounds it degrades to 379.04. The v1 submission used 800 rounds, so it **overfitted** | early stopping run | 2026-09-01 | ✅ the round count will be lowered |
-| M21 | **Gain distribution:** atfm 36.8% · geometry 31.5% · nm_aobt 10.4% · runway_configuration 5.9% · weather 1.8% · **runway_queue 1.6%** · **airport_flow 1.4%** | LightGBM gain | 2026-09-01 | 🔴 **the congestion features (34 of them) come to 3% in total** |
-| M22 | The strongest single features: `reference_sec` 18.8% · `eobt_offset_sec` 16.0% · `sched_offset_sec` 15.4% · `nm_naive_taxi_sec` 10.4% · `STAND_mvt` 7.5% | LightGBM gain | 2026-09-01 | ✅ |
-| M23 | **Block time handles, naive RMSE:** AOBT_3 385 · EOBT_1 677 · IOBT 740 · LOBT 740 · SCHED 2413. All of them have the same coverage (98.92%) | our own measurement | 2026-09-01 | ✅ AOBT_3 is the best by a wide margin, there is no hidden handle |
-| M24 | Despite its name `LOBT_flt` is **not the actual block time**, it is nearly identical to IOBT (740 vs 740), so it is a planned time | our own measurement | 2026-09-01 | ✅ |
-| M25 | On the holdout the **naive prediction is 531.40** and the model 377.84. The model buys **154 s** over the naive prediction | our own measurement | 2026-09-01 | ✅ the modelling effort pays for itself |
+| MF20 | The model is best at **round 328** (RMSE 377.28); by 500 rounds it degrades to 379.04. The v1 submission used 800 rounds, so it **overfitted** | early stopping run | 2026-09-01 | ✅ the round count will be lowered |
+| MF21 | **Gain distribution:** atfm 36.8% · geometry 31.5% · nm_aobt 10.4% · runway_configuration 5.9% · weather 1.8% · **runway_queue 1.6%** · **airport_flow 1.4%** | LightGBM gain | 2026-09-01 | 🔴 **the congestion features (34 of them) come to 3% in total** |
+| MF22 | The strongest single features: `reference_sec` 18.8% · `eobt_offset_sec` 16.0% · `sched_offset_sec` 15.4% · `nm_naive_taxi_sec` 10.4% · `STAND_mvt` 7.5% | LightGBM gain | 2026-09-01 | ✅ |
+| MF23 | **Block time handles, naive RMSE:** AOBT_3 385 · EOBT_1 677 · IOBT 740 · LOBT 740 · SCHED 2413. All of them have the same coverage (98.92%) | our own measurement | 2026-09-01 | ✅ AOBT_3 is the best by a wide margin, there is no hidden handle |
+| MF24 | Despite its name `LOBT_flt` is **not the actual block time**, it is nearly identical to IOBT (740 vs 740), so it is a planned time | our own measurement | 2026-09-01 | ✅ |
+| MF25 | On the holdout the **naive prediction is 531.40** and the model 377.84. The model buys **154 s** over the naive prediction | our own measurement | 2026-09-01 | ✅ the modelling effort pays for itself |
 
-| B08 | **v2 board 331.7983** (lr 0.02, 255 leaves, 380 rounds, 5 seeds) vs **v1 331.2256**. Locally v2 was significantly better by the paired test; on the board it was 0.57 worse | bucket result.json | 2026-09-01 | ✅ **local significance does not imply board improvement** |
+| MF26 | **The learner was the largest lever found so far.** Same features, same split, 400 rounds: LightGBM 378.99, XGBoost 357.80, CatBoost 353.59, XGBoost+CatBoost 351.69. The paired noise floor is ~5 s | our own measurement | 2026-09-01 | ✅ the model layer is now a port with one adapter per library |
+| MF27 | **Adding LightGBM to the blend makes it worse** (357.49 for all three against 351.69 for the pair), so it contributes error rather than a different view | our own measurement | 2026-09-01 | ✅ |
+| MF28 | XGBoost applies **no categorical handling at all** and still beats LightGBM by 21 s, which points at LightGBM's categorical splitting overfitting the 1,899 stands and the hashed operator | our own measurement | 2026-09-01 | ⏳ `lightgbm-nocat` will test it |
+| MF29 | **The overlap counters are worth 10.76 s**, the largest feature result here. Counting who overtook this flight beats counting traffic in a window; the fixed-window families carry ~3% by comparison | our own measurement | 2026-09-02 | ✅ |
+| MF30 | **Every single overlap column costs more alone (7.5 to 12.4 s) than the family costs together (10.8)**, so they substitute for one another and the model needs several views rather than one | our own measurement | 2026-09-02 | ✅ |
+| MF31 | The window families cost **13.28 s with the overlap counters present and 1.35 without them**: the two are complementary, not substitutes | our own measurement | 2026-09-02 | ✅ both stay |
+| MF32 | **Correlation with the target does not predict marginal value in a tree.** The source paper rates `overtook` low; it is worth 10.40 s here, and the strongest single column is an arrival counter the paper also rates low | our own measurement vs Zhang et al. 2024 | 2026-09-02 | ✅ all eight shapes built |
 
 ## Open questions
 

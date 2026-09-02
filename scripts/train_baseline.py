@@ -20,12 +20,12 @@ feature groups (P05). So it is measured in the first run.
 from __future__ import annotations
 
 import argparse
-import os
 import time
 from pathlib import Path
 
 import numpy as np
 
+from taxiout import config
 from taxiout.application import pipeline
 from taxiout.domain import reference
 
@@ -49,7 +49,7 @@ def report(name: str, split: pipeline.Split, pred: np.ndarray) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="seasonal validation baseline run")
-    ap.add_argument("--data-dir", default=os.environ.get("TAXIOUT_DATA_DIR", "D:/prc-taxiout-2026"))
+    ap.add_argument("--data-dir", default=str(config.DATA_DIR))
     ap.add_argument("--rounds", type=int, default=1500)
     ap.add_argument("--seeds", type=int, default=1)
     ap.add_argument("--causal", action="store_true",

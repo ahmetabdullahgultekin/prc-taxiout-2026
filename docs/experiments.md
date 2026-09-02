@@ -58,6 +58,366 @@ prediction** (531 -> 378). Even though the gain distribution makes the congestio
 close to worthless, the model itself is clearly doing its job.
 
 
+## v5: the largest local gain in the project, and it lost on the board
+
+| version | change | local | board |
+|---|---|---:|---:|
+| v4 | XGBoost + CatBoost depth 10, 92 features | - | **297.08** |
+| v5 | the same, plus the surface and overlap families, 105 features | 347.74 | 300.51 |
+
+The overlap family measured **+10.76 seconds** on the holdout, twice the noise floor and
+the largest feature result this project has produced. On the board it lost 3.4.
+
+This is the third time here that a locally significant change has failed to transfer,
+and the first time the local effect was far too large to blame on measurement. Both
+earlier cases sat inside the noise floor. This one did not.
+
+### Ruling out the mechanical explanations first
+
+Two things would have made this a bug rather than a finding, and neither holds.
+
+**Arrival block times are present in the ranking set**, zero percent null, so the arrival
+counters are computable there exactly as in training. Only departure block times are
+blanked.
+
+**The counter distributions match.** Training January 2025 against the whole ranking set:
+`overtaken_by` mean 0.99 against 1.17, `arrivals_inside` 3.92 against 4.84, medians 0
+and 3 against 0 and 4. Slightly busier in 2026, no structural break.
+
+So the features are computed correctly on both sides. The failure is in transfer.
+
+### Isolating it on the board
+
+v4 and v5 differ in two ways, not one: the overlap family was added, and the surface
+family started working. In v4 those six columns were constant zero, so they were
+effectively absent, and the fix that made them real landed between the two submissions.
+
+Three probes settled it. All XGBoost alone, 1000 rounds, the same cached features, so
+the comparison is paired:
+
+| submission | features | board |
+|---|---:|---:|
+| v6, everything | 111 | 317.10 |
+| v7, without the surface family | 105 | **313.35** |
+| v8, without the overlap family | 98 | **310.07** |
+
+**Both families hurt.** The overlap family costs 7.03 seconds on the board and the
+surface family 3.75, against local gains of 10.76 and 5.59. Same magnitudes, opposite
+signs, for two families built independently a day apart.
+
+### Why, and what it implies
+
+Both families count what happened inside the flight's own taxi window, and that window
+is `take-off minus the Network Manager off-block time`. The target is defined by a
+different clock, the airport feed's block time. So every one of these features increases
+how much the model leans on the network clock.
+
+The gap between the two clocks is stable across the months of 2025, which was measured
+early on: at Zurich it moves 17 seconds across the year, at Schiphol 22. Whether it is
+the same in January and July 2026 cannot be measured, because that is the hidden target.
+A model that leans harder on the network clock is more exposed to that gap moving, and
+the holdout cannot see the exposure because the holdout is 2025.
+
+That is a coherent account of a 10-second local gain becoming a 7-second board loss, and
+it makes a prediction that can be tested: modelling the clock gap **explicitly**, rather
+than letting it hide inside features that assume it is constant, should be worth more
+than either family. That is the reparameterisation experiment.
+
+### The rule this project now works under
+
+Local validation and the board disagree in a way that is not about noise. The holdout is
+2025 predicting 2025; the board is 2025 predicting 2026. Any feature whose usefulness
+depends on a relationship holding across that year will measure well locally and can
+still lose. **Features are proposed locally and decided on the board**, and the board is
+cheap enough to use that way now: with the feature cache a probe takes six minutes
+instead of ninety.
+
+## The overlap counters: the largest feature result so far
+
+Every congestion feature in this project counted movements in a fixed window around the
+flight. Zhang et al. (Applied Sciences 14(21):9968, 2024) enumerate eight ways of
+defining the overlap between one flight's taxi and another's, measure each at Shanghai
+Pudong, and report that the choice of definition matters more than the choice of model:
+their strongest counter reaches 0.81 against taxi time and the FAA-style definition,
+which is the shape our windows approximate, reaches 0.17.
+
+Measured here, same holdout, same run, XGBoost at 400 rounds:
+
+| configuration | features | RMSE |
+|---|---:|---:|
+| everything | 105 | **347.74** |
+| without the overlap family | 98 | 358.50 |
+| without the fixed-window families | 69 | 361.02 |
+| without either | 62 | 359.85 |
+
+**The overlap family is worth 10.76 seconds.** For scale, the fixed-window congestion
+families this project was designed around carried about three percent of the gain before
+this, and the whole distance between our board score and the leader's on the day this was
+measured was 47.
+
+### The two are complementary, not substitutes
+
+The window families cost 13.28 seconds when the overlap counters are present and 1.35
+when they are absent. Whatever the fixed windows carry, the model can only use it once it
+also knows who actually passed this aircraft. Both stay.
+
+### What each column is worth
+
+| removed | RMSE | cost |
+|---|---:|---:|
+| `arrivals_inside` | 360.12 | **+12.38** |
+| `overtaken_rate` | 359.69 | **+11.95** |
+| `overtaken_by` | 358.16 | +10.42 |
+| `overtook` | 358.08 | +10.40 |
+| `net_overtaking` | 356.94 | +9.20 |
+| `arrivals_inside_rate` | 355.69 | +7.95 |
+| `departure_share` | 355.28 | +7.54 |
+
+Every one of the seven costs more on its own than the family costs as a whole, which
+means they substitute heavily for one another: the model needs several views of the same
+underlying quantity and does not much mind which. That is also why dropping any single
+one looks catastrophic and dropping all seven does not.
+
+`overtaken_rate` being second is the interesting part. It is `overtaken_by` divided by
+the length of the taxi window, and the division is the point: a forty-minute taxi
+contains more of everything than an eight-minute one, so the raw count is partly
+arithmetic. The rate is what is left after that is taken out, and the model values it
+more than the count it came from.
+
+### A methodological correction
+
+The paper rates six of the eight counters "low" and only two worth having. On this data
+the departure counter it rates low, `overtook`, is worth 10.40 seconds, and the highest
+single column is an arrival counter at 12.38. **Correlation with the target is not
+marginal value inside a gradient boosted tree**, and reading the paper's ranking as a
+build order would have left four counters unwritten. All eight shapes are built.
+
+### Three bugs on the way, all of the same kind
+
+The dominance counting is arithmetic over the movement stream, which does not fail
+loudly. It returns a column of plausible integers.
+
+1. **D3 derived instead of counted.** `D2 - D3 = rank(end) - rank(start)` holds only when
+   no two flights share a timestamp. Off-block times are recorded to the minute and
+   dozens of departures share an instant, so ties are the normal case, not an edge one.
+2. **The same mistake again**, in the two counters assembled from D2, where the
+   subtracted term needs to include equal take-off times and D2 excludes them. Adding one
+   second to the integer timestamps turns the non-strict comparison into a strict one and
+   lets the audited routine answer it.
+3. **An unbounded window.** A flight whose off-block time is wrong by a day has a taxi
+   window of a day, and the first run counted 21,167 arrivals inside one window against a
+   median of 1.
+
+Each was caught by a test comparing against a literal transcription of the definition on
+inputs built to collide, not by inspection. That is now the standard for anything in this
+family.
+
+## v4: 297.08, and how a broken feature announced itself
+
+| version | change | local | board |
+|---|---|---:|---:|
+| v1 | LightGBM, 800 rounds, 3 seeds | 378.80 | 331.23 |
+| v2 | LightGBM, slower rate, wider trees | ~372 | 331.80 |
+| v3 | XGBoost + CatBoost depth 8, 400 rounds | 351.69 | 306.41 |
+| **v4** | **XGBoost + CatBoost depth 10, 1000 rounds, stand features** | - | **297.08** |
+
+Another 9.33 seconds, third place, 22.3 behind the leader. Two changes went in together,
+CatBoost depth 8 to 10 (measured at 9.4 seconds on the holdout) and the two stand
+features, so the board number does not separate them. Depth is almost certainly most of
+it.
+
+### The bug the next experiment found
+
+The surface features went in straight after v4 and were ablated. The result could not
+be true:
+
+| configuration | features | RMSE |
+|---|---:|---:|
+| everything | 98 | 359.44 |
+| without the surface family | 92 | 361.20 |
+| without `surface_apt_at_pushback` | 97 | **347.66** |
+| without `surface_apt_at_takeoff` | 97 | **347.66** |
+| without `surface_rwy_at_takeoff` | 97 | **346.75** |
+
+Removing one column improved the model by ten seconds, six times over, while removing all
+six made it worse. And two different columns gave a score identical to two decimal
+places, which cannot happen unless they hold the same values.
+
+They did. Both were zero for every row in the training set: mean 0.000, standard
+deviation 0.000, maximum 0.000.
+
+**The cause.** The surface count is the difference of two running totals, aircraft that
+have pushed back and aircraft that have taken off. The Network Manager has no off-block
+time for 1.5 percent of departures. Those flights entered the take-off total and not the
+push-back total, so the difference drifted downward by the number of unmatched flights
+seen so far. At Frankfurt over a year that reached about 46, against a real queue of
+five to twenty, and the clip at zero did the rest.
+
+Fixed by filtering to flights present in both totals. The column now reads: mean 10.08
+aircraft on the airport surface at push-back, median 9, maximum 44; per runway 6.70,
+median 6. Physically sensible for a large European airport, and the airport count is now
+never below the runway count, which it had no way of satisfying before.
+
+### What it says about the tests
+
+Ten unit tests passed throughout, including hand-counted queue scenarios. They could not
+have caught this: every fixture row had a network match, so the two totals ran over the
+same flights by construction. There is now a case with an unmatched flight, and it fails
+against the old code.
+
+That is the third time in this project that arithmetic over the movement stream has
+returned a plausible wrong number rather than an error, after the wrong movement airport
+and the unsigned counter wrap. The pattern is specific enough to name: **a feature built
+by counting does not fail, it goes quiet.** Worth checking every such column for being
+constant before trusting an ablation of it.
+
+## Data quality audit: the cleaning that is not needed
+
+The BTK Datathon playbook names lowercase-and-trim on the text categories as the largest
+easy win, because there train and test arrived in different formats and a raw category
+became noise on the test side. That check had never been run here, and this competition
+lives in its categorical fields.
+
+It found nothing, and that is the result.
+
+| field | distinct values | after strip and uppercase |
+|---|---:|---:|
+| STAND_mvt | 1,899 | 1,899 |
+| AIRCRAFT_TYPE_mvt | 269 | 269 |
+| RUNWAY_mvt | 53 | 53 |
+| the other six | unchanged | unchanged |
+
+Not one case or whitespace variant in nine fields. This is a machine-generated
+operational feed, not a form somebody typed into, and the cleaning playbook written for
+human-entered data does not transfer. Worth knowing precisely so that no more time goes
+into it.
+
+Cold start is a non-issue too. Twenty stands in the ranking set were never seen in
+training, covering 0.106 percent of its rows; three aircraft types, 0.005 percent; zero
+runways and zero airports. Rare values are similarly thin: 137 stands appear exactly once
+in training, together 0.007 percent of the rows.
+
+### Where the dirt actually is
+
+| condition | rows | share |
+|---|---:|---:|
+| taxi-out zero or negative | 388 | 0.019% |
+| taxi-out above 2 hours | 584 | 0.028% |
+| taxi-out above 6 hours | 69 | 0.003% |
+| network off-block after take-off | 1,012 | 0.049% |
+
+Of the 103 departures above two hours that the Network Manager also recorded, **96
+(93.2%) have a plausible network time**. So the taxi-out is not really twelve hours; the
+airport feed's block time is wrong for that flight.
+
+### Why they are being left alone
+
+The obvious move is to drop or correct those rows, and the evidence says not to.
+Dropping them was measured (E03) and cost 24 and 36 seconds at two thresholds, both far
+outside the noise floor, with the damage growing as the threshold rose.
+
+The reason is what RMSE optimises. Under squared loss the best prediction is the
+conditional mean, and that mean includes the small probability of a very large value.
+Removing those rows removes that mass and shifts every prediction down. Correcting the
+labels shifts them down the same way. The clock errors are unpredictable, but their
+*frequency* is not, and the metric pays for carrying it.
+
+This is worth stating plainly because it runs against the instinct that cleaner training
+data is better. Here it is measurably worse.
+
+## v3: the learner change transferred to the board
+
+| version | change | local | board |
+|---|---|---:|---:|
+| v1 | LightGBM, lr 0.05, 127 leaves, 800 rounds, 3 seeds | 378.80 | 331.23 |
+| v2 | LightGBM, lr 0.02, 255 leaves, 380 rounds, 5 seeds | ~372 | 331.80 |
+| **v3** | **XGBoost + CatBoost, 400 rounds, 1 seed** | **351.69** | **306.41** |
+
+A gain of **24.82 seconds** on the board against a locally measured 27.30. The local
+measurement predicted the board result to within 2.5 seconds, and this is the first
+change in this project for which that is true.
+
+That is worth being precise about, because the opposite has been recorded here twice.
+v2 was locally significant and did not transfer. The difference is size: v2 moved the
+score by a few seconds, inside the region where a holdout dominated by a few hundred
+rows cannot tell one model from another, while the learner change is five times the
+noise floor. Small local differences still do not carry. Large structural ones do.
+
+The board position moves from fourth to second, and the gap to the leader from 32.19
+seconds to 7.37.
+
+### What this cost and what it did not
+
+Nothing was added to the model. The features are identical, 90 of them, the split is
+identical, the target is identical. v3 uses **fewer** rounds than v1 (400 against 800)
+and **one** seed against three. The entire gain came from which library fits the trees.
+
+### A silent failure on the way
+
+The first upload of v3 never happened. `make_submission.py` printed
+
+    mc cp <file> opensky/prc-2026-<team>/
+
+and the configured alias is `prc`, not `opensky`. `mc` does not treat an unknown alias
+as an error; it reads the argument as a relative local path, creates the directory, and
+copies the file into it. It reported success. The only visible symptom was the transfer
+rate, 122 MiB/s for what should have been an upload, and no result file ever appeared.
+
+`scripts/submit.py` now performs the upload: it refuses to run unless the alias resolves
+to an https endpoint, checks the object is listed in the remote bucket afterwards, and
+polls for the score. A control that reports success without checking anything is worse
+than no control, and this is the second one found in this project.
+
+## The learner itself was the largest lever found so far
+
+Every result up to this point was measured with LightGBM, and the choice was never
+tested. It should have been. Same 92 features, same split, same 400 rounds, one seed:
+
+| learner | holdout RMSE | against LightGBM | fit time |
+|---|---:|---:|---:|
+| LightGBM, categorical splits | 378.99 | - | 124 s |
+| XGBoost, categoricals as integer codes | 357.80 | **-21.19** | 149 s |
+| CatBoost, ordered target statistics | 353.59 | **-25.40** | 1074 s |
+| XGBoost + CatBoost, equal weight | **351.69** | **-27.30** | - |
+| all three, equal weight | 357.49 | -21.50 | - |
+| best searched weighting (0.0 / 0.4 / 0.6) | 351.42 | -27.57 | - |
+
+The paired noise floor on this holdout is about 5 seconds, so a 27 second gap is not
+close to a judgement call. For comparison, the entire congestion feature family, which
+this project was designed around and which took the most work, carries about 3 percent
+of the gain.
+
+**Adding LightGBM to the blend makes it worse** (357.49 against 351.69 for the pair). It
+is not contributing a different view of the data, it is contributing error.
+
+### Why
+
+The reading is that LightGBM's categorical splitting overfits the high cardinality
+fields, and there are several: 1,899 stands, a hashed aircraft operator, 11 aircraft
+types. LightGBM sorts categories by gradient statistics and splits the sorted order,
+which on a category seen a handful of times fits noise.
+
+The evidence for that reading is XGBoost. It applies **no categorical handling at all**,
+receiving the same integer codes as bare numbers, and still beats LightGBM by 21
+seconds. A learner that throws the categorical structure away should not beat one that
+models it, unless the modelling is doing harm.
+
+The prediction that follows is testable: LightGBM with the categorical declaration
+removed should close most of the gap to XGBoost. That is what `lightgbm-nocat` in
+`taxiout.models` is for, and it is the next thing to measure.
+
+### What was changed
+
+The learner is no longer hardcoded. `taxiout.models` holds a `Regressor` port with one
+adapter per library, and `train_predict` takes a `learners` tuple. The port is defined at
+the frame level rather than the matrix level on purpose: each library encodes the
+categoricals its own way, and forcing a single encoding on all three would have assumed
+away the thing being measured.
+
+The equal-weight blend is used rather than the searched weighting. The search is fitted
+on the same rows the score is read from, and the difference between them is 0.27
+seconds, inside the noise.
+
 ## v2: a local gain that did not transfer
 
 | submission | configuration | local holdout | **board** |

@@ -1,13 +1,24 @@
 name: CI
 
-# Runs on every push and pull request. The competition rules require documentation
-# sufficient to reproduce the results, so the checks that matter here are the ones a
-# reviewer would run themselves: lint, tests, and a full pipeline pass on synthetic data.
+# The competition rules require documentation sufficient to reproduce the results, so
+# the checks that matter here are the ones a reviewer would run themselves: lint, tests,
+# and a full pipeline pass on synthetic data.
+#
+# Manual trigger only, and not because the workflow is broken. Actions cannot start on
+# this account at all: every run ends in three seconds having executed zero steps, with
+# "the job was not started because your account is locked due to a billing issue". A wall
+# of red crosses on a public repository reads as broken code, which is the opposite of
+# what it means here.
+#
+# The same checks run locally instead, through `python scripts/verify.py`, in the same
+# order, and `tests/unit/test_verify_matches_ci.py` compares the two step lists so they
+# cannot drift apart. A fork with working Actions restores automatic runs by putting back
+# the two lines below the dispatch trigger.
 on:
-  push:
-    branches: ["**"]
-  pull_request:
   workflow_dispatch:
+  # push:
+  #   branches: ["**"]
+  # pull_request:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

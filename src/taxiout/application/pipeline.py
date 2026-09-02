@@ -15,44 +15,56 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import lightgbm as lgb
 import numpy as np
 import polars as pl
 
-from taxiout.domain import reference
-from taxiout.features import airport_state, congestion, groups, routing, weather
+from taxiout import models
+from taxiout.domain import reference, schema
+from taxiout.domain.schema import Col, Phase
+from taxiout.features import (
+    airport_state,
+    congestion,
+    groups,
+    overlap,
+    routing,
+    surface_delay,
+    weather,
+)
 
-TARGET = "TAXITIME_SEC_mvt"
-MVT = "MVT_TIME_UTC_mvt"
+# Column names come from taxiout.domain.schema, which is the only place they are
+# spelled out. These aliases are kept because they read better inside expressions and
+# because every script and test already imports them from here.
+TARGET = Col.TARGET
+MVT = Col.MVT_TIME
 # The airport the movement HAPPENED at. `ADEP_mvt` is not that: it is the origin of the
 # flight, so on an arrival row it names where the aircraft came from (the training set
 # has 1,582 distinct values for it). Movement airport = ADEP for DEP, ADES for ARR.
-APT = "apt_mvt"
-HOLDOUT_MONTHS = (1, 7)
+APT = schema.MOVEMENT_AIRPORT
+HOLDOUT_MONTHS = schema.RANKING_MONTHS
 
 # The ranking set does not cover the same airports in both months: all ten in January,
 # only these three in July (measured from the data, docs/facts.md R03). January is 71
 # percent of the rows and so dominates the metric. A holdout that does not mirror this
 # would make July look far more important than it is and select the wrong model.
-JULY_AIRPORTS = ("EDDF", "EGLL", "EHAM")
+JULY_AIRPORTS = schema.JULY_AIRPORTS
 
 CATEGORICAL = {
-    APT, "RUNWAY_mvt", "STAND_mvt", "AIRCRAFT_TYPE_mvt", "AIRCRAFT_TYPE_flt",
-    "WK_TBL_CAT_flt", "MARKET_SEGMENT_flt", "AIRCRAFT_OPERATOR_flt", "reference_level",
-    "dep_runways_in_use", "arr_runways_in_use",
+    APT, Col.RUNWAY, Col.STAND, Col.AIRCRAFT_TYPE, Col.AIRCRAFT_TYPE_FLT,
+    Col.WAKE_CATEGORY, Col.MARKET_SEGMENT, Col.OPERATOR, "reference_level",
+    "dep_runways_in_use", "arr_runways_in_use", "stand_pier",
 }
 
 # Columns that carry or directly give away the target. `AOBT_3_flt` and
 # `BLOCK_TIME_UTC_mvt` never become features in raw form; the derived
 # `nm_naive_taxi_sec` is built explicitly instead.
 EXCLUDED = {
-    TARGET, "BLOCK_TIME_UTC_mvt", "MVT_ID_mvt", MVT, "SCHED_TIME_UTC_mvt",
-    "FLIGHT_ID_mvt", "FLIGHT_mvt", "CALLSIGN_flt", "PHASE_mvt",
-    "LOBT_flt", "IOBT_flt", "EOBT_1_flt", "ARVT_1_flt", "AOBT_3_flt", "ARVT_3_flt",
-    "wxcodes", "skyc1", "ADES_mvt", "ADES_flt", "ADES_FILED_flt", "ADEP_flt",
+    TARGET, Col.BLOCK_TIME, Col.MVT_ID, MVT, Col.SCHED_TIME,
+    Col.FLIGHT_ID, Col.FLIGHT, Col.CALLSIGN, Col.PHASE,
+    Col.LOBT, Col.IOBT, Col.EOBT_1, Col.ARVT_1, Col.AOBT_3, Col.ARVT_3,
+    "wxcodes", "skyc1", Col.ADES, Col.ADES_FLT, Col.ADES_FILED, Col.ADEP_FLT,
     # Identical to apt_mvt on departure rows; giving the model both is redundant.
-    "ADEP_mvt",
-    "FLIGHT_RULE_mvt", "FLIGHT_RULE_flt", "FLIGHT_TYPE_flt",
+    Col.ADEP,
+    Col.FLIGHT_RULE, Col.FLIGHT_RULE_FLT, Col.FLIGHT_TYPE,
 }
 
 LGB_PARAMS = {
@@ -88,9 +100,9 @@ def prepare_movements(mvt: pl.DataFrame) -> pl.DataFrame:
     departed this airport, instead of aircraft that landed here.
     """
     return mvt.with_columns(
-        pl.when(pl.col("PHASE_mvt") == "DEP")
-        .then(pl.col("ADEP_mvt"))
-        .otherwise(pl.col("ADES_mvt"))
+        pl.when(pl.col(Col.PHASE) == Phase.DEPARTURE)
+        .then(pl.col(Col.ADEP))
+        .otherwise(pl.col(Col.ADES))
         .alias(APT)
     )
 
@@ -144,24 +156,44 @@ def build_features(inputs: Inputs, causal: bool = False, aobt3: bool = True) -> 
         weekday=pl.col(anchor).dt.weekday().cast(pl.Int8),
         month_num=month().cast(pl.Int8),
         minute_of_day=(pl.col(anchor).dt.hour() * 60 + pl.col(anchor).dt.minute()).cast(pl.Int16),
-        sched_offset_sec=(pl.col(anchor) - pl.col("SCHED_TIME_UTC_mvt")).dt.total_seconds()
+        sched_offset_sec=(pl.col(anchor) - pl.col(Col.SCHED_TIME)).dt.total_seconds()
         .cast(pl.Float32),
     )
-    if "EOBT_1_flt" in feats.columns:
+    if Col.EOBT_1 in feats.columns:
         feats = feats.with_columns(
-            eobt_offset_sec=(pl.col(anchor) - pl.col("EOBT_1_flt")).dt.total_seconds()
+            eobt_offset_sec=(pl.col(anchor) - pl.col(Col.EOBT_1)).dt.total_seconds()
             .cast(pl.Float32)
         )
-    if aobt3 and not causal and "AOBT_3_flt" in feats.columns:
+    if aobt3 and not causal and Col.AOBT_3 in feats.columns:
         # The NM M3 off-block time is an INDEPENDENT measurement of the same event as
         # the airport feed block time. It is not blanked in the ranking set, so it is a
         # legitimate feature. The causal variant cannot use it, being anchored on the
         # take-off time.
         feats = feats.with_columns(
-            nm_naive_taxi_sec=(pl.col(MVT) - pl.col("AOBT_3_flt")).dt.total_seconds()
+            nm_naive_taxi_sec=(pl.col(MVT) - pl.col(Col.AOBT_3)).dt.total_seconds()
             .cast(pl.Float32),
-            nm_matched=pl.col("AOBT_3_flt").is_not_null(),
+            nm_matched=pl.col(Col.AOBT_3).is_not_null(),
         )
+
+    # Stand identifiers are not opaque labels. At Frankfurt, Schiphol and Paris every
+    # one of them is a pier letter followed by a number (A11, B24); at Munich, Heathrow
+    # and Barcelona they are purely numeric. The letter groups stands that sit together
+    # on the same apron, and the number orders them along it, so a stand seen a handful
+    # of times still inherits the taxi distance of its neighbours. Without this the
+    # model has to learn each of the 1,899 stands on its own.
+    feats = feats.with_columns(
+        stand_pier=pl.col(Col.STAND).str.extract(r"^([A-Za-z]+)"),
+        stand_number=pl.col(Col.STAND).str.extract(r"(\d+)").cast(pl.Int32, strict=False),
+    )
+
+    if aobt3 and not causal and Col.AOBT_3 in feats.columns:
+        # The queue this flight joined, counted rather than forecast, and how far the
+        # surface is running over its own baseline. Both need the Network Manager
+        # off-block time, so the causal variant cannot have them.
+        feats = feats.join(
+            surface_delay.build(mvt, feats), on=Col.MVT_ID, how="left"
+        )
+        feats = feats.join(overlap.build(mvt, feats), on=Col.MVT_ID, how="left")
 
     feats = routing.build(mvt, feats, inputs.coords, anchor)
     if inputs.runways is not None:
@@ -274,6 +306,8 @@ def train_predict(
     rounds: int = 1500,
     residual: bool = True,
     seeds: tuple[int, ...] = (1,),
+    learners: tuple[str, ...] = ("lightgbm",),
+    weights: list[float] | None = None,
 ) -> np.ndarray:
     """Train and return predictions for the validation slice.
 
@@ -281,28 +315,28 @@ def train_predict(
     kind of re-parameterisation was last year's single largest gain, which is why it is
     measured here; on this data it made no difference.
 
-    With more than one seed, models trained on the same data and hyperparameters with
-    different seeds are averaged, which is what the 2024 winner did.
+    `learners` names the libraries to fit, from `taxiout.models`. Every named learner is
+    fitted once per seed and everything is averaged together, so seed averaging (the
+    method of the 2024 winner) and library averaging are the same operation. The default
+    is LightGBM alone for compatibility with the runs already recorded in the experiment
+    log; it is not the best choice, see the table in `taxiout.models.base`.
     """
-    x_fit, cat_idx, levels = to_matrix(split.fit, cols)
-    x_val, _, _ = to_matrix(split.val, cols, levels)
-
     ref_fit = split.fit["reference_sec"].fill_null(strategy="mean").to_numpy()
     ref_val = split.val["reference_sec"].fill_null(strategy="mean").to_numpy()
     y = split.fit[TARGET].to_numpy().astype(np.float64)
     if residual:
         y = y - ref_fit
 
-    preds = []
-    for seed in seeds:
-        params = {**LGB_PARAMS, "seed": seed, "bagging_seed": seed, "feature_fraction_seed": seed}
-        booster = lgb.train(
-            params,
-            lgb.Dataset(x_fit, label=y, feature_name=cols, categorical_feature=cat_idx),
-            num_boost_round=rounds,
-        )
-        preds.append(booster.predict(x_val))
-    pred = np.mean(preds, axis=0)
+    preds, blend_weights = [], []
+    for i, name in enumerate(learners):
+        learner = models.build(name)
+        for seed in seeds:
+            preds.append(
+                learner.fit_predict(split.fit, split.val, cols, y, rounds, seed)
+            )
+            blend_weights.append(1.0 if weights is None else weights[i] / len(seeds))
+
+    pred = models.blend(preds, blend_weights)
     if residual:
         pred = pred + ref_val
     return np.clip(pred, 0.0, None)  # a negative taxi time is physically impossible

@@ -10,8 +10,18 @@ the EUROCONTROL Performance Review Commission (PRC) and the OpenSky Network.
 
 ## Status
 
-Waiting on the team registration that grants data access. The pipeline was built before the
-data arrived and validated end to end on a synthetic fixture.
+Second on the leaderboard, **RMSE 306.41**, 7.4 seconds behind the leader. Three submissions
+so far; `docs/experiments.md` records every one of them, including the two that did not work.
+
+| version | change | local holdout | board |
+|---|---|---:|---:|
+| v1 | LightGBM, 800 rounds, 3 seeds | 378.80 | 331.23 |
+| v2 | LightGBM, slower rate, wider trees | ~372 | 331.80 |
+| **v3** | **XGBoost + CatBoost, 400 rounds, 1 seed** | **351.69** | **306.41** |
+
+v3 added nothing to the model. Same 90 features, same split, same target, fewer rounds and
+fewer seeds than v1. The entire 24.8 second gain came from which library fits the trees, a
+choice that had never been tested. See [the learner comparison](docs/experiments.md).
 
 ## Approach
 
@@ -22,8 +32,11 @@ time* indicator:
 
 The **reference component** is a faithful reimplementation of the official methodology: P10 for
 every (airport, stand, departure runway) combination, and for validity at least 10 flights at
-or below P10 (`src/taxiout/domain/reference.py`). The model learns the **residual** over that
-baseline.
+or below P10 (`src/taxiout/domain/reference.py`). The model can learn either the raw taxi-out
+time or the **residual** over that baseline; re-parameterising the target this way was the
+single largest gain reported by the 2025 winner, and on this data it makes no measurable
+difference either way. The submitted models predict the raw time and take the reference as a
+feature, where it is the strongest single one.
 
 The **queue and congestion components** are built from the movement stream. In the ranking set
 only the block time and the taxi time of departures are blanked out; the take-off time, the
@@ -42,6 +55,26 @@ The same code produces two models:
 The two can be compared on the same validation set; the difference between them is the
 information value of retrospective observability.
 
+### The learner
+
+Gradient boosting, with the library kept behind a port (`src/taxiout/models/`) rather than
+hardcoded, because the choice turned out to matter more than anything else measured here:
+
+| learner | holdout RMSE, same 92 features, 400 rounds |
+|---|---:|
+| LightGBM, categorical splits | 378.99 |
+| XGBoost, categoricals as plain integer codes | 357.80 |
+| CatBoost, ordered target statistics | 353.59 |
+| XGBoost + CatBoost, equal weight | **351.69** |
+
+The paired noise floor on this holdout is about 5 seconds, so those are real gaps. The reading
+is that LightGBM's categorical splitting overfits the high-cardinality fields, of which there
+are several: 1,899 stands, a hashed aircraft operator, 11 aircraft types. The evidence is
+XGBoost, which applies no categorical handling at all and still beats it by 21 seconds.
+
+Adding LightGBM to the blend makes it worse, so it is contributing error rather than a
+different view of the data.
+
 ## External data
 
 | Source | Licence | Used for |
@@ -56,18 +89,23 @@ Detailed rationale and licence texts: `docs/external_data.md`.
 ```bash
 PY=D:/prc-taxiout-2026/.venv/Scripts/python.exe
 $PY -m ruff check src tests scripts
-$PY -m pytest tests -q
+$PY -m pytest tests -q          # or: $PY scripts/verify.py, which runs every CI check
 ```
 
-`.github/workflows/ci.yml` runs the same two checks on every push, then drives the whole
-documented pipeline over synthetic data: fixture, probe, training and a submission file.
-That last step is the one worth having, because it checks the commands in this README
-work from a clean checkout.
+`scripts/verify.py` is the real check runner here. It runs lint, the tests, and then the
+whole documented pipeline over synthetic data (fixture, probe, training, a submission
+file), which is the step worth having, because it proves the commands in this README work
+from a clean checkout. Install it as a pre-push hook with `--install-hook`.
 
-Note that GitHub Actions is currently blocked on this account for a billing reason, so
-the workflow is present and correct but does not execute here. It runs normally in a
-fork. Until that is resolved, verification is the two commands above, run locally before
-every commit.
+`.github/workflows/ci.yml` holds the same steps and is set to manual trigger. Not because
+it is broken: **GitHub Actions cannot start on this account at all.** Every run ends in
+three seconds having executed zero steps, with *"the job was not started because your
+account is locked due to a billing issue"*. A wall of red crosses would read as broken
+code, which is the opposite of what it means, so the automatic triggers are commented out
+and a fork with working Actions restores them by uncommenting two lines.
+
+`tests/unit/test_verify_matches_ci.py` compares the two step lists, so the local runner
+cannot fall behind the workflow while looking like it covers it.
 
 ## Documents
 
@@ -94,12 +132,24 @@ $PY -m taxiout.adapters.airports --raw-dir D:/prc-taxiout-2026/00_raw
 
 # once the competition data has arrived
 $PY scripts/probe_data.py     --data-dir D:/prc-taxiout-2026   # data diagnosis
+$PY scripts/audit_data.py     --data-dir D:/prc-taxiout-2026   # data quality audit
+$PY scripts/cache_features.py --data-dir D:/prc-taxiout-2026   # build features once, reuse
 $PY scripts/train_baseline.py --data-dir D:/prc-taxiout-2026   # seasonal validation
 $PY scripts/run_ablation.py   --data-dir D:/prc-taxiout-2026   # feature family table
-$PY scripts/make_submission.py --data-dir D:/prc-taxiout-2026 --team vibrant-lollipop
+
+# the submitted configuration
+$PY scripts/make_submission.py --data-dir D:/prc-taxiout-2026 --team vibrant-lollipop \
+    --learners xgboost,catboost --rounds 400 --seeds 1 --raw-target
+$PY scripts/submit.py --team vibrant-lollipop      # uploads, verifies, prints the score
 
 $PY -m pytest tests -q
 ```
+
+`submit.py` rather than a bare `mc cp`: the alias for the OpenSky endpoint is `prc`, and `mc`
+does not treat an unknown alias as an error. It reads the argument as a relative local path,
+creates the directory, copies the file into it and reports success. One submission was lost
+that way. The script refuses to start unless the alias resolves to an https endpoint and
+confirms the object is listed in the remote bucket afterwards.
 
 A synthetic fixture, to drive the pipes without the data:
 

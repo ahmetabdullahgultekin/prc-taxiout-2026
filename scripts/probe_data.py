@@ -17,17 +17,19 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
 import polars as pl
 
-RAW_SUBDIR = "00_raw"
+from taxiout import config
+from taxiout.domain.schema import Col
+
+RAW_SUBDIR = config.RAW_DIR
 REPORT_PATH = Path("docs/data_probe_report.md")
 
-TIME_COLS = ["MVT_TIME_UTC_mvt", "BLOCK_TIME_UTC_mvt", "SCHED_TIME_UTC_mvt"]
-FLT_TIME_COLS = ["LOBT_flt", "IOBT_flt", "EOBT_1_flt", "ARVT_1_flt", "AOBT_3_flt", "ARVT_3_flt"]
+TIME_COLS = [Col.MVT_TIME, Col.BLOCK_TIME, Col.SCHED_TIME]
+FLT_TIME_COLS = [Col.LOBT, Col.IOBT, Col.EOBT_1, Col.ARVT_1, Col.AOBT_3, Col.ARVT_3]
 
 _lines: list[str] = []
 
@@ -44,7 +46,7 @@ def section(title: str) -> None:
 
 
 def resolve_data_dir(cli_value: str | None) -> Path:
-    for candidate in (cli_value, os.environ.get("TAXIOUT_DATA_DIR"), "D:/prc-taxiout-2026"):
+    for candidate in (cli_value, str(config.DATA_DIR)):
         if candidate:
             return Path(candidate)
     raise SystemExit("could not determine the data directory")

@@ -46,6 +46,17 @@ PRODUCED = [
     "arr_delay_atc_equipment_min",
     # reference.apply_reference outputs
     "reference_sec", "reference_level", "reference_sample",
+    # surface_delay.build outputs
+    "surface_apt_at_pushback", "surface_apt_at_takeoff",
+    "surface_rwy_at_pushback", "surface_rwy_at_takeoff",
+    "surface_excess_sec", "surface_excess_n",
+    # overlap.build outputs
+    "overtaken_by", "overtook", "net_overtaking", "overtaken_rate",
+    "queue_ahead", "queue_behind", "queue_ahead_rate",
+    "arrivals_inside", "arrivals_inside_rate", "departure_share", "window_sec",
+    "arrivals_landed_before", "arrivals_still_taxiing", "arrivals_spanning",
+    # icing.attach outputs
+    "atmap_freezing", "atmap_moisture", "frost_risk",
 ]
 
 

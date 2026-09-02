@@ -23,6 +23,7 @@ GROUPS: dict[str, list[str]] = {
     # Layout and the unimpeded baseline: static information, before any queueing.
     "geometry": [
         r"^apt_mvt$", r"^RUNWAY_mvt$", r"^STAND_mvt$",
+        r"^stand_pier$", r"^stand_number$",
         r"^runway_count$", r"^longest_runway_ft$", r"^mean_runway_ft$",
         r"^reference_",
     ],
@@ -51,12 +52,29 @@ GROUPS: dict[str, list[str]] = {
         r"^eobt_offset_sec$", r"^diverted$",
     ],
     "stand_turnaround": [r"^stand_turnaround_sec$"],
+    # The queue as a stock rather than a flow, and the surface running over its own
+    # baseline right now. Both are derived from the Network Manager off-block time, so
+    # they share the fate of the nm_aobt family: unavailable to the causal model.
+    "surface": [r"^surface_"],
+    # Overlap counters after Zhang et al. (2024): who passed this flight during its own
+    # taxi, and which arrivals landed and parked inside its window. Needs the Network
+    # Manager off-block time, so unavailable to the causal model.
+    "overlap": [
+        r"^overtaken_by$", r"^overtook$", r"^net_overtaking$", r"^overtaken_rate$",
+        r"^queue_ahead$", r"^queue_behind$", r"^queue_ahead_rate$",
+        r"^arrivals_inside$", r"^arrivals_inside_rate$", r"^departure_share$",
+        r"^arrivals_landed_before$", r"^arrivals_still_taxiing$", r"^arrivals_spanning$",
+        r"^window_sec$",
+    ],
     # Weather: the family that carries the January de-icing regime.
     "weather": [
         r"^temperature_c$", r"^dewpoint_c$", r"^dewpoint_spread_c$", r"^visibility_km$",
         r"^wind_ms$", r"^wind_dir_deg$", r"^precip_mm$", r"^ceiling_m$",
         r"^freezing_precip$", r"^snow$", r"^fog$", r"^thunderstorm$",
         r"^deicing_proxy$", r"^low_visibility$", r"^observation_age_min$",
+        # EUROCONTROL's own ATMAP freezing coefficient, which is the organisation that
+        # runs this competition and defines the indicator being predicted.
+        r"^atmap_freezing$", r"^atmap_moisture$", r"^frost_risk$",
     ],
     "calendar": [r"^hour$", r"^weekday$", r"^month_num$", r"^minute_of_day$"],
     "aircraft": [

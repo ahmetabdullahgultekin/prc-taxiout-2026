@@ -50,6 +50,48 @@ def test_fixture_reproduces_the_ranking_set_shape(raw_dir: Path) -> None:
     assert dep["MVT_TIME_UTC_mvt"].null_count() == 0, "DEP take-off time must be filled"
 
 
+def test_fixture_carries_both_shapes_of_stand_identifier(raw_dir: Path) -> None:
+    """Stands are lettered at some airports and bare numbers at others, in both sets.
+
+    The real data splits this way: Frankfurt, Schiphol and Paris label every stand with a
+    pier letter and a number, Munich, Heathrow and Barcelona use numbers alone. A fixture
+    with only numeric stands would leave `stand_pier` null everywhere and the pier
+    features would go untested while every test still passed. The fixture generated only
+    numeric stands until this was noticed.
+    """
+    # Grouped on apt_mvt, not ADEP_mvt: on an arrival row ADEP names where the aircraft
+    # came from, which is the mistake this project already made once.
+    mvt = pipeline.prepare_movements(
+        pl.read_parquet(sorted(raw_dir.glob("training_*.parquet"))[0])
+    )
+    shares = (
+        mvt.with_columns(pier=pl.col("STAND_mvt").str.extract(r"^([A-Za-z]+)"))
+        .group_by(pipeline.APT)
+        .agg(lettered=pl.col("pier").is_not_null().mean())
+    )["lettered"].to_list()
+    assert any(s > 0.9 for s in shares), "no airport uses lettered stands"
+    assert any(s < 0.1 for s in shares), "no airport uses purely numeric stands"
+
+
+def test_pier_and_number_are_extracted_from_the_stand(raw_dir: Path) -> None:
+    """The two geometry features really are produced, and carry what they claim to."""
+    inputs = pipeline.load_inputs(raw_dir)
+    feats = pipeline.build_features(inputs)
+    assert {"stand_pier", "stand_number"} <= set(feats.columns)
+
+    lettered = feats.filter(pl.col("stand_pier").is_not_null())
+    assert lettered.height > 0, "stand_pier is null everywhere"
+    # A lettered stand keeps its number: A11 gives pier A and number 11.
+    sample = lettered.select("STAND_mvt", "stand_pier", "stand_number").head(50)
+    for stand, pier, number in sample.iter_rows():
+        assert stand.startswith(pier)
+        assert str(number) in stand
+    # A bare numeric stand has no pier but still has a number.
+    numeric = feats.filter(pl.col("stand_pier").is_null() & pl.col("STAND_mvt").is_not_null())
+    if numeric.height:
+        assert numeric["stand_number"].null_count() == 0
+
+
 def test_features_are_producible_on_the_ranking_set(raw_dir: Path) -> None:
     """Every feature produced in training must also be producible on the ranking set.
 

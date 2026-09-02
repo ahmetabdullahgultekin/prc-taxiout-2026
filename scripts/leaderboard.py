@@ -16,8 +16,9 @@ import argparse
 import json
 import urllib.request
 
-COMPETITION_ID = "bb3693e1-26bc-4a9e-8619-4fe78b4eab0c"
-URL = f"https://datacomp.opensky-network.org/api/competitions/{COMPETITION_ID}/leaderboard"
+from taxiout import config
+
+URL = config.LEADERBOARD_URL
 UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/128.0 Safari/537.36"

@@ -17,8 +17,10 @@ from pathlib import Path
 
 import polars as pl
 
-MVT_ID = "MVT_ID_mvt"
-TARGET = "TAXITIME_SEC_mvt"
+from taxiout.domain.schema import Col
+
+MVT_ID = Col.MVT_ID
+TARGET = Col.TARGET
 
 FILENAME_RE = re.compile(r"^[a-z0-9-]+_v\d+\.parquet$")
 
@@ -45,6 +47,18 @@ def validate(pred: pl.DataFrame, template: pl.DataFrame) -> list[str]:
     dup = pred.height - pred[MVT_ID].n_unique()
     if dup:
         raise SubmissionError(f"{dup:,} duplicate {MVT_ID} values")
+
+    # The identifier arrives as a float and must leave as one. A cast to integer loses
+    # nothing visible on our side and still matches when compared here, because the
+    # comparison below is on Python values; the ranking script joins on the column as
+    # stored, and a type change there is a rejection we would not have seen coming.
+    if pred[MVT_ID].dtype != template[MVT_ID].dtype:
+        raise SubmissionError(
+            f"{MVT_ID} type changed: template has {template[MVT_ID].dtype}, "
+            f"prediction has {pred[MVT_ID].dtype}"
+        )
+    if not pred[TARGET].dtype.is_numeric():
+        raise SubmissionError(f"{TARGET} must be numeric, got {pred[TARGET].dtype}")
 
     pred_ids = set(pred[MVT_ID].to_list())
     tmpl_ids = set(template[MVT_ID].to_list())

@@ -89,9 +89,31 @@
 
 \section{Data}
 \subsection{Challenge Dataset}
-% 11 airports, all of 2025, 4,167,797 movements; the ranking set is January + July 2026.
-% For departures only the block time and the taxi time are blanked out -- describe the setup.
-% [NUMBER] departures per airport, taxi-out distribution, missingness rates
+The training set holds 4{,}167{,}797 movement records covering the whole of 2025, of
+which 2{,}085{,}047 are departures. The ranking set holds 431{,}843 records from January
+and July 2026, 215{,}876 of them departures, and those are the rows to be predicted.
+
+Ten airports appear in the data: EDDF, EDDM, EGLL, EHAM, LEBL, LEMD, LFPG, LIRF, LSZH and
+LTFM. LTAI is named in the challenge description but occurs in no row of either set.
+
+The ranking set does not cover the same airports in both months. January contains all ten
+and accounts for 71\% of the rows; July contains only EDDF, EGLL and EHAM. Any validation
+scheme that treats the two months symmetrically therefore over-weights July by a wide
+margin, and Section~\ref{sec:validation} returns to this.
+
+For departure rows the ranking set blanks two fields, the off-block time
+(\texttt{BLOCK\_TIME\_UTC\_mvt}) and the taxi-out time itself. Everything else survives:
+the take-off instant, the stand, the runway, the aircraft type, the scheduled time, and
+every arrival record untouched. The traffic surrounding a departure is thus fully
+observable, which is a direct consequence of the post-operations framing of the problem.
+
+Taxi-out averages 991\,s (16.5 minutes) with a standard deviation of 546\,s. Per-airport
+medians span a factor of nearly two, from 711\,s at LSZH to 1{,}319\,s at EGLL.
+
+The distribution is severely heavy-tailed, and this dominates everything that follows.
+Ranked by squared deviation from the mean, the ten worst departures out of two million
+carry 13.6\% of the total, the worst hundred carry 35.8\%, and the worst ten thousand,
+0.48\% of the rows, carry 53.9\%.
 
 \subsection{External Data}
 % METAR (Iowa State IEM, public domain): [NUMBER] observations, 11 airports.
@@ -99,9 +121,49 @@
 % Both are documented with their licence in docs/external_data.md.
 
 \subsection{Data Quality}
-% [NUMBER] does the identity MVT - BLOCK == TAXITIME hold
-% [NUMBER] timestamp precision per airport (is any of it HH:MM)
-% [NUMBER] the NM match rate
+The identity \texttt{MVT\_TIME} $-$ \texttt{BLOCK\_TIME} $=$ \texttt{TAXITIME} holds
+exactly on every training departure, so the three fields are internally consistent and
+timestamps are recorded to the second throughout.
+
+The categorical fields required no normalisation whatsoever. Across nine of them,
+including 1{,}899 stand identifiers and 269 aircraft types, not one value differs from
+another only by case or surrounding whitespace. Unseen categories are similarly rare:
+twenty stands in the ranking set never occur in training, covering 0.106\% of its rows,
+and three aircraft types covering 0.005\%.
+
+The labels are another matter. 388 training departures carry a taxi-out of zero or less
+and 584 exceed two hours, of which 69 exceed six. Of the 103 above two hours that the
+Network Manager also recorded, 96 (93.2\%) have a network off-block time implying a
+plausible taxi-out, which locates the error in the airport feed's block time rather than
+in the taxi-out being genuinely twelve hours long.
+
+Section~\ref{sec:outliers} reports what happens when those rows are removed, which is
+not what one would expect.
+
+\subsection{The Network Manager Off-Block Time}
+\label{sec:aobt}
+\texttt{AOBT\_3\_flt} is the Network Manager's own record of the off-block instant, an
+independent measurement of the same event the challenge blanks. It is present for 98.5\%
+of departures and, critically, \emph{it is not blanked in the ranking set}.
+
+Take-off minus this time is therefore a free estimate of taxi-out available on both sides
+of the competition, and it is by a wide margin the best of the available handles:
+
+\begin{center}
+\begin{tabular}{lr}
+\hline
+Off-block source & RMSE (s) \\
+\hline
+\texttt{AOBT\_3\_flt} (Network Manager M3) & 385 \\
+\texttt{EOBT\_1\_flt} (estimated) & 677 \\
+\texttt{IOBT\_flt} / \texttt{LOBT\_flt} & 740 \\
+Scheduled time & 2413 \\
+\hline
+\end{tabular}
+\end{center}
+
+Two of the contributions in Section~\ref{sec:surface} follow from this field being
+available rather than from any modelling choice.
 
 
 \section{Method}
@@ -118,6 +180,49 @@
 % Idris's queue variable and the circularity problem; fixed-window proxies.
 % Mapping onto the taxonomy of Wang et al. (SIFI/SCFI/AQLI/SRDI).
 % The value of the arrivals not being blanked: the taxi-in median as a live congestion signal.
+
+\subsection{The Departure Queue, Counted Rather Than Proxied}
+\label{sec:surface}
+Since Idris et al. (2002), the number of aircraft already queueing for departure has been
+the single strongest predictor of taxi-out time, and it is also the awkward one: an
+operational system must forecast it, and the published proxies are counts of movements
+within a fixed window, which measure a \emph{flow} where the theory asks for a
+\emph{stock}. Thirty departures in the preceding half hour mean something quite different
+when they are all still on the surface than when they have all left.
+
+Section~\ref{sec:aobt} removes the difficulty. With both the off-block and the take-off
+instant observable for 98.5\% of departures on both sides of the competition, the stock
+is a subtraction of two running counts,
+\begin{equation}
+Q(t) \;=\; \bigl|\{j : b_j \le t\}\bigr| \;-\; \bigl|\{j : d_j \le t\}\bigr| ,
+\end{equation}
+where $b_j$ and $d_j$ are the off-block and take-off instants of departure $j$. Evaluated
+at a flight's own off-block instant, $Q(b_i) - 1$ is the queue it joined; evaluated at its
+take-off, it says whether that queue was clearing or still building. Both are computed
+airport-wide and per runway, since a busy airport with this flight's runway idle is not a
+busy runway.
+
+\subsection{Measuring the Effect Instead of Naming the Cause}
+Meteorological features encode \emph{causes} of surface delay: freezing precipitation, low
+visibility, a de-icing proxy. The model is then left to infer the effect. The same
+observability makes the effect directly measurable instead.
+
+For departure $i$, let $\hat{\tau}_i = d_i - b_i$ be the free taxi-out estimate and
+$\tau^{(10)}_{a,r}$ the tenth percentile over its airport and runway, the same statistic
+EUROCONTROL's own indicator uses as the unimpeded baseline. Then
+\begin{equation}
+E_i \;=\; \frac{1}{|W_i|}\sum_{j \in W_i}
+          \bigl(\hat{\tau}_j - \tau^{(10)}_{a_j, r_j}\bigr),
+\qquad
+W_i = \{\, j \ne i : d_i - \Delta < d_j \le d_i,\; a_j = a_i \,\}
+\end{equation}
+with $\Delta$ thirty minutes, is how far the rest of the airport is running over its own
+unimpeded baseline at this moment. Excluding $i$ from $W_i$ is what makes the feature
+legitimate rather than a leak of its own label.
+
+Because it measures the effect, $E$ carries causes that were never encoded: a closed
+runway, an ATFM regulation, a blocked stand, a security incident. No feature naming those
+causes exists in the model, and none is needed.
 
 \subsection{Retrospective and Causal Anchoring}
 % Two anchors of the same code. Why it is legitimate: the purpose of the competition is

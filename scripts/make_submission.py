@@ -18,14 +18,14 @@ Flow:
 from __future__ import annotations
 
 import argparse
-import os
 import time
 from pathlib import Path
 
 import numpy as np
 import polars as pl
 
-from taxiout.application import pipeline, submission
+from taxiout import config
+from taxiout.application import cache, pipeline, submission
 from taxiout.domain import reference
 from taxiout.features import groups
 
@@ -34,16 +34,25 @@ TARGET = pipeline.TARGET
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="produce a ranking set submission")
-    ap.add_argument("--data-dir", default=os.environ.get("TAXIOUT_DATA_DIR", "D:/prc-taxiout-2026"))
+    ap.add_argument("--data-dir", default=str(config.DATA_DIR))
     ap.add_argument("--team", required=True, help="assigned team name, e.g. keen-hamburger")
     ap.add_argument("--rounds", type=int, default=1500)
     ap.add_argument("--seeds", type=int, default=5,
                     help="seed averaging; the method of the 2024 winner")
+    ap.add_argument("--learners", default="lightgbm",
+                    help="comma separated, from taxiout.models: lightgbm, "
+                         "lightgbm-nocat, xgboost, catboost")
     ap.add_argument("--raw-target", action="store_true")
     ap.add_argument("--drop-groups", nargs="*", default=[],
                     help="feature families to drop, for ablation")
     ap.add_argument("--version", type=int, default=None,
                     help="explicit version; defaults to the next one")
+    ap.add_argument("--use-cache", action="store_true",
+                    help="load features from scripts/cache_features.py --ranking "
+                         "instead of rebuilding them, which is most of the run time")
+    ap.add_argument("--force-cache", action="store_true",
+                    help="use the cache even when its fingerprint says the feature code "
+                         "has changed since it was built")
     args = ap.parse_args()
 
     t0 = time.time()
@@ -54,28 +63,38 @@ def main() -> None:
         if not p.exists():
             raise SystemExit(f"not found: {p}")
 
-    # --- training side
-    inputs = pipeline.load_inputs(raw)
-    print(f"training movements: {inputs.movements.height:,}")
-    fit_feats = pipeline.build_features(inputs).filter(pl.col(TARGET).is_not_null())
+    if args.use_cache:
+        # Both sides come from scripts/cache_features.py --ranking. The cache carries a
+        # fingerprint of the code that built it and refuses to load when that has moved,
+        # so this cannot quietly submit a model built from features that no longer exist.
+        cached = cache.read(config.cache(args.data_dir), want_rank=True,
+                            force=args.force_cache)
+        fit = cached.fit_full
+        rank_feats = cached.rank
+        print(f"cached features: fit {fit.height:,}, ranking {rank_feats.height:,}")
+    else:
+        # --- training side
+        inputs = pipeline.load_inputs(raw)
+        print(f"training movements: {inputs.movements.height:,}")
+        fit_feats = pipeline.build_features(inputs).filter(pl.col(TARGET).is_not_null())
 
-    # reference from ALL of 2025: there is no month_num to hold out for the ranking set
-    tables = reference.fit_reference(inputs.movements)
-    fit = reference.apply_reference(fit_feats, tables)
+        # reference from ALL of 2025: there is no month_num to hold out for the ranking set
+        tables = reference.fit_reference(inputs.movements)
+        fit = reference.apply_reference(fit_feats, tables)
 
-    # --- ranking side: features come from its own movement stream
-    # the external data must be the SAME as on the training side; passed by field name
-    # because a positional call silently drops a field whenever a new one is added to
-    # Inputs (this happened once)
-    rank_inputs = pipeline.Inputs(
-        movements=pipeline.prepare_movements(pl.read_parquet(rank_path)),
-        metar=inputs.metar,
-        coords=inputs.coords,
-        runways=inputs.runways,
-        atfm_daily=inputs.atfm_daily,
-    )
-    print(f"ranking movements: {rank_inputs.movements.height:,}")
-    rank_feats = reference.apply_reference(pipeline.build_features(rank_inputs), tables)
+        # --- ranking side: features come from its own movement stream
+        # the external data must be the SAME as on the training side; passed by field
+        # name because a positional call silently drops a field whenever a new one is
+        # added to Inputs (this happened once)
+        rank_inputs = pipeline.Inputs(
+            movements=pipeline.prepare_movements(pl.read_parquet(rank_path)),
+            metar=inputs.metar,
+            coords=inputs.coords,
+            runways=inputs.runways,
+            atfm_daily=inputs.atfm_daily,
+        )
+        print(f"ranking movements: {rank_inputs.movements.height:,}")
+        rank_feats = reference.apply_reference(pipeline.build_features(rank_inputs), tables)
 
     cols = [c for c in pipeline.feature_columns(fit) if c in rank_feats.columns]
     missing = set(pipeline.feature_columns(fit)) - set(cols)
@@ -92,10 +111,13 @@ def main() -> None:
     print(f"using {len(cols)} features")
 
     split = pipeline.Split(fit=fit, val=rank_feats, columns=cols)
+    learners = tuple(s.strip() for s in args.learners.split(",") if s.strip())
+    print(f"learners: {', '.join(learners)}  rounds: {args.rounds}  seeds: {args.seeds}")
     pred = pipeline.train_predict(
         split, cols, args.rounds,
         residual=not args.raw_target,
         seeds=tuple(range(1, args.seeds + 1)),
+        learners=learners,
     )
 
     # --- submission file
@@ -128,7 +150,9 @@ def main() -> None:
     for w in warnings:
         print(f"  warning: {w}")
     print(f"\nwritten: {out_path}   ({time.time() - t0:,.0f} s)")
-    print(f"upload:  mc cp {out_path} opensky/prc-2026-{args.team}/")
+    # Not a bare mc command: the alias is `prc`, and mc silently turns an unknown alias
+    # into a local directory copy that reports success. scripts/submit.py checks.
+    print(f"upload:  python scripts/submit.py --team {args.team} --version {version}")
 
 
 if __name__ == "__main__":
