@@ -185,6 +185,10 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | B12 | **v4 board 297.0769** (XGBoost + CatBoost depth 10, 1000 rounds, plus the two stand features) against v3 306.4068 | result.json | 2026-09-02 | ✅ third place, 22.3 s behind |
 | B13 | **75 teams registered, all on the first day; only 9 had submitted by the end of it.** In 2025, 53 of 179 registrants ever submitted, so the effective field is ~25-40 | teams/index.html, dc2025 outcome | 2026-09-02 | ✅ |
 | B14 | **The 2025 winner made about 250 ranking submissions** and refused to report cross-validation: "the RMSE from the ranking set already provide a more valuable insight". We have made 4 | resourceful-quiver repo, PRC_2025_report.pdf | 2026-09-02 | ⏳ our submission rate is far too low |
+| B15 | **v5 board 300.5141**, worse than v4's 297.0769, despite the overlap family measuring +10.76 s on the holdout | result.json | 2026-09-02 | ✅ the largest local gain here did not transfer |
+| B16 | **Board ablation, XGBoost alone, paired:** all 111 features 317.10; without the surface family 313.35; without the overlap family 310.07. **Both families hurt on the board**, by 3.75 and 7.03 s, against local gains of 5.59 and 10.76 | v6/v7/v8 | 2026-09-02 | ✅ both dropped from the submission |
+| B17 | The mechanical explanations were ruled out first: arrival block times are 0% null in the ranking set, and the counter distributions match between the two sides | our own measurement | 2026-09-02 | ✅ the features are correct, the transfer is not |
+| B18 | **With the feature cache a board probe takes 6 minutes instead of 90.** Three submissions isolated a two-variable regression in half an hour | our own measurement | 2026-09-02 | ✅ |
 
 ## Model findings (2026-09-01 measurements)
 

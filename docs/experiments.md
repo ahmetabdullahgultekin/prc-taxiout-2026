@@ -58,6 +58,80 @@ prediction** (531 -> 378). Even though the gain distribution makes the congestio
 close to worthless, the model itself is clearly doing its job.
 
 
+## v5: the largest local gain in the project, and it lost on the board
+
+| version | change | local | board |
+|---|---|---:|---:|
+| v4 | XGBoost + CatBoost depth 10, 92 features | - | **297.08** |
+| v5 | the same, plus the surface and overlap families, 105 features | 347.74 | 300.51 |
+
+The overlap family measured **+10.76 seconds** on the holdout, twice the noise floor and
+the largest feature result this project has produced. On the board it lost 3.4.
+
+This is the third time here that a locally significant change has failed to transfer,
+and the first time the local effect was far too large to blame on measurement. Both
+earlier cases sat inside the noise floor. This one did not.
+
+### Ruling out the mechanical explanations first
+
+Two things would have made this a bug rather than a finding, and neither holds.
+
+**Arrival block times are present in the ranking set**, zero percent null, so the arrival
+counters are computable there exactly as in training. Only departure block times are
+blanked.
+
+**The counter distributions match.** Training January 2025 against the whole ranking set:
+`overtaken_by` mean 0.99 against 1.17, `arrivals_inside` 3.92 against 4.84, medians 0
+and 3 against 0 and 4. Slightly busier in 2026, no structural break.
+
+So the features are computed correctly on both sides. The failure is in transfer.
+
+### Isolating it on the board
+
+v4 and v5 differ in two ways, not one: the overlap family was added, and the surface
+family started working. In v4 those six columns were constant zero, so they were
+effectively absent, and the fix that made them real landed between the two submissions.
+
+Three probes settled it. All XGBoost alone, 1000 rounds, the same cached features, so
+the comparison is paired:
+
+| submission | features | board |
+|---|---:|---:|
+| v6, everything | 111 | 317.10 |
+| v7, without the surface family | 105 | **313.35** |
+| v8, without the overlap family | 98 | **310.07** |
+
+**Both families hurt.** The overlap family costs 7.03 seconds on the board and the
+surface family 3.75, against local gains of 10.76 and 5.59. Same magnitudes, opposite
+signs, for two families built independently a day apart.
+
+### Why, and what it implies
+
+Both families count what happened inside the flight's own taxi window, and that window
+is `take-off minus the Network Manager off-block time`. The target is defined by a
+different clock, the airport feed's block time. So every one of these features increases
+how much the model leans on the network clock.
+
+The gap between the two clocks is stable across the months of 2025, which was measured
+early on: at Zurich it moves 17 seconds across the year, at Schiphol 22. Whether it is
+the same in January and July 2026 cannot be measured, because that is the hidden target.
+A model that leans harder on the network clock is more exposed to that gap moving, and
+the holdout cannot see the exposure because the holdout is 2025.
+
+That is a coherent account of a 10-second local gain becoming a 7-second board loss, and
+it makes a prediction that can be tested: modelling the clock gap **explicitly**, rather
+than letting it hide inside features that assume it is constant, should be worth more
+than either family. That is the reparameterisation experiment.
+
+### The rule this project now works under
+
+Local validation and the board disagree in a way that is not about noise. The holdout is
+2025 predicting 2025; the board is 2025 predicting 2026. Any feature whose usefulness
+depends on a relationship holding across that year will measure well locally and can
+still lose. **Features are proposed locally and decided on the board**, and the board is
+cheap enough to use that way now: with the feature cache a probe takes six minutes
+instead of ninety.
+
 ## The overlap counters: the largest feature result so far
 
 Every congestion feature in this project counted movements in a fixed window around the
