@@ -143,6 +143,37 @@ def test_the_derived_counters_agree_with_the_definition() -> None:
         assert np.array_equal(d4, want4), (start, end, d4, want4)
 
 
+def test_the_arrival_counters_agree_with_the_definition() -> None:
+    """All four arrival overlaps against literal transcriptions of what they mean.
+
+    Two derivations of the same shape were already written wrong in this module, both
+    times by using a strict comparison where the definition needs equality included.
+    These three are built the same way, so they get the same check on inputs whose
+    timestamps collide constantly.
+    """
+    rng = np.random.default_rng(11)
+    for _ in range(30):
+        n_dep = int(rng.integers(1, 20))
+        n_arr = int(rng.integers(1, 20))
+        b = rng.integers(0, 12, n_dep)
+        d = b + rng.integers(1, 8, n_dep)
+        land = rng.integers(0, 12, n_arr)
+        park = land + rng.integers(1, 8, n_arr)
+
+        a2, a1, a4, a3 = overlap._arrival_counts(b, d, land, park)
+
+        def want(rule) -> np.ndarray:
+            return np.array([
+                sum(1 for j in range(n_arr) if rule(b[i], d[i], land[j], park[j]))
+                for i in range(n_dep)
+            ])
+
+        assert np.array_equal(a2, want(lambda B, D, L, P: L > B and P < D))
+        assert np.array_equal(a1, want(lambda B, D, L, P: L < B and B < P < D))
+        assert np.array_equal(a4, want(lambda B, D, L, P: P > D and B < L < D))
+        assert np.array_equal(a3, want(lambda B, D, L, P: L < B and P > D))
+
+
 def test_aircraft_sharing_an_off_block_minute_do_not_overtake_each_other() -> None:
     """Two flights push back in the same minute; one flies earlier.
 

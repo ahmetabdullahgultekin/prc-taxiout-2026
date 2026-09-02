@@ -184,6 +184,52 @@ def _companions(
     return d1.astype(np.int32), d4.astype(np.int32)
 
 
+def _arrival_counts(
+    b: np.ndarray, d: np.ndarray, land: np.ndarray, park: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """The four ways an arrival's taxi-in can overlap a departure's taxi-out.
+
+    With `b` and `d` the departure's off-block and take-off, and `land` and `park` the
+    arrival's touchdown and in-block:
+
+        A2  landed after b, parked before d      entirely inside the window
+        A1  landed before b, parked inside       already down, parks while we taxi
+        A4  landed inside, parks after d         lands while we taxi, still moving
+        A3  landed before b, parks after d       spans the whole window
+
+    Zhang et al. measured A2 at 0.74 against taxi time and called the other three low,
+    but correlation is not marginal value in a tree: the equivalent departure counter
+    they also called low turned out to be worth ten seconds here. All four are cheap
+    once the sweep exists, so all four are built and the ablation can decide.
+
+    A1 and A4 follow the same shape as their departure counterparts, D1 and D4, and
+    carry the same hazard: the subtracted term needs `<=` where the sweep gives `<`, so
+    `+ 1` on the integer timestamps stands in for it.
+    """
+    a2 = _count_dominated(b, d, land, park)
+
+    # A1: landed before we pushed back, parked before we flew, and had not already
+    # parked by the time we pushed. `park_j <= b` implies `land_j < b` on its own.
+    landed_and_parked_earlier = _count_dominated(-b, d, -land, park)
+    parked_before_we_pushed = np.searchsorted(np.sort(park), b, side="right")
+    a1 = np.maximum(landed_and_parked_earlier - parked_before_we_pushed, 0)
+
+    # A4: landed during our taxi, still taxiing when we left.
+    sorted_land = np.sort(land)
+    landed_during = (
+        np.searchsorted(sorted_land, d, side="left")
+        - np.searchsorted(sorted_land, b, side="right")
+    )
+    a4 = np.maximum(landed_during - _count_dominated(b, d + 1, land, park), 0)
+
+    # A3: on the surface throughout, landing before us and parking after us.
+    landed_before = np.searchsorted(sorted_land, b, side="left")
+    a3 = np.maximum(landed_before - _count_dominated(-b, d + 1, -land, park), 0)
+
+    return (a2.astype(np.int32), a1.astype(np.int32),
+            a4.astype(np.int32), a3.astype(np.int32))
+
+
 def _overtaking(dep: pl.DataFrame) -> pl.DataFrame:
     """D1 to D4 per departure, computed within each airport."""
     frames = []
@@ -256,6 +302,8 @@ def build(mvt: pl.DataFrame, dep: pl.DataFrame) -> pl.DataFrame:
     # The same sweep answers this: the departure's window is the query, an arrival's
     # landing and parking instants are the point. "Landed after we pushed back and
     # parked before we flew" is exactly the dominance the routine counts.
+    arrival_cols = ("arrivals_inside", "arrivals_landed_before",
+                    "arrivals_still_taxiing", "arrivals_spanning")
     if arrivals.height:
         frames = []
         for (airport,), part in out.group_by([APT], maintain_order=True):
@@ -263,19 +311,18 @@ def build(mvt: pl.DataFrame, dep: pl.DataFrame) -> pl.DataFrame:
             here = arrivals.filter(pl.col(APT) == airport)
             if usable.height == 0 or here.height == 0:
                 frames.append(part.select(Col.MVT_ID).with_columns(
-                    arrivals_inside=pl.lit(None, dtype=pl.Int32)))
+                    **{c: pl.lit(None, dtype=pl.Int32) for c in arrival_cols}))
                 continue
-            counts = _count_dominated(
-                usable["_start"].dt.epoch("s").to_numpy().astype(np.int64),
-                usable["_end"].dt.epoch("s").to_numpy().astype(np.int64),
-                here["_land"].dt.epoch("s").to_numpy().astype(np.int64),
-                here["_park"].dt.epoch("s").to_numpy().astype(np.int64),
-            )
+            b = usable["_start"].dt.epoch("s").to_numpy().astype(np.int64)
+            d = usable["_end"].dt.epoch("s").to_numpy().astype(np.int64)
+            land = here["_land"].dt.epoch("s").to_numpy().astype(np.int64)
+            park = here["_park"].dt.epoch("s").to_numpy().astype(np.int64)
             frames.append(usable.select(Col.MVT_ID).with_columns(
-                arrivals_inside=pl.Series(counts)))
+                **{c: pl.Series(v) for c, v in
+                   zip(arrival_cols, _arrival_counts(b, d, land, park), strict=True)}))
         out = out.join(pl.concat(frames, how="vertical"), on=Col.MVT_ID, how="left")
     else:
-        out = out.with_columns(arrivals_inside=pl.lit(None, dtype=pl.Int32))
+        out = out.with_columns(**{c: pl.lit(None, dtype=pl.Int32) for c in arrival_cols})
 
     # Rates, in movements per minute of taxi window. A long taxi contains more of
     # everything; the rate is the part the window length does not already say.
@@ -289,6 +336,9 @@ def build(mvt: pl.DataFrame, dep: pl.DataFrame) -> pl.DataFrame:
         net_overtaking=(pl.col("overtaken_by") - pl.col("overtook")).cast(pl.Int32),
         overtaken_rate=(pl.col("overtaken_by") / minutes).cast(pl.Float32),
         arrivals_inside_rate=(pl.col("arrivals_inside") / minutes).cast(pl.Float32),
+        arrivals_landed_before=pl.col("arrivals_landed_before").cast(pl.Int32),
+        arrivals_still_taxiing=pl.col("arrivals_still_taxiing").cast(pl.Int32),
+        arrivals_spanning=pl.col("arrivals_spanning").cast(pl.Int32),
         # Zhang et al. report an inverted U: taxi time peaks when departures and
         # arrivals are balanced, because that is when their paths cross most.
         departure_share=(
@@ -298,5 +348,6 @@ def build(mvt: pl.DataFrame, dep: pl.DataFrame) -> pl.DataFrame:
     ).select(
         Col.MVT_ID, "overtaken_by", "overtook", "net_overtaking", "overtaken_rate",
         "queue_ahead", "queue_behind", "queue_ahead_rate",
-        "arrivals_inside", "arrivals_inside_rate", "departure_share",
+        "arrivals_inside", "arrivals_inside_rate", "arrivals_landed_before",
+        "arrivals_still_taxiing", "arrivals_spanning", "departure_share",
     )

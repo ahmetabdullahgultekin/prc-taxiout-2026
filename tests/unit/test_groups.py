@@ -54,6 +54,7 @@ PRODUCED = [
     "overtaken_by", "overtook", "net_overtaking", "overtaken_rate",
     "queue_ahead", "queue_behind", "queue_ahead_rate",
     "arrivals_inside", "arrivals_inside_rate", "departure_share", "window_sec",
+    "arrivals_landed_before", "arrivals_still_taxiing", "arrivals_spanning",
     # icing.attach outputs
     "atmap_freezing", "atmap_moisture", "frost_risk",
 ]
