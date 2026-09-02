@@ -162,10 +162,10 @@ def test_the_arrival_counters_agree_with_the_definition() -> None:
 
         a2, a1, a4, a3 = overlap._arrival_counts(b, d, land, park)
 
-        def want(rule) -> np.ndarray:
+        def want(rule, b=b, d=d, land=land, park=park) -> np.ndarray:
             return np.array([
-                sum(1 for j in range(n_arr) if rule(b[i], d[i], land[j], park[j]))
-                for i in range(n_dep)
+                sum(1 for j in range(len(land)) if rule(bi, di, land[j], park[j]))
+                for bi, di in zip(b, d, strict=True)
             ])
 
         assert np.array_equal(a2, want(lambda B, D, L, P: L > B and P < D))
