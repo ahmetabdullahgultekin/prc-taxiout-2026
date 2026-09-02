@@ -13,6 +13,7 @@ from __future__ import annotations
 import polars as pl
 
 from taxiout.domain.schema import Col
+from taxiout.features import icing
 
 MVT = Col.MVT_TIME
 # The airport the movement happened at; added by `pipeline.prepare_movements`.
@@ -53,6 +54,7 @@ def attach(dep: pl.DataFrame, metar: pl.DataFrame, anchor: str = MVT) -> pl.Data
             strategy="backward",
         )
     )
+    joined = icing.attach(joined)
     return joined.with_columns(
         observation_age_min=((pl.col(anchor) - pl.col("_observed_at")).dt.total_seconds() / 60.0)
         .cast(pl.Float32),

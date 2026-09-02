@@ -70,6 +70,9 @@ GROUPS: dict[str, list[str]] = {
         r"^wind_ms$", r"^wind_dir_deg$", r"^precip_mm$", r"^ceiling_m$",
         r"^freezing_precip$", r"^snow$", r"^fog$", r"^thunderstorm$",
         r"^deicing_proxy$", r"^low_visibility$", r"^observation_age_min$",
+        # EUROCONTROL's own ATMAP freezing coefficient, which is the organisation that
+        # runs this competition and defines the indicator being predicted.
+        r"^atmap_freezing$", r"^atmap_moisture$", r"^frost_risk$",
     ],
     "calendar": [r"^hour$", r"^weekday$", r"^month_num$", r"^minute_of_day$"],
     "aircraft": [

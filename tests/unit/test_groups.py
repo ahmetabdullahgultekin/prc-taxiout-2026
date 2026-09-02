@@ -53,6 +53,8 @@ PRODUCED = [
     # overlap.build outputs
     "overtaken_by", "overtook", "net_overtaking", "overtaken_rate",
     "arrivals_inside", "arrivals_inside_rate", "departure_share", "window_sec",
+    # icing.attach outputs
+    "atmap_freezing", "atmap_moisture", "frost_risk",
 ]
 
 
