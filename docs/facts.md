@@ -144,8 +144,8 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 |---|--------|--------|---------|-------|
 | R01 | **The data set has 10 airports, not 11. LTAI (Antalya) is ABSENT.** Not a single row in training or in ranking | our own measurement | 2026-09-01 | ✅ **the competition page says 11, the data says 10** (consistent with E03: LTAI is not in the performance scheme) |
 | R02 | **`ADEP_mvt` is NOT the airport of the movement, it is the departure airport of the flight.** Movement airport = `ADEP_mvt` for DEP, `ADES_mvt` for ARR. Training holds 1,582 distinct `ADEP_mvt` values | our own measurement | 2026-09-01 | 🔴 **bug in the code: every arrival-derived feature was grouped at the wrong airport** |
-| R03 | **The ranking set has only 3 airports in July: EDDF, EGLL, EHAM.** All 10 in January | our own measurement | 2026-09-01 | 🔴 **the validation scheme has to reflect this** |
-| R04 | Ranking set: 152,719 January departures (10 apt) + 63,157 July departures (3 apt) = **215,876**. January is **71%** of the total rows | our own measurement | 2026-09-01 | ✅ January dominates the RMSE |
+| R03 | ~~The ranking set has only 3 airports in July: EDDF, EGLL, EHAM.~~ **SUPERSEDED by R30 on 2026-09-04: the organisers completed July and it now holds all 10 airports** | our own measurement | 2026-09-05 | 🔴 **a fact with an expiry date that was written into the code as a constant; see R30** |
+| R04 | ~~Ranking set 215,876 rows, January 71% of them.~~ **SUPERSEDED by R30: 152,719 January + 192,122 July = 344,841. July is now the LARGER month at 56%** | our own measurement | 2026-09-05 | 🔴 **every conclusion that weighted January at 71% was measured on the wrong mixture** |
 | R05 | Training holds exactly **4,167,797** movements (matching the published figure), 2,085,047 of them departures | our own measurement | 2026-09-01 | ✅ |
 | R06 | The identity `MVT_TIME - BLOCK_TIME == TAXITIME` **holds exactly** (share 1.0000, maximum deviation 0 s) | probe §2 | 2026-09-01 | ✅ TAXITIME is derived, the timestamps are consistent |
 | R07 | Timestamps are at **second precision** (the share with a zero second is 1.6% to 8.4%), so there is NO HH:MM problem | probe §3 | 2026-09-01 | ✅ the M14 worry does not apply |
@@ -157,6 +157,9 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | R13 | Combination (apt, stand, runway) mean baseline: **RMSE 628.4 s**; airport mean 660.0; global mean 686.6 | probe §7 | 2026-09-01 | ✅ the level of the first submission |
 | R14 | Cold start is low: **99.46%** of the ranking combinations were seen in training; the null share for stand and runway is 0 | probe §7 | 2026-09-01 | ✅ |
 | R15 | Departure delay (actual block minus scheduled) has std **2238 s**, 24.2% of it early. The naive `MVT - SCHED` predictor gives RMSE **2412.7** | probe §8 | 2026-09-01 | ✅ SCHED is a far weaker handle than AOBT_3 |
+| R30 | **The organisers replaced the ranking set on 2026-09-04 and reset the leaderboard.** July went from 3 airports to all 10; scored departures 215,876 -> **344,841**; every old submission was erased and every team's score moved by about **+25 s** (leader 249.46 -> 277.29). Training files were untouched (still dated 2026-08-13) | bucket listing + leaderboard API | 2026-09-05 | 🔴 **we had 11 submissions and now have none; the board is a different board** |
+| R31 | The new ranking file **keeps all 431,843 old movement rows and adds 257,691**, so nothing was withdrawn. Ids are a superset | our own measurement | 2026-09-05 | ✅ features and code carry over unchanged |
+| R32 | New month mixture: January **152,719** (44.3%) + July **192,122** (55.7%). **July is now the larger month**, and R12 says July is also the higher-variance one (std 745 vs 605) | our own measurement | 2026-09-05 | 🔴 **the metric is now dominated by the harder month**; every earlier local reading weighted January at 71% |
 
 ## Data quality (2026-09-01 audit)
 

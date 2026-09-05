@@ -37,7 +37,6 @@ import polars as pl
 AIRPORTS = ["EDDF", "EDDM", "EGLL", "EHAM", "LEBL", "LEMD", "LFPG", "LIRF", "LSZH", "LTFM"]
 
 # In the ranking set July contains only these three (R03).
-JULY_AIRPORTS = ["EDDF", "EGLL", "EHAM"]
 
 # Airports outside the competition: where the arrivals come from and the departures go.
 # There are 1,582 of them in reality; a handful is enough to carry the structure.
@@ -225,7 +224,7 @@ def main() -> None:
     # the ranking set carries the real asymmetry: 10 airports in January, only 3 in July (R03)
     rank = pl.concat([
         build(datetime(2026, 1, 1), 28, args.per_day, seed=101, airports=AIRPORTS),
-        build(datetime(2026, 7, 1), 28, args.per_day // 3, seed=107, airports=JULY_AIRPORTS),
+        build(datetime(2026, 7, 1), 28, args.per_day, seed=107),
     ])
     is_dep = pl.col("PHASE_mvt") == "DEP"
     rank = rank.with_columns(

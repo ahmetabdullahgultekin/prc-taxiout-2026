@@ -128,21 +128,21 @@ def test_holdout_mirrors_the_ranking_set_shape(raw_dir: Path) -> None:
     month_num = pl.col("MVT_TIME_UTC_mvt").dt.month()
     assert set(split.val.select(month_num.unique()).to_series().to_list()) == {1, 7}
 
+    # Both ranking months hold every airport the fixture has. Until 2026-09-04 July was
+    # three airports wide and this assertion was the reverse of what it is now; the
+    # shape is checked against the real file in test_holdout_mirrors_ranking.py.
     july_apt = set(
         split.val.filter(month_num == 7)[pipeline.APT].unique().to_list()
     )
     january_apt = set(split.val.filter(month_num == 1)[pipeline.APT].unique().to_list())
-    assert july_apt <= set(pipeline.JULY_AIRPORTS), f"extra airports in July: {july_apt}"
-    assert len(january_apt) > len(july_apt), "January must be the wider month"
+    assert july_apt == january_apt, f"the two ranking months must match: {july_apt ^ january_apt}"
 
     # the rows must not overlap
     shared = set(split.fit["MVT_ID_mvt"].to_list()) & set(split.val["MVT_ID_mvt"].to_list())
     assert shared == set(), "the same movement cannot be in training and in validation"
 
-    # July airports that are not in validation must stay in training
-    july_in_fit = set(split.fit.filter(month_num == 7)[pipeline.APT].unique().to_list())
-    assert july_in_fit, "the other July airports must be in training"
-    assert not (july_in_fit & july_apt)
+    # Nothing from a ranking month may leak into training, at any airport.
+    assert split.fit.filter(month_num.is_in(pipeline.HOLDOUT_MONTHS)).height == 0
 
 
 def test_reference_is_fitted_without_the_validation_months(raw_dir: Path) -> None:

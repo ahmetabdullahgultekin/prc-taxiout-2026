@@ -41,3 +41,6 @@ docs/paper/*.run.xml
 
 # CatBoost writes a training log directory next to the working directory
 catboost_info/
+
+# scratch pages saved while reading the literature
+*.html

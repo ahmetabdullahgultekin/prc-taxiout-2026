@@ -87,7 +87,12 @@ AIRPORTS = (
     "LEMD", "LFPG", "LIRF", "LSZH", "LTFM",
 )
 
-# The ranking set is January and July 2026, but it does not cover the same airports in
-# both: all ten in January, only these three in July.
+# The ranking set is January and July 2026 at all ten airports.
+#
+# It was not always. Until 2026-09-04 July held only EDDF, EGLL and EHAM, and this file
+# carried a `JULY_AIRPORTS` constant that the validation split mirrored. The organisers
+# then completed July: 215,876 scored departures became 344,841 and every score on the
+# leaderboard moved by about 25 seconds. Nothing in the code noticed, because the shape
+# of the ranking set was written here as a literal instead of being read from the file.
+# `tests/integration/test_holdout_mirrors_ranking.py` now reads it from the file.
 RANKING_MONTHS = (1, 7)
-JULY_AIRPORTS = ("EDDF", "EGLL", "EHAM")

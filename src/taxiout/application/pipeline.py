@@ -42,12 +42,6 @@ MVT = Col.MVT_TIME
 APT = schema.MOVEMENT_AIRPORT
 HOLDOUT_MONTHS = schema.RANKING_MONTHS
 
-# The ranking set does not cover the same airports in both months: all ten in January,
-# only these three in July (measured from the data, docs/facts.md R03). January is 71
-# percent of the rows and so dominates the metric. A holdout that does not mirror this
-# would make July look far more important than it is and select the wrong model.
-JULY_AIRPORTS = schema.JULY_AIRPORTS
-
 CATEGORICAL = {
     APT, Col.RUNWAY, Col.STAND, Col.AIRCRAFT_TYPE, Col.AIRCRAFT_TYPE_FLT,
     Col.WAKE_CATEGORY, Col.MARKET_SEGMENT, Col.OPERATOR, "reference_level",
@@ -227,13 +221,14 @@ class Split:
 
 
 def holdout_mask() -> pl.Expr:
-    """The validation mask, shaped like the ranking set.
+    """The validation mask, shaped like the ranking set: January and July, all airports.
 
-    January: every airport. July: only `JULY_AIRPORTS`. Everything else trains,
-    including July at the other airports, which is also what the final model does since
-    it trains on all of 2025.
+    It used to carry an exception, because until 2026-09-04 the ranking set held only
+    three airports in July. The organisers completed July that day and the exception
+    became a distortion, so it is gone. The shape is asserted against the real ranking
+    file in `tests/integration/test_holdout_mirrors_ranking.py` rather than trusted.
     """
-    return (month() == 1) | ((month() == 7) & pl.col(APT).is_in(JULY_AIRPORTS))
+    return month().is_in(HOLDOUT_MONTHS)
 
 
 def seasonal_split(
