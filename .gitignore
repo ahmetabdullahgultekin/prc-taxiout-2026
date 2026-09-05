@@ -1,6 +1,8 @@
 # data and models live on the D: drive and never enter the repository
 data/
 *.parquet
+*.csv
+*.xlsx
 *.pkl
 *.joblib
 *.txt.gz
