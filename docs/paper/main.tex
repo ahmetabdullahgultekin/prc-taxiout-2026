@@ -27,8 +27,9 @@
 
 \addbibresource{reference.bib}
 
-% Title: a 12 word limit. Candidate -- puts the contribution first, gives the airport count.
-\title{Retrospective Taxi-Out Time Prediction at Eleven European Airports}
+% Title: a 12 word limit. The airport count was wrong here for a fortnight: the challenge
+% page says eleven and the data holds ten. The title now names the contribution instead.
+\title{What the Airport Feed Writes When It Has No Off-Block Time}
 
 \author{Ahmet Abdullah Gultekin \orcid{0000-0000-0000-0000}}
 \affiliation{Institution, City, Turkiye}
@@ -139,6 +140,55 @@ in the taxi-out being genuinely twelve hours long.
 
 Section~\ref{sec:outliers} reports what happens when those rows are removed, which is
 not what one would expect.
+
+\subsection{The Substituted Off-Block Time}
+\label{sec:substitution}
+Asking what the feed writes when it has no measurement, rather than only noting that the
+value is wrong, turns those rows from noise into signal.
+
+On 4.86\% of training departures the taxi-out equals \texttt{MVT\_TIME} $-$
+\texttt{SCHED\_TIME} to within ten seconds. Since the target is \texttt{MVT\_TIME} $-$
+\texttt{BLOCK\_TIME}, the block time on those rows \emph{is} the scheduled time, to the
+second. The difference between the two quantities has a spike at zero about five times
+its local background, so this is a mass point and not a coincidence of flights that
+happened to leave on time.
+
+The share is strongly uneven: 18.4\% at Rome Fiumicino against 1.1\% at Zurich, and
+53.8\% at Rome among flights the Network Manager never matched, where the median taxi-out
+is 7{,}436~s. It is also where the metric lives. Of the 435 training rows above two hours,
+333 are rows of this kind, and they are the rows a squared error is most sensitive to.
+
+Searching every timestamp in the file for the same identity finds one more and rules out
+the rest. Table~\ref{tab:identities} gives the counts over all 2{,}085{,}047 departures of
+2025. Only the scheduled time carries the tail.
+
+\begin{table}[ht]
+\centering
+\caption{Timestamps $X$ for which \texttt{MVT\_TIME} $- X$ equals the taxi-out to within
+ten seconds, over 2{,}085{,}047 departures in 2025.}
+\label{tab:identities}
+\begin{tabular}{lrrr}
+\hline
+$X$ & matches & share & of which $>$ 2\,h \
+\hline
+\texttt{SCHED\_TIME\_UTC\_mvt} & 100{,}049 & 4.80\% & 430 \
+\texttt{AOBT\_3\_flt}          & 171{,}944 & 8.25\% & 0 \
+\texttt{EOBT\_1\_flt}          & 121{,}580 & 5.83\% & 4 \
+\texttt{IOBT\_flt}             & 112{,}649 & 5.40\% & 14 \
+\texttt{LOBT\_flt}             & 112{,}210 & 5.38\% & 14 \
+\texttt{ARVT\_1\_flt}          & 29        & 0.00\% & 0 \
+\texttt{ARVT\_3\_flt}          & 0         & 0.00\% & 0 \
+\hline
+\end{tabular}
+\end{table}
+
+Whether the behaviour survives into the ranking period cannot be checked on its
+departures, whose block times are blanked. It can be checked on its arrivals, which are
+not. An arrival whose in-block time equals its scheduled time is the same failure at the
+other end of the turn, and it occurs on 2.31\% of arrivals in January and July 2025
+against 2.42\% in the same months of 2026, with the same shape across airports: Rome
+8.81\% then 9.74\%, Frankfurt 0.88\% then 0.79\%. The behaviour belongs to the feed and
+not to the year.
 
 \subsection{The Network Manager Off-Block Time}
 \label{sec:aobt}
