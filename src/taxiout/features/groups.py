@@ -36,7 +36,16 @@ GROUPS: dict[str, list[str]] = {
     "airport_flow": [r"^apt_dep_", r"^apt_arr_", r"^arr_dep_ratio_"],
     # Live surface congestion; computable on the ranking set too, since arrivals
     # are not blanked there.
-    "taxi_in_pressure": [r"^arr_taxi_"],
+    "taxi_in_pressure": [r"^arr_taxi_median_sec$", r"^arr_taxi_count$"],
+    # The same arrival stream read at the scale of a whole day, as a ratio to the
+    # airport's own trailing month. A level carries the airport's identity, which the
+    # airport column already carries; a ratio carries the regime, and a ratio means the
+    # same thing in 2025 and 2026. See features/regime.py for the measurement that
+    # turned this from a correction into a feature.
+    "day_regime": [
+        r"^arr_taxi_day_med_sec$", r"^arr_taxi_day_ratio$",
+        r"^arr_volume_day_ratio$", r"^arr_day_count$",
+    ],
     # Inferred runway configuration.
     "runway_configuration": [
         r"^dep_runways_in_use$", r"^arr_runways_in_use$", r"^active_runway_count$",

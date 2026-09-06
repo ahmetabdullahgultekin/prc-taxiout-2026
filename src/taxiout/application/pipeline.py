@@ -26,6 +26,7 @@ from taxiout.features import (
     congestion,
     groups,
     overlap,
+    regime,
     routing,
     surface_delay,
     weather,
@@ -188,6 +189,13 @@ def build_features(inputs: Inputs, causal: bool = False, aobt3: bool = True) -> 
             surface_delay.build(mvt, feats), on=Col.MVT_ID, how="left"
         )
         feats = feats.join(overlap.build(mvt, feats), on=Col.MVT_ID, how="left")
+
+    # What kind of day it is at this airport, read off the arrival stream. Arrivals
+    # keep their taxi-in time in the ranking set, so this is observable in the scored
+    # months on the same clock, and it is the only family that can see a runway closure
+    # or a week of snow. Available to the causal variant too: a day's arrival regime up
+    # to now is knowable at push-back.
+    feats = feats.join(regime.attach(mvt, feats), on=Col.MVT_ID, how="left")
 
     feats = routing.build(mvt, feats, inputs.coords, anchor)
     if inputs.runways is not None:
