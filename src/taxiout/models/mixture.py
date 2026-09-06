@@ -92,6 +92,7 @@ class Mixture:
         scale: float = 1.0,
         weight_mode: str = "classifier",
         folds: int = 3,
+        weight_clip: tuple[float, float] = (0.0, 1.0),
     ) -> None:
         if weight_mode not in ("classifier", "regression"):
             raise ValueError(f"unknown weight_mode {weight_mode!r}")
@@ -101,6 +102,7 @@ class Mixture:
         self.scale = scale
         self.weight_mode = weight_mode
         self.folds = folds
+        self.weight_clip = weight_clip
         self.name = f"mixture-{inner}" + ("" if weight_mode == "classifier" else "-w")
 
     def _probability(
@@ -171,7 +173,8 @@ class Mixture:
         gap = off_fit - rest_fit
         usable = np.isfinite(gap) & (np.abs(gap) > 1.0)
         target = np.zeros(len(y))
-        target[usable] = np.clip((y[usable] - rest_fit[usable]) / gap[usable], 0.0, 1.0)
+        low, high = self.weight_clip
+        target[usable] = np.clip((y[usable] - rest_fit[usable]) / gap[usable], low, high)
         sample_weight = np.where(usable, np.minimum(gap ** 2, 1e10), 0.0)
 
         x_fit, _, levels = _encode(fit, cols, pipeline.CATEGORICAL)
@@ -183,6 +186,13 @@ class Mixture:
         )
         model.fit(x_fit, target, sample_weight=sample_weight, verbose=False)
         return np.clip(np.asarray(model.predict(x_val), dtype=np.float64), 0.0, 1.0)
+
+    # The weight the model emits is always clipped to [0, 1], whatever the target was
+    # clipped to: a weight outside that range extrapolates past both candidates, which is
+    # not something either of them supports. `weight_clip` widens only the TARGET, so that
+    # a row whose truth overshoots the candidate is not recorded as if it had landed
+    # exactly on it. The fitted mean prediction sits about five percent above the truth's
+    # mean, which is the shape that a one-sided clip would produce.
 
     def fit_predict(self, fit, val, cols, y, rounds, seed):
         if OFFSET not in fit.columns or OFFSET not in val.columns:
