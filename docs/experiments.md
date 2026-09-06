@@ -669,3 +669,23 @@ Widening the tolerance does not find it either, which is the control for that re
   126 airport-months of 2025, and the sign flips per airport. It would have cut every
   Amsterdam departure in July by 140 s at the one airport whose departures move the other
   way.
+
+### The day regime does not earn its place
+
+Measured on Hetzner under the fitted-weight mixture, which is what will ship, on a cache
+built with the family present:
+
+| | features | RMSE |
+|---|---:|---:|
+| with the day regime | 97 | 358.89 |
+| without it | 92 | **358.11** |
+
+Slightly worse with it, which is inside the noise floor and therefore not evidence of
+harm, but it is certainly not evidence of value. The family stays in the code and out of
+the submissions, which is what an ablatable family is for.
+
+One thing that reading cost, worth recording: these two numbers are 358 while the same
+configuration measured 362.38 on the Windows machine. The same code, the same cache
+contents, a different core count, and XGBoost sums in a different order. Four seconds is
+larger than it sounds because a single row above two hours moves the RMSE by several
+seconds on its own. **Compare within a machine, never across one.**
