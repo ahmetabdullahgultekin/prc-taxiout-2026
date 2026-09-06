@@ -59,8 +59,28 @@ BASELINE_DAYS = 30
 MAX_TAXI_SEC = 120 * 60
 
 
+# How close an in-block time has to be to the scheduled one to count as substituted.
+# The same ten seconds `models/mixture.py` uses on the departure side, because it is the
+# same failure seen from the other end of the turn.
+SUBSTITUTION_TOLERANCE_SEC = 10.0
+
+
 def _daily_arrival_state(mvt: pl.DataFrame) -> pl.DataFrame:
-    """One row per airport-day: how the arrivals went, and how many there were."""
+    """One row per airport-day: how the arrivals went, and how often the feed gave up.
+
+    The substitution share is the interesting one. An arrival whose in-block time equals
+    its scheduled time to the second is the airport feed writing the schedule into a
+    field it had no measurement for, which is exactly what it does on the departure side
+    to produce the rows whose taxi time is a schedule offset. Departures cannot be
+    watched for it in the ranking set; arrivals can, in both years.
+
+    Whether it carries anything beyond the airport identity was measured before it was
+    built. Pooled across airport-days the two rates correlate at +0.90, but that is
+    almost entirely between airports and the airport is already a feature. Within an
+    airport, day to day, it is weak at most of them and real at some: Rome +0.44, Munich
+    +0.33, Zurich +0.26, Heathrow +0.22, against Frankfurt +0.06 and Barcelona -0.01.
+    Rome is 55 percent of the holdout's squared error, which is why this is here.
+    """
     arrivals = mvt.filter(
         (pl.col(Col.PHASE) == Phase.ARRIVAL)
         & pl.col(TAXI).is_not_null()
@@ -69,14 +89,20 @@ def _daily_arrival_state(mvt: pl.DataFrame) -> pl.DataFrame:
     if arrivals.height == 0:
         return pl.DataFrame(
             schema={APT: pl.String, "_day": pl.Date,
-                    "arr_taxi_day_med_sec": pl.Float64, "arr_taxi_day_n": pl.UInt32}
+                    "arr_taxi_day_med_sec": pl.Float64, "arr_taxi_day_n": pl.UInt32,
+                    "arr_substitution_day_rate": pl.Float64}
         )
+    substituted = (
+        (pl.col(Col.BLOCK_TIME) - pl.col(Col.SCHED_TIME)).dt.total_seconds().abs()
+        <= SUBSTITUTION_TOLERANCE_SEC
+    ) if Col.SCHED_TIME in arrivals.columns else pl.lit(None, dtype=pl.Boolean)
     return (
-        arrivals.with_columns(_day=pl.col(MVT).dt.date())
+        arrivals.with_columns(_day=pl.col(MVT).dt.date(), _sub=substituted)
         .group_by(APT, "_day")
         .agg(
             arr_taxi_day_med_sec=pl.col(TAXI).median(),
             arr_taxi_day_n=pl.len(),
+            arr_substitution_day_rate=pl.col("_sub").mean(),
         )
         .sort(APT, "_day")
     )
@@ -128,4 +154,5 @@ def attach(mvt: pl.DataFrame, dep: pl.DataFrame) -> pl.DataFrame:
         pl.col("arr_taxi_day_ratio").cast(pl.Float32),
         pl.col("arr_volume_day_ratio").cast(pl.Float32),
         pl.col("arr_taxi_day_n").cast(pl.Int32).alias("arr_day_count"),
+        pl.col("arr_substitution_day_rate").cast(pl.Float32),
     )

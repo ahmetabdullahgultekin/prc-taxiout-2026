@@ -45,6 +45,7 @@ GROUPS: dict[str, list[str]] = {
     "day_regime": [
         r"^arr_taxi_day_med_sec$", r"^arr_taxi_day_ratio$",
         r"^arr_volume_day_ratio$", r"^arr_day_count$",
+        r"^arr_substitution_day_rate$",
     ],
     # Inferred runway configuration.
     "runway_configuration": [

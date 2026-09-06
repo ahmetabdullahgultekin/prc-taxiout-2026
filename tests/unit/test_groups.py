@@ -39,7 +39,7 @@ PRODUCED = [
     "next_dep_gap_sec", "stand_turnaround_sec", "ceiling_m", "flight_distance_km",
     "arr_taxi_median_sec", "arr_taxi_count", "precip_mm", "diverted",
     "arr_taxi_day_med_sec", "arr_taxi_day_ratio", "arr_volume_day_ratio",
-    "arr_day_count",
+    "arr_day_count", "arr_substitution_day_rate",
     # airport_state.attach outputs (EUROCONTROL daily)
     "atfm_regulated_share", "atfm_slot_late_share", "atfm_slot_early_share",
     "daily_departures", "daily_arrivals", "arr_atfm_delay_min",

@@ -27,6 +27,8 @@ def _movements(daily_taxi: dict[int, float], airport: str = "EDDF",
                 "PHASE_mvt": "ARR",
                 "MVT_TIME_UTC_mvt": datetime(2025, 1, day, 6) + timedelta(minutes=7 * i),
                 "TAXITIME_SEC_mvt": taxi,
+                "SCHED_TIME_UTC_mvt": datetime(2025, 1, day, 6) + timedelta(minutes=7 * i),
+                "BLOCK_TIME_UTC_mvt": datetime(2025, 1, day, 6) + timedelta(minutes=7 * i),
             })
     return pl.DataFrame(rows)
 
@@ -38,6 +40,8 @@ def _departure(day: int, airport: str = "EDDF") -> pl.DataFrame:
         "PHASE_mvt": ["DEP"],
         "MVT_TIME_UTC_mvt": [datetime(2025, 1, day, 12)],
         "TAXITIME_SEC_mvt": [900.0],
+        "SCHED_TIME_UTC_mvt": [datetime(2025, 1, day, 11)],
+        "BLOCK_TIME_UTC_mvt": [datetime(2025, 1, day, 11, 45)],
     })
 
 
@@ -99,6 +103,10 @@ def test_departures_do_not_feed_the_arrival_regime() -> None:
         "MVT_TIME_UTC_mvt": [datetime(2025, 1, 26, 6) + timedelta(minutes=4 * i)
                              for i in range(200)],
         "TAXITIME_SEC_mvt": [5000.0] * 200,
+        "SCHED_TIME_UTC_mvt": [datetime(2025, 1, 26, 5) + timedelta(minutes=4 * i)
+                               for i in range(200)],
+        "BLOCK_TIME_UTC_mvt": [datetime(2025, 1, 26, 5) + timedelta(minutes=4 * i)
+                               for i in range(200)],
     })
     mvt = pl.concat([_movements(daily), deps], how="diagonal_relaxed")
     out = regime.attach(mvt, deps.head(1))
@@ -131,7 +139,31 @@ def test_the_volume_ratio_sees_a_quiet_day() -> None:
                 "MVT_ID_mvt": f"a{day:02d}{i:03d}", "apt_mvt": "EDDF", "PHASE_mvt": "ARR",
                 "MVT_TIME_UTC_mvt": datetime(2025, 1, day, 6) + timedelta(minutes=7 * i),
                 "TAXITIME_SEC_mvt": 500.0,
+                "SCHED_TIME_UTC_mvt": datetime(2025, 1, day, 6) + timedelta(minutes=7 * i),
+                "BLOCK_TIME_UTC_mvt": datetime(2025, 1, day, 6) + timedelta(minutes=7 * i),
             })
     mvt = pl.concat([pl.DataFrame(rows), _departure(26)], how="diagonal_relaxed")
     out = regime.attach(mvt, _departure(26))
     assert abs(out["arr_volume_day_ratio"][0] - 0.25) < 1e-5
+
+
+def test_the_substitution_rate_counts_arrivals_whose_block_is_their_schedule() -> None:
+    """The feed writing the schedule into a field it had no measurement for.
+
+    Built with a known share so the number is checked rather than merely produced: ten of
+    forty arrivals a day are given an in-block time equal to their scheduled one.
+    """
+    rows = []
+    for day in range(1, 27):
+        for i in range(40):
+            when = datetime(2025, 1, day, 6) + timedelta(minutes=7 * i)
+            substituted = i < 10
+            rows.append({
+                "MVT_ID_mvt": f"a{day:02d}{i:03d}", "apt_mvt": "EDDF", "PHASE_mvt": "ARR",
+                "MVT_TIME_UTC_mvt": when, "TAXITIME_SEC_mvt": 500.0,
+                "SCHED_TIME_UTC_mvt": when,
+                "BLOCK_TIME_UTC_mvt": when if substituted else when + timedelta(minutes=17),
+            })
+    mvt = pl.concat([pl.DataFrame(rows), _departure(26)], how="diagonal_relaxed")
+    out = regime.attach(mvt, _departure(26))
+    assert abs(out["arr_substitution_day_rate"][0] - 0.25) < 1e-5
