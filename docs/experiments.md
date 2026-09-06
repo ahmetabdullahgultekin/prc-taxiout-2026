@@ -618,3 +618,54 @@ is doing harm, and that is a result worth reporting too.
 pipes work. The fixture's own generation process makes some families artificially dominant (for
 example, while `SCHED_TIME` had a fixed offset the `atfm` family was leaking the target one for
 one; fixed on 2026-09-01).
+
+## The night of 2026-09-06, on the holdout that mirrors the new scored set
+
+Everything below is 400 rounds of XGBoost on 1,740,628 training rows, scored on the
+344,419-row holdout, which is January and July 2025 at all ten airports. The board's own
+set is 344,841 rows, so the two are the same shape for the first time in this project.
+They also agree in direction and size on the one thing tested on both: capping
+predictions at 7,200 s costs 49 s here and 78 s there.
+
+| what | RMSE | against the plain model |
+|---|---:|---:|
+| plain model | 474.91 | |
+| one model per airport | 484.10 | **+9.19, it loses** |
+| the best global tail transform | 472.35 | -2.56, inside noise |
+| a model per network-match segment | 417.24 | -57.67 |
+| **the mixture, weight from a classifier** | **393.99** | **-80.92** |
+| the mixture, classifier weight scaled by 1.5 | 375.58 | -99.33 |
+| the mixture, classifier weight scaled by 2.0 | 368.52 | -106.39 |
+| **the mixture, weight fitted out of fold** | **362.38** | **-112.53, and no tuned parameter** |
+| an oracle told which rows are substituted | 413.19 | -61.72 |
+
+The oracle line is worth reading twice. Knowing exactly which rows have a substituted
+block time, and reading the schedule off for those and only those, is *worse* than the
+fitted-weight mixture. The exact identity is not the whole population: a flight whose
+taxi lands within a few minutes of its schedule offset is not a match under a ten second
+rule and the offset is still the better prediction for it. Fitting the weight finds that;
+classifying the identity cannot.
+
+Widening the tolerance does not find it either, which is the control for that reading:
+
+| tolerance | share | scale 1.0 | scale 1.5 | scale 2.0 |
+|---:|---:|---:|---:|---:|
+| 10 s | 4.86% | **393.99** | **375.58** | **368.52** |
+| 30 s | 5.52% | 395.41 | 380.04 | 374.04 |
+| 60 s | 9.72% | 393.57 | 376.83 | 373.37 |
+| 120 s | 17.34% | 395.34 | 380.55 | 377.66 |
+
+### Closed, do not revisit
+
+* **One model per airport.** It loses overall and loses at Rome specifically, 1377.7 to
+  1432.7, which is the airport it was meant to serve.
+* **Capping or stretching the tail.** Capping loses on both instruments. Stretching gains
+  0.5 s at best, inside the paired noise floor of about 5 s.
+* **The stand as an upper bound.** An aircraft cannot go off-block before it went
+  on-block, so the last arrival on the same stand should bound the taxi. It does not:
+  violated on 10% of all rows and on 70% of the rows above two hours, because the last
+  arrival on a stand is frequently a different aircraft.
+* **A year-on-year correction from arrival taxi-in.** Pooled correlation -0.11 over the
+  126 airport-months of 2025, and the sign flips per airport. It would have cut every
+  Amsterdam departure in July by 140 s at the one airport whose departures move the other
+  way.
