@@ -173,6 +173,7 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | R43 | **The mixture takes the holdout from 474.91 to 389.93** at scale 1.0 and 370.53 at 1.5. An oracle knowing the equal rows scores 413.19, so the mixture gains beyond the strict 10 s definition | holdout probe | 2026-09-07 | ✅ **the largest lever measured in this project by a factor of two** |
 | R44 | The substitution classifier is well calibrated where it matters: p in [0.5,0.8) has a true rate of 0.626 against a mean p of 0.628; p above 0.8, 0.928 against 0.884. Precision 84% at threshold 0.7 | holdout probe | 2026-09-07 | ✅ calibration is what the mixture needs, not a hard flag |
 | R45 | **Stretching the tail is NOT a lever**: the best global transform gains 0.5 s (inside noise). And the stand occupancy bound is not a bound: violated on 10% of rows and on **70% of the monsters** | holdout sweeps | 2026-09-07 | ✅ both closed |
+| R46 | **Every timestamp in the file was searched for the same identity**, over all 2,085,047 departures of 2025. Exact matches (10 s) with `ATOT - X = taxi`: SCHED **4.80% (430 of the 584 monsters)**, AOBT_3 8.25% (0 monsters), EOBT_1 5.83% (4), IOBT 5.40% (14), LOBT 5.38% (14), ARVT_1 0.00%, ARVT_3 0 | our own measurement | 2026-09-07 | ✅ **74% of all monsters are covered by some identity; only SCHED carries the tail** |
 
 ## Data quality (2026-09-01 audit)
 
