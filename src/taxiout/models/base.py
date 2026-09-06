@@ -192,6 +192,13 @@ def _mixture(inner: str, **kwargs):
     return Mixture(inner, **kwargs)
 
 
+def _identities(inner: str):
+    """Deferred import: identities builds its inner learner through `build` below."""
+    from taxiout.models.identities import Identities
+
+    return Identities(inner)
+
+
 def _segmented(inner: str):
     """Deferred import: segmented builds its inner learners through `build` below."""
     from taxiout.models.segmented import Segmented
@@ -221,6 +228,9 @@ _REGISTRY: dict[str, type | object] = {
     # name, so nesting costs nothing.
     "mixture-segmented-xgboost": lambda: _mixture("segmented-xgboost"),
     "mixture-segmented-catboost": lambda: _mixture("segmented-catboost"),
+    # Both identities at once under one softmax; see models/identities.py.
+    "identities-xgboost": lambda: _identities("xgboost"),
+    "identities-segmented-xgboost": lambda: _identities("segmented-xgboost"),
 }
 
 
