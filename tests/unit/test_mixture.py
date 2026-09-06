@@ -144,3 +144,40 @@ def test_a_negative_offset_is_not_predicted() -> None:
 def test_it_is_reachable_by_name() -> None:
     assert models.build("mixture-xgboost").name == "mixture-xgboost"
     assert models.build("mixture-catboost").name == "mixture-catboost"
+
+
+def test_the_fitted_weight_mode_also_recovers_the_identity() -> None:
+    """The second way of getting the weight has to clear the same bar as the first."""
+    fit, y_fit = _population(6000, seed=10)
+    val, y_val = _population(3000, seed=11)
+    tree = models.build("xgboost").fit_predict(fit, val, COLS, y_fit, 120, 1)
+    fitted = Mixture("xgboost", clf_rounds=60, weight_mode="regression").fit_predict(
+        fit, val, COLS, y_fit, 120, 1
+    )
+    assert _rmse(fitted, y_val) < _rmse(tree, y_val) / 2, (
+        f"tree {_rmse(tree, y_val):.0f}, fitted weight {_rmse(fitted, y_val):.0f}"
+    )
+
+
+def test_the_fitted_weight_is_not_collapsed_to_zero() -> None:
+    """The control for the out-of-fold step.
+
+    If the ordinary model were asked about rows it had been fitted on, the weight target
+    would be zero nearly everywhere and this class would quietly become its inner
+    learner. That failure is invisible in a score, so it is checked directly.
+    """
+    fit, y_fit = _population(6000, seed=12)
+    val, _ = _population(2000, seed=13)
+    plain = models.build("xgboost").fit_predict(fit, val, COLS, y_fit, 120, 1)
+    fitted = Mixture("xgboost", clf_rounds=60, weight_mode="regression").fit_predict(
+        fit, val, COLS, y_fit, 120, 1
+    )
+    moved = np.abs(fitted - plain) > 1.0
+    assert moved.mean() > 0.05, f"only {moved.mean():.1%} of rows moved at all"
+
+
+def test_an_unknown_weight_mode_is_refused() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="weight_mode"):
+        Mixture("xgboost", weight_mode="magic")

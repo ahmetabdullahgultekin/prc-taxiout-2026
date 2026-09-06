@@ -41,6 +41,27 @@ a schedule offset of fifty thousand seconds and a five percent probability colle
 and a half thousand seconds of error it did not have. `scale` exists so that the
 sensitivity to this is measurable rather than assumed, and the default is a plain
 expectation with no thumb on the scale.
+
+**Why there are two ways of getting the weight.** Under a squared loss the optimal weight
+on the candidate is exactly the probability that the candidate is the answer, so scaling
+it above one should not help. It does: on the holdout, 393.99 at scale 1.0 against 368.52
+at 2.0, and widening the tolerance instead makes things worse at every scale, so the
+scale is not standing in for a wider definition.
+
+The explanation is that "the offset is the answer" is narrower than "the offset is worth
+listening to". A flight whose taxi is within a few minutes of its schedule offset is not
+an exact match and the offset is still a better prediction for it than a leaf constant.
+The classifier is answering the wrong question by a small margin, and the scale is a
+crude correction for it.
+
+`weight_mode="regression"` asks the right question instead. For every training row the
+weight that would have minimised the squared error is
+
+    w* = (y - rest) / (offset - rest),  clipped to [0, 1]
+
+so that quantity can simply be fitted, with the rows weighted by (offset - rest)^2, which
+is how much getting the weight wrong actually costs there. Where the two candidates are
+close the target is noise and the weighting correctly ignores it.
 """
 
 from __future__ import annotations
@@ -69,12 +90,18 @@ class Mixture:
         tolerance_sec: float = TOLERANCE_SEC,
         clf_rounds: int = 300,
         scale: float = 1.0,
+        weight_mode: str = "classifier",
+        folds: int = 3,
     ) -> None:
+        if weight_mode not in ("classifier", "regression"):
+            raise ValueError(f"unknown weight_mode {weight_mode!r}")
         self.inner = inner
         self.tolerance_sec = tolerance_sec
         self.clf_rounds = clf_rounds
         self.scale = scale
-        self.name = f"mixture-{inner}"
+        self.weight_mode = weight_mode
+        self.folds = folds
+        self.name = f"mixture-{inner}" + ("" if weight_mode == "classifier" else "-w")
 
     def _probability(
         self, fit: pl.DataFrame, val: pl.DataFrame, cols: list[str],
@@ -94,6 +121,69 @@ class Mixture:
         clf.fit(x_fit, label.astype(int), verbose=False)
         return np.asarray(clf.predict_proba(x_val)[:, 1], dtype=np.float64)
 
+    def _out_of_fold(
+        self, fit: pl.DataFrame, cols: list[str], y: np.ndarray,
+        ordinary: np.ndarray, rounds: int, seed: int,
+    ) -> np.ndarray:
+        """The ordinary model's opinion of the training rows, without having seen them.
+
+        This is the part that has to be right. Asking a model about rows it was fitted on
+        would make the weight target look like zero everywhere, since the model already
+        matches those rows, and the class would learn to never use the candidate. That is
+        exactly the population it exists to serve, so the predictions are made out of
+        fold. The substituted rows were never in the ordinary model's training set, so a
+        model fitted on all the ordinary rows is already out of sample for them.
+        """
+        out = np.zeros(len(y))
+        index = np.arange(len(y))
+        ordinary_index = index[ordinary]
+        rng = np.random.default_rng(seed)
+        fold = rng.integers(0, self.folds, len(ordinary_index))
+        for k in range(self.folds):
+            train = ordinary_index[fold != k]
+            score = ordinary_index[fold == k]
+            if len(train) < 100 or len(score) == 0:
+                continue
+            out[score] = build(self.inner).fit_predict(
+                fit[train], fit[score], cols, y[train], rounds, seed
+            )
+        if (~ordinary).any():
+            out[index[~ordinary]] = build(self.inner).fit_predict(
+                fit.filter(pl.Series(ordinary)), fit[index[~ordinary]], cols,
+                y[ordinary], rounds, seed,
+            )
+        return out
+
+    def _fitted_weight(
+        self, fit: pl.DataFrame, val: pl.DataFrame, cols: list[str],
+        y: np.ndarray, rest_fit: np.ndarray, off_fit: np.ndarray, seed: int,
+    ) -> np.ndarray:
+        """Fit the weight that would have been right, rather than a proxy for it.
+
+        The rows are weighted by the squared distance between the two candidates, which
+        is exactly what a wrong weight costs on that row, so rows where they agree
+        contribute nothing and cannot inject noise.
+        """
+        import xgboost as xgb
+
+        from taxiout.application import pipeline
+
+        gap = off_fit - rest_fit
+        usable = np.isfinite(gap) & (np.abs(gap) > 1.0)
+        target = np.zeros(len(y))
+        target[usable] = np.clip((y[usable] - rest_fit[usable]) / gap[usable], 0.0, 1.0)
+        sample_weight = np.where(usable, np.minimum(gap ** 2, 1e10), 0.0)
+
+        x_fit, _, levels = _encode(fit, cols, pipeline.CATEGORICAL)
+        x_val, _, _ = _encode(val, cols, pipeline.CATEGORICAL, levels)
+        model = xgb.XGBRegressor(
+            n_estimators=self.clf_rounds, learning_rate=0.08, max_depth=8, subsample=0.8,
+            colsample_bytree=0.8, tree_method="hist", max_bin=127, n_jobs=0,
+            random_state=seed, objective="reg:squarederror",
+        )
+        model.fit(x_fit, target, sample_weight=sample_weight, verbose=False)
+        return np.clip(np.asarray(model.predict(x_val), dtype=np.float64), 0.0, 1.0)
+
     def fit_predict(self, fit, val, cols, y, rounds, seed):
         if OFFSET not in fit.columns or OFFSET not in val.columns:
             return build(self.inner).fit_predict(fit, val, cols, y, rounds, seed)
@@ -111,8 +201,13 @@ class Mixture:
         rest = build(self.inner).fit_predict(
             fit.filter(pl.Series(ordinary)), val, cols, y[ordinary], rounds, seed
         )
-        probability = self._probability(fit, val, cols, substituted, seed)
-        weight = np.clip(probability * self.scale, 0.0, 1.0)
+        if self.weight_mode == "regression":
+            rest_fit = self._out_of_fold(fit, cols, y, ordinary, rounds, seed)
+            weight = self._fitted_weight(fit, val, cols, y, rest_fit, off_fit, seed)
+        else:
+            probability = self._probability(fit, val, cols, substituted, seed)
+            weight = probability
+        weight = np.clip(weight * self.scale, 0.0, 1.0)
 
         # A negative offset would mean taking off before the scheduled off-block, which
         # is a taxi of less than nothing. Where the schedule is missing there is no
