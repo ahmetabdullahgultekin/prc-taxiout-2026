@@ -160,6 +160,13 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | R30 | **The organisers replaced the ranking set on 2026-09-04 and reset the leaderboard.** July went from 3 airports to all 10; scored departures 215,876 -> **344,841**; every old submission was erased and every team's score moved by about **+25 s** (leader 249.46 -> 277.29). Training files were untouched (still dated 2026-08-13) | bucket listing + leaderboard API | 2026-09-05 | 🔴 **we had 11 submissions and now have none; the board is a different board** |
 | R31 | The new ranking file **keeps all 431,843 old movement rows and adds 257,691**, so nothing was withdrawn. Ids are a superset | our own measurement | 2026-09-05 | ✅ features and code carry over unchanged |
 | R32 | New month mixture: January **152,719** (44.3%) + July **192,122** (55.7%). **July is now the larger month**, and R12 says July is also the higher-variance one (std 745 vs 605) | our own measurement | 2026-09-05 | 🔴 **the metric is now dominated by the harder month**; every earlier local reading weighted January at 71% |
+| R33 | **There IS a submission limit: 3 per team per day, resetting 00:00 UTC.** Not published on any page of the competition site. The bucket answers a fourth upload with `DAILY_LIMIT_REACHED: 3 of 3 used today` and does NOT score the file | our own measurement, 2026-09-06 | 2026-09-07 | 🔴 **an evening buys three answers from the board; Q01 is closed** |
+| R34 | **Every departure in the ranking file is scored** (0 unscored ones), `BLOCK_TIME_UTC_mvt` and `TAXITIME_SEC_mvt` are 100% blank on them, and `MVT_TIME_UTC_mvt` (the take-off) is 100% present. **Arrivals keep everything**, taxi-in included | our own measurement | 2026-09-05 | ✅ the 2026 surface is observable; features anchored on take-off are computable in both periods |
+| R35 | **LIRF is 64.8% of the holdout's squared error** and LIRF in July alone is **55.7%**, on 15,211 rows (4.4%). Target std there is **2,167 s** against 300-500 everywhere else, p99 5,698 | holdout probe | 2026-09-07 | 🔴 **the competition is Rome in July** |
+| R36 | **The tail is real, and the board says so.** Capping predictions at 7,200 s (114 rows, 0.03%) moved the board from 411.23 to **488.84**, and at 4,500 to 507.28. The holdout agrees in direction and size (+49 at 7,200). The truth's maximum on the holdout is **88,132 s** | board v12/v13/v14 + holdout sweep | 2026-09-07 | ✅ **extreme predictions are correct and are where the metric lives; do not clip** |
+| R37 | **Unmatched rows are 1.56% of the holdout and 66.9% of its squared error** (RMSE 3,109 against 275 for matched). A model fitted on them alone takes the total from 474.91 to **417.24**, the largest lever measured in this project | holdout probe | 2026-09-07 | ✅ segmented learner; board test pending |
+| R38 | **One model per airport LOSES** (474.91 -> 484.10) and it loses at LIRF specifically (1377.7 -> 1432.7), which is the airport it was meant to help | holdout probe | 2026-09-07 | ✅ idea closed, do not revisit |
+| R39 | The taxi-in of arrivals does NOT track taxi-out month to month: pooled correlation **-0.11** over 126 airport-months of 2025, and the per-airport sign flips (EDDF +0.82, EHAM **-0.66**) | our own measurement | 2026-09-06 | 🔴 **a multiplicative year-on-year correction would have pushed Amsterdam the wrong way**; the regime goes in as a feature instead |
 
 ## Data quality (2026-09-01 audit)
 
@@ -216,7 +223,7 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 
 | # | Question | How it closes |
 |---|------|---------------|
-| Q01 | Is there a daily or total submission limit? | Ask on Discord. P04 is indirect evidence: the 2025 winner ran an ablation of ~18 submissions, so there seems to be no tight limit |
+| Q01 | ~~Is there a daily or total submission limit?~~ | **CLOSED (R33): three per day, resetting 00:00 UTC.** Unpublished; found by hitting it |
 | Q02 | ~~How good is `AOBT_3_flt`?~~ | **CLOSED (R08):** 98.52% filled, naive RMSE 384.9 s. A strong feature, not the solution |
 | Q03 | ~~Is the leaderboard live?~~ | **CLOSED (B02, B05):** the score lands in the bucket as JSON within ~15 s; the ranking is behind a REST API |
 | Q04 | ~~What will the team name be?~~ | **CLOSED:** `vibrant-lollipop` was assigned (T01) |

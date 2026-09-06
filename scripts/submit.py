@@ -28,6 +28,7 @@ import json
 import re
 import subprocess
 import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from taxiout import config
@@ -118,6 +119,21 @@ def main() -> None:
 
     result = json.loads(mc("cat", f"{bucket}/{result_key}"))
     print()
+    if result.get("error_type") == "DAILY_LIMIT_REACHED":
+        # Nothing on the competition website mentions a limit. It exists: three
+        # submissions per team per day, resetting at 00:00 UTC. We found out by hitting
+        # it on the fourth upload of an evening, which is an expensive way to learn a
+        # rule, and it changes how every experiment has to be planned: an evening buys
+        # three answers from the board, so each one has to be a question worth asking.
+        now = datetime.now(UTC)
+        reset = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        wait = reset - now
+        raise SystemExit(
+            f"{result['error']}\n"
+            f"  the file is in the bucket and was NOT scored; resubmit it after the reset\n"
+            f"  {wait.seconds // 3600}h {wait.seconds % 3600 // 60}m from now "
+            f"({reset:%Y-%m-%d %H:%M} UTC)"
+        )
     if result.get("status") != "Succeeded":
         raise SystemExit(f"submission rejected: {json.dumps(result, indent=2)}")
     print(f"  status      {result['status']}")
