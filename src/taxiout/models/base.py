@@ -228,6 +228,13 @@ _REGISTRY: dict[str, type | object] = {
     # name, so nesting costs nothing.
     "mixture-segmented-xgboost": lambda: _mixture("segmented-xgboost"),
     "mixture-segmented-catboost": lambda: _mixture("segmented-catboost"),
+    # The same mixture with the weight fitted rather than classified. Measured on the
+    # holdout: 362.38 against 393.99 for the classifier at its untuned scale, and better
+    # than any scale the classifier was given, with no tuned parameter of its own.
+    "mixture-w-xgboost": lambda: _mixture("xgboost", weight_mode="regression"),
+    "mixture-w-segmented-xgboost": lambda: _mixture(
+        "segmented-xgboost", weight_mode="regression"
+    ),
     # Both identities at once under one softmax; see models/identities.py.
     "identities-xgboost": lambda: _identities("xgboost"),
     "identities-segmented-xgboost": lambda: _identities("segmented-xgboost"),
