@@ -185,6 +185,13 @@ class CatBoost:
         )
 
 
+def _mixture(inner: str, **kwargs):
+    """Deferred import: mixture builds its inner learner through `build` below."""
+    from taxiout.models.mixture import Mixture
+
+    return Mixture(inner, **kwargs)
+
+
 def _segmented(inner: str):
     """Deferred import: segmented builds its inner learners through `build` below."""
     from taxiout.models.segmented import Segmented
@@ -203,6 +210,17 @@ _REGISTRY: dict[str, type | object] = {
     # 1.25 percent of rows carry 62 percent of the squared error; see models/segmented.py
     "segmented-xgboost": lambda: _segmented("xgboost"),
     "segmented-catboost": lambda: _segmented("catboost"),
+    # The rows where the feed wrote the scheduled time into the off-block field. Their
+    # target equals a column we already have, and a tree cannot emit a column; see
+    # models/mixture.py.
+    "mixture-xgboost": lambda: _mixture("xgboost"),
+    "mixture-catboost": lambda: _mixture("catboost"),
+    # The two structural findings composed: the mixture reads the schedule off for the
+    # rows where the feed substituted it, and its inner learner is itself split on
+    # whether the Network Manager matched the flight. `build` resolves any registered
+    # name, so nesting costs nothing.
+    "mixture-segmented-xgboost": lambda: _mixture("segmented-xgboost"),
+    "mixture-segmented-catboost": lambda: _mixture("segmented-catboost"),
 }
 
 
