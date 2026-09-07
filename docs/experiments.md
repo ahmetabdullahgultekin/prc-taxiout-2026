@@ -753,3 +753,24 @@ times as long, which is affordable only because a second machine is idle.
 
 Given the seed spread, the gap between 344.84 and 346.20 is not a result. Averaging more
 things is the reliable move, not picking the best pair.
+
+### A second identity as a second candidate: refuted, and reverted
+
+The network off-block time matches the target exactly on 8.25 percent of rows against the
+schedule's 4.86, so declaring it as a second candidate in the mixture looked free. It is
+not, and a test caught it before a submission did.
+
+Declaring a candidate does two things: it earns a weight, and it removes its rows from the
+ordinary learner's training set, because a learner fitted on rows whose target is a column
+learns to reproduce a coincidence. The second effect is the larger one here. On a
+synthetic population with the real proportions, the two-candidate mixture was more than
+fifteen percent worse than the one-candidate mixture overall, and worse even on the rows
+that follow the second candidate.
+
+The asymmetry between the two identities explains it. The schedule identity covers 333 of
+the 435 training rows above two hours, so its rows are ones the ordinary learner cannot
+serve anyway and losing them costs nothing. The network identity covers none of them: its
+rows are ordinary flights that the learner predicts perfectly well, and taking eight
+percent of the training set away to gain an exact answer on them is a bad trade.
+
+Reverted. The code is back to a single candidate, which is what the board has scored.
