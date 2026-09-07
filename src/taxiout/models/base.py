@@ -232,6 +232,19 @@ _REGISTRY: dict[str, type | object] = {
     # holdout: 362.38 against 393.99 for the classifier at its untuned scale, and better
     # than any scale the classifier was given, with no tuned parameter of its own.
     "mixture-w-xgboost": lambda: _mixture("xgboost", weight_mode="regression"),
+    # The weight TARGET clipped wider than the weight itself. Measured: 353.26 against
+    # 359.95 in the same run, and the mean prediction's bias against the holdout truth
+    # falls from +49.6 s to +11.8, which is the mechanism the wider clip was predicted to
+    # fix. See models/mixture.py.
+    "mixture-wide-xgboost": lambda: _mixture(
+        "xgboost", weight_mode="regression", weight_clip=(-0.25, 1.25)
+    ),
+    "mixture-wide-catboost": lambda: _mixture(
+        "catboost", weight_mode="regression", weight_clip=(-0.25, 1.25)
+    ),
+    "mixture-wide-segmented-xgboost": lambda: _mixture(
+        "segmented-xgboost", weight_mode="regression", weight_clip=(-0.25, 1.25)
+    ),
     "mixture-w-segmented-xgboost": lambda: _mixture(
         "segmented-xgboost", weight_mode="regression"
     ),
