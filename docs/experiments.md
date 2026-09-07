@@ -689,3 +689,67 @@ configuration measured 362.38 on the Windows machine. The same code, the same ca
 contents, a different core count, and XGBoost sums in a different order. Four seconds is
 larger than it sounds because a single row above two hours moves the RMSE by several
 seconds on its own. **Compare within a machine, never across one.**
+
+## The night of 2026-09-07: what the board said, and what the seeds said
+
+The board settled the mixture. Same features, same rounds, same everything except the
+model:
+
+| submission | model | board RMSE |
+|---|---|---:|
+| v12 | plain XGBoost | 411.23 |
+| v19 | fitted-weight mixture | **334.01** |
+| v21 | the same, weight target clipped to (-0.25, 1.25) | **318.16** |
+| v22 | v21 averaged with a segmented-inner mixture | **315.94** |
+
+Then the overnight run measured the same configuration three times with three seeds:
+
+| | RMSE |
+|---|---:|
+| wide, seed 1 | 353.26 |
+| wide, seed 2 | 348.38 |
+| wide, seed 3 | 358.00 |
+| the three averaged | **347.82** |
+
+**A ten second spread between seeds.** That is much larger than the paired bootstrap noise
+floor of about 5 s quoted earlier in this project, because the metric is dominated by a
+few hundred rows and a different seed puts them in different leaves. It means several
+comparisons made on single runs were never conclusive, and they are re-read here honestly:
+
+| comparison | difference | verdict now |
+|---|---:|---|
+| mixture against plain | 112 s | real, and the board confirmed it at 77 s |
+| fitted weight against a classifier weight | 31 s | real |
+| the wide weight clip | 6.7 s | **was inside seed noise locally**, but the board confirmed it at 15.8 s |
+| the segmented inner learner | 1.7 s | inside noise; kept only for blending diversity |
+| the day regime family | 0.8 s | inside noise; still no reason to ship it |
+
+The lesson is not that the small results were wrong. It is that they were not evidence
+either way, and two of them were only settled by spending a submission.
+
+### Rounds and the inner learner
+
+| | RMSE |
+|---|---:|
+| wide, 400 rounds | 353.26 |
+| wide, 800 rounds | 359.98 |
+| wide, 1500 rounds | 355.39 |
+| wide over a segmented inner, 400 | 348.45 |
+| **wide with a CatBoost inner** | 359.44 (against 357.55 for XGBoost in the same run) |
+
+More rounds do not help inside the mixture, which is worth knowing: the ordinary learner
+is fitted on the rows the mixture does not reach, and those are the easy ones. CatBoost is
+not better either, reversing what it did as a plain model, but it blends: 0.6 XGBoost plus
+0.4 CatBoost gives 353.77 in the run where XGBoost alone gave 357.55. It costs thirteen
+times as long, which is affordable only because a second machine is idle.
+
+### What averages best
+
+| | RMSE |
+|---|---:|
+| best single (seed 2) | 348.38 |
+| seed 1 averaged with the segmented inner | **344.84** |
+| everything averaged | 346.20 |
+
+Given the seed spread, the gap between 344.84 and 346.20 is not a result. Averaging more
+things is the reliable move, not picking the best pair.
