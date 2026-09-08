@@ -774,3 +774,16 @@ rows are ordinary flights that the learner predicts perfectly well, and taking e
 percent of the training set away to gain an exact answer on them is a bad trade.
 
 Reverted. The code is back to a single candidate, which is what the board has scored.
+
+### The mirror identity, and why it does not matter
+
+If the feed writes the scheduled time into the off-block field when it has no
+measurement, it might also write the take-off time, which would give a taxi of exactly
+zero. Over all 2,085,047 departures of 2025, 1,117 have a taxi at or below sixty seconds,
+19 of them exactly zero and 369 negative, and they concentrate at Zurich: 674 of the
+1,117, against 4 at Frankfurt.
+
+So the quirk is real and it is a Zurich quirk. It is also worth nothing. Predicting all of
+them at the global mean instead of their truth costs 1.11e9 of squared error against about
+3.34e11 for a model scoring 400, which is a third of one percent, or under a second of
+RMSE. Closed.
