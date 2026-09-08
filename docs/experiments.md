@@ -857,3 +857,66 @@ revisited because every question since was about structure. Structure is exhaust
 truth is 45,580 seconds against a median prediction of 37,970: sixteen percent short.
 That is the opposite of the failure the cap experiment was testing for, and it says the
 mixture is still shrinking the largest cases toward the middle.
+
+## The tail is not a board lever, and the holdout said the opposite three times
+
+The map above named two candidates: a slower learner for the smooth ordinary half, and a
+correction for the under-predicted giants. Both were built, validated on the holdout, and
+put on the board. Both lost, and the board disagreed with the holdout in the same
+direction each time.
+
+| version | change from the champion (v25, 310.55) | holdout | board |
+|---|---|---:|---:|
+| v29 | slower rate, 800 rounds, inside the mixture (`mixture-wide-slow-xgboost`) | 343.51 (−9.6) | **327.62 (+17.1)** |
+| v30 | v25 with the extreme tail pushed to the schedule offset | 335.16 (−18.1) | **470.18 (+159.6)** |
+
+**v29, the slower rate.** On the holdout the slower rate over 800 rounds took the mixture
+from 353.07 to 343.51, well past the ~5 s seed floor. On the board it went the other way,
+from 310.55 to 327.62. The holdout is 2025 January and July; the board is 2026. A slower
+fit suited one and not the other, which is the whole reason the round count and rate were
+never made defaults on a holdout measurement.
+
+**v30, the tail push.** The 24 giants are under-predicted, so the obvious move is to push
+them up. `tail_sweep` had already refuted a blanket multiplier, so the push was gated on
+the model's *own* extreme predictions and aimed at the schedule offset, which for a real
+monster is very nearly its truth: `pred → offset where pred > 6 h and offset > pred`. On
+the holdout it gained 18 seconds, touching 13 rows of which all 13 were monsters — 96 %
+precision at that gate. On the ranking set the identical transform touched 29 rows and
+cost **160 seconds**. The precision did not survive the year: the rows the mixture
+predicts above six hours on the 2026 set are dominated by ordinary flights with a large
+schedule offset that the fitted weight had *correctly* discounted, and forcing them onto
+the offset is exactly the catastrophe the mixture was built to avoid. The mixture's own
+weight is already the right answer for these rows; overriding it is not.
+
+Neither hurt the standing — teams rank by their best score (F04) and v25 remains it — but
+the day bought three answers from the board and two of them said the same thing the log
+has said since v1: **the holdout orders levers, the board decides them, and a tuned RMSE
+gain on 2025 is not a modelling result until 2026 confirms it.** The tail is where the
+metric lives, but it is not somewhere a post-hoc rule can reach.
+
+## Is there a second provenance rule? No.
+
+The schedule substitution explains 430 of the 584 training departures above two hours.
+The remaining **154** were searched for a second identity of the same kind — a timestamp
+the feed wrote into the block field — because one clean rule is worth more than any amount
+of tail tuning (it transfers; tuning does not). The block time on those rows is the
+substituted value directly, so the question is only what it equals.
+
+| candidate for the written block time | matches within 60 s (of 154) |
+|---|---:|
+| `SCHED_TIME` (the known rule, by construction excluded) | 2 |
+| `EOBT_1` | 6 |
+| `IOBT` | 3 |
+| `LOBT` | 3 |
+| `AOBT_3`, `ARVT_1`, `ARVT_3` | 0 |
+| `SCHED_TIME` shifted a whole number of days | 1 |
+| a *different* movement at the same stand (previous occupant) | 7 (5 %) vs 3 % on ordinary rows |
+
+Nothing clusters. `BLOCK − SCHED` on the 154 is spread from −7.7 h to +1.8 h across the
+5th–95th percentiles with no spike, which is the signature of assorted label errors rather
+than one mechanism — consistent with the note that the NM off-block time is plausible on
+94 % of matched cases, i.e. the block field is wrong in a different way each time. The
+cross-row joins that would have been the strongest evidence are not constructible on this
+data: there is no registration column, so "the same aircraft's previous leg" cannot be
+formed, and `TOBT`/`CTOT` are not present either. The one clean provenance rule is the one
+already in the model.
