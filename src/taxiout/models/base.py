@@ -117,9 +117,30 @@ class LightGbm:
 
 
 class XGBoost:
-    """XGBoost with the histogram method. Categoricals go in as integer codes."""
+    """XGBoost with the histogram method. Categoricals go in as integer codes.
 
-    name = "xgboost"
+    The settings were a first guess in the first week and stayed until the structural
+    work ran out. Swept on the rows the mixture leaves to this learner, two seeds each,
+    with a seed spread of about five seconds:
+
+    | setting | RMSE on those rows |
+    |---|---:|
+    | learning rate 0.05, depth 9 (the first guess) | 420.36 |
+    | depth 7 | 422.91 |
+    | depth 11 | 419.80 |
+    | **learning rate 0.03 over 800 rounds** | **415.77** |
+    | minimum child weight 20 | 428.97 |
+    | L2 penalty 5 | 432.56 |
+    | column sample 0.6 | 423.77 |
+
+    Only the slower rate helps and only by 4.6 seconds, which is the noise floor rather
+    than a result. It is kept as a named variant to be settled on the board rather than
+    made the default on a measurement that thin.
+    """
+
+    def __init__(self, learning_rate: float = 0.05) -> None:
+        self.learning_rate = learning_rate
+        self.name = "xgboost" if learning_rate == 0.05 else f"xgboost-lr{learning_rate}"
 
     def fit_predict(self, fit, val, cols, y, rounds, seed):
         import xgboost as xgb
@@ -129,7 +150,8 @@ class XGBoost:
         x_fit, _, levels = _encode(fit, cols, pipeline.CATEGORICAL)
         x_val, _, _ = _encode(val, cols, pipeline.CATEGORICAL, levels)
         model = xgb.XGBRegressor(
-            n_estimators=rounds, learning_rate=0.05, max_depth=9, subsample=0.8,
+            n_estimators=rounds, learning_rate=self.learning_rate, max_depth=9,
+            subsample=0.8,
             colsample_bytree=0.8, tree_method="hist", max_bin=127, n_jobs=0,
             random_state=seed, objective="reg:squarederror",
         )
@@ -210,6 +232,7 @@ _REGISTRY: dict[str, type | object] = {
     "lightgbm": lambda: LightGbm(categorical=True),
     "lightgbm-nocat": lambda: LightGbm(categorical=False),
     "xgboost": XGBoost,
+    "xgboost-slow": lambda: XGBoost(learning_rate=0.03),
     "catboost": CatBoost,
     "catboost-d8": lambda: CatBoost(depth=8),
     "catboost-d12": lambda: CatBoost(depth=12),
@@ -238,6 +261,9 @@ _REGISTRY: dict[str, type | object] = {
     # fix. See models/mixture.py.
     "mixture-wide-xgboost": lambda: _mixture(
         "xgboost", weight_mode="regression", weight_clip=(-0.25, 1.25)
+    ),
+    "mixture-wide-slow-xgboost": lambda: _mixture(
+        "xgboost-slow", weight_mode="regression", weight_clip=(-0.25, 1.25)
     ),
     "mixture-wide-catboost": lambda: _mixture(
         "catboost", weight_mode="regression", weight_clip=(-0.25, 1.25)
