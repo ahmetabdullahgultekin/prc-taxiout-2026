@@ -787,3 +787,26 @@ So the quirk is real and it is a Zurich quirk. It is also worth nothing. Predict
 them at the global mean instead of their truth costs 1.11e9 of squared error against about
 3.34e11 for a model scoring 400, which is a third of one percent, or under a second of
 RMSE. Closed.
+
+## Blending is not free: what the board said on 2026-09-08
+
+| submission | model | board |
+|---|---|---:|
+| v21 | wide mixture, one seed | 318.16 |
+| v22 | v21 averaged with a narrow-clip segmented mixture | **315.94** |
+| v25 | wide mixture, two seeds averaged | **310.55** |
+| v26 | v25 averaged with the same narrow-clip segmented mixture | 314.71 |
+
+The same partner, averaged into two different bases, gained 2.2 s on one and lost 4.2 on
+the other. The difference is what the base already was. A single seed carries about five
+seconds of seed noise, and averaging anything half-decent into it removes some of that,
+which is most of what v22's gain was. Two seeds have already had that removed, so all the
+partner brings is its own inferiority: it was built with the weight target clipped to the
+unit interval, which the board has separately measured as 15.8 s worse.
+
+The rule that follows, and it is not the rule usually quoted about ensembles: **average
+models of comparable quality, or average to remove noise, but not both at once with a
+partner that is plainly worse.** Once the base is seed-averaged, a weaker partner is a
+cost.
+
+Seed averaging itself transferred almost exactly: 6 s locally, 5.4 s on the board.
