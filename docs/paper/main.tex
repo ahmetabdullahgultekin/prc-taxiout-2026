@@ -290,25 +290,50 @@ causes exists in the model, and none is needed.
 
 
 \section{Results}
-% MAIN TABLE: feature family x RMSE (the output of scripts/run_ablation.py).
-% The per-airport RMSE table.
-% The retrospective vs causal comparison.
-% [NUMBER] everywhere.
+Table~\ref{tb:board} gives the ranking-set RMSE of each configuration in the order it was
+submitted. Every line differs from the one above it by a single decision, so the column of
+differences is an ablation performed on the scored set rather than on cross-validation.
 
 \begin{table}[htbp!]
   \centering
   \small
-  \caption{Feature family ablation. Negative delta means removing the family improves
-           the model.}
-  \label{tb:ablation}
-  \begin{tabular}{lrrr}
+  \caption{Ranking-set RMSE. Each row changes one thing from the row above.}
+  \label{tb:board}
+  \begin{tabular}{llrr}
   \toprule
-  \textbf{Configuration} & \textbf{Features} & \textbf{RMSE (s)} & \textbf{$\Delta$} \\
+  & \textbf{Configuration} & \textbf{RMSE (s)} & \textbf{$\Delta$} \\
   \midrule
-  Full model & [NUMBER] & [NUMBER] & -- \\
+  v12 & Gradient boosting, 92 features, 1000 rounds & 411.23 & -- \\
+  v13 & \quad predictions capped at 7{,}200\,s & 488.84 & $+77.61$ \\
+  v14 & \quad predictions capped at 4{,}500\,s & 507.28 & $+96.05$ \\
+  v19 & Mixture with a fitted weight & 334.01 & $-77.22$ \\
+  v21 & \quad weight target clipped to $[-0.25, 1.25]$ & 318.16 & $-15.85$ \\
+  v25 & \quad two seeds averaged & \textbf{310.55} & $-7.61$ \\
+  v26 & \quad averaged with a weaker second model & 314.71 & $+4.16$ \\
+  v28 & \quad averaged with a comparable second model & 315.56 & $+5.01$ \\
   \bottomrule
   \end{tabular}
 \end{table}
+
+Three of these are worth reading as results rather than as steps.
+
+The two capping rows are a control. Restricting predictions to the 120-minute threshold
+that EUROCONTROL's own procedure uses to decide what is no longer a taxi touches 114 rows
+of 344{,}841 and costs 77.6 seconds of RMSE. The extreme predictions are correct, and the
+squared metric is decided by a few hundred flights: on the holdout, 24 rows above six
+hours carry 37.3\% of the total squared error.
+
+The mixture is the single largest effect in the study, 77.2 seconds, and it consists of
+recognising that on 4.86\% of rows the target is a column the ranking set already
+publishes (Section~\ref{sec:substitution}).
+
+The last two rows contradict the usual advice about ensembles and are reported because
+they were measured both ways. The same second model averaged into a single-seed base
+gained 2.2 seconds and into a two-seed base lost 4.2; a second model of comparable quality
+lost 5.0. On this problem averaging removes seed noise and does nothing else, and seed
+averaging captures that more cheaply. The holdout said the opposite, which is why it is
+reported: a validation set built from a different year agreed with the scored set on the
+capping question and on the mixture, and disagreed here.
 
 
 \section{Discussion}
