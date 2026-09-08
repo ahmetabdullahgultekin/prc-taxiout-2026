@@ -804,9 +804,23 @@ which is most of what v22's gain was. Two seeds have already had that removed, s
 partner brings is its own inferiority: it was built with the weight target clipped to the
 unit interval, which the board has separately measured as 15.8 s worse.
 
-The rule that follows, and it is not the rule usually quoted about ensembles: **average
-models of comparable quality, or average to remove noise, but not both at once with a
-partner that is plainly worse.** Once the base is seed-averaged, a weaker partner is a
-cost.
+A third submission tested the obvious objection: perhaps v20 lost only because it was
+built with the narrower weight clip, and a partner of comparable quality would still gain.
+
+| submission | model | board |
+|---|---|---:|
+| v25 | wide mixture, two seeds averaged | **310.55** |
+| v28 | v25 averaged with a wide-clip segmented mixture | 315.56 |
+
+It lost by 5.0 s. So the partner's quality was not the issue and the rule is simpler and
+harsher than the one usually quoted about ensembles: **on this board, averaging helps a
+noisy base and costs a denoised one, whatever the partner.** Two board measurements now
+say so, against a local holdout that said the opposite. The local gain, 353.26 for a
+single seed against 344.84 blended, was seed noise being averaged away and nothing else;
+seed averaging captures all of it and more cheaply.
 
 Seed averaging itself transferred almost exactly: 6 s locally, 5.4 s on the board.
+
+Two of the day's three submissions went on blends that lost. The information was worth
+having and it was not available any other way, since the holdout had said the opposite,
+but the honest accounting is that the day's score came from one submission.
