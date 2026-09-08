@@ -824,3 +824,36 @@ Seed averaging itself transferred almost exactly: 6 s locally, 5.4 s on the boar
 Two of the day's three submissions went on blends that lost. The information was worth
 having and it was not available any other way, since the holdout had said the opposite,
 but the honest accounting is that the day's score came from one submission.
+
+## Where the error lives after the mixture
+
+Three seeds of the shipped model, averaged, scoring 347.82 on the holdout. The map has
+changed completely from the one that motivated the mixture.
+
+| | rows | RMSE | share of the squared error |
+|---|---:|---:|---:|
+| the feed substituted the schedule | 15,531 | 515 | **9.9%** |
+| everything else | 328,888 | 338 | 90.1% |
+| no Network Manager match | 5,373 | 1,998 | **51.5%** |
+| a match | 339,046 | 244 | 48.5% |
+| truth below one hour | 343,438 | 249 | **51.1%** |
+| truth above one hour | 981 | 4,556 | 48.9% |
+| truth above six hours | **24** | 25,434 | **37.3%** |
+
+Before the mixture the substituted rows were the problem and the unmatched rows carried
+66.9 percent. The substituted rows are now 9.9 percent, which is what the mixture was
+built to do, and the remainder has split almost exactly in half: 51 percent of the error
+is spread across 343,438 ordinary flights at an RMSE of 249, and 49 percent sits in about
+a thousand long ones.
+
+Two consequences for what to do next.
+
+**The ordinary half is now worth tuning.** It is half the metric, it is smooth, and the
+learner behind it has had the same settings since the first week: learning rate 0.05,
+depth 9, subsample 0.8, colsample 0.8, 127 bins, chosen as a first guess and never
+revisited because every question since was about structure. Structure is exhausted.
+
+**The long rows are under-predicted, not over-predicted.** Above six hours the median
+truth is 45,580 seconds against a median prediction of 37,970: sixteen percent short.
+That is the opposite of the failure the cap experiment was testing for, and it says the
+mixture is still shrinking the largest cases toward the middle.
