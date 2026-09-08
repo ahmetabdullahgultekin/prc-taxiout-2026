@@ -1,8 +1,10 @@
 # PRC Data Challenge 2026: Taxi-Out Time Prediction
 
 An open source solution that predicts the **taxi-out time** (AOBT -> ATOT, in seconds) of
-aircraft departing from 11 large European airports. Built for the 2026 data challenge run by
+aircraft departing from 10 large European airports. Built for the 2026 data challenge run by
 the EUROCONTROL Performance Review Commission (PRC) and the OpenSky Network.
+
+The competition page says eleven airports and the data holds ten; the data is right.
 
 - Competition: <https://ansperformance.eu/study/data-challenge/dc2026/>
 - Metric: RMSE (seconds), over the January + July 2026 departures
@@ -10,18 +12,39 @@ the EUROCONTROL Performance Review Commission (PRC) and the OpenSky Network.
 
 ## Status
 
-Second on the leaderboard, **RMSE 306.41**, 7.4 seconds behind the leader. Three submissions
-so far; `docs/experiments.md` records every one of them, including the two that did not work.
+**RMSE 310.55**, 25th of 69 scoring teams. `docs/experiments.md` records every submission,
+including the four that made things worse.
 
-| version | change | local holdout | board |
-|---|---|---:|---:|
-| v1 | LightGBM, 800 rounds, 3 seeds | 378.80 | 331.23 |
-| v2 | LightGBM, slower rate, wider trees | ~372 | 331.80 |
-| **v3** | **XGBoost + CatBoost, 400 rounds, 1 seed** | **351.69** | **306.41** |
+| version | change from the row above | board RMSE |
+|---|---|---:|
+| v12 | gradient boosting, 92 features, 1000 rounds | 411.23 |
+| v13 | predictions capped at 7,200 s, EUROCONTROL's own taxi threshold | 488.84 |
+| v14 | capped at 4,500 s | 507.28 |
+| v19 | **the mixture: read the schedule off where the feed substituted it** | **334.01** |
+| v21 | the weight target clipped to (-0.25, 1.25) rather than (0, 1) | **318.16** |
+| v25 | two seeds averaged | **310.55** |
+| v26 | averaged with a weaker second model | 314.71 |
+| v28 | averaged with a second model of comparable quality | 315.56 |
 
-v3 added nothing to the model. Same 90 features, same split, same target, fewer rounds and
-fewer seeds than v1. The entire 24.8 second gain came from which library fits the trees, a
-choice that had never been tested. See [the learner comparison](docs/experiments.md).
+Every row differs from the one above by one decision, so the differences are an ablation
+performed on the scored set rather than on cross-validation.
+
+The two capping rows are the control that matters. Restricting predictions to the
+120-minute threshold EUROCONTROL uses to decide what is no longer a taxi touches 114 rows
+of 344,841 and costs 77.6 seconds: the extreme predictions are correct. This metric is
+decided by a few hundred flights. On the holdout, **24 rows above six hours carry 37.3
+percent of the total squared error**.
+
+The last two rows are reported because they contradict the usual advice about ensembles.
+The same partner averaged into a one-seed base gained 2.2 s and into a two-seed base lost
+4.2; a partner of comparable quality lost 5.0. Here averaging removes seed noise and does
+nothing else, and seed averaging captures that more cheaply.
+
+**Three submissions per team per day**, resetting at 00:00 UTC. That is published nowhere;
+it was found by hitting the limit. The ranking set was also replaced without announcement
+on 2026-09-04, which reset the leaderboard: `scripts/watch_board.py` runs on a timer and
+compares the API's `usedPairs` against our own template so the next change is noticed
+within twenty minutes rather than three days.
 
 ## Approach
 
@@ -55,10 +78,35 @@ The same code produces two models:
 The two can be compared on the same validation set; the difference between them is the
 information value of retrospective observability.
 
+### What the target actually is
+
+On 4.86 percent of training rows the taxi-out equals the take-off time minus the
+**scheduled** time to within ten seconds. Since the target is the take-off time minus the
+block time, the airport feed's block time on those rows *is* the scheduled time: it writes
+the schedule into a field it has no measurement for. The share is 18.4 percent at Rome
+against 1.1 percent at Zurich, and 53.8 percent at Rome among flights the Network Manager
+never matched.
+
+That is where the metric lives. **333 of the 435 training rows above two hours are rows of
+this kind**, and their target is a column the ranking set already publishes.
+
+It cannot be checked on the ranking set's departures, whose block times are blanked, but it
+can be checked on its arrivals, which keep everything: the same substitution runs at 2.31
+percent in January and July 2025 and 2.42 percent in 2026, with the same shape across
+airports. The behaviour belongs to the feed, not to the year.
+
+Every other timestamp in the file was searched for the same identity, with shifts of half
+an hour to a day. One more exists and carries no long taxis; nothing else does.
+
+`src/taxiout/models/mixture.py` turns this into a mixture rather than a rule, because under
+a squared loss the conditional mean is what is wanted, and it fits the mixing weight out of
+fold rather than classifying the identity. See `docs/adr/0004-mixture-over-a-substituted-target.md`.
+
 ### The learner
 
 Gradient boosting, with the library kept behind a port (`src/taxiout/models/`) rather than
-hardcoded, because the choice turned out to matter more than anything else measured here:
+hardcoded, because the choice turned out to matter more than anything else measured before
+the mixture:
 
 | learner | holdout RMSE, same 92 features, 400 rounds |
 |---|---:|
@@ -69,7 +117,7 @@ hardcoded, because the choice turned out to matter more than anything else measu
 
 The paired noise floor on this holdout is about 5 seconds, so those are real gaps. The reading
 is that LightGBM's categorical splitting overfits the high-cardinality fields, of which there
-are several: 1,899 stands, a hashed aircraft operator, 11 aircraft types. The evidence is
+are several: 1,899 stands, 269 aircraft types, a hashed aircraft operator. The evidence is
 XGBoost, which applies no categorical handling at all and still beats it by 21 seconds.
 
 Adding LightGBM to the blend makes it worse, so it is contributing error rather than a

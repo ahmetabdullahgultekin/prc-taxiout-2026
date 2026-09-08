@@ -181,6 +181,11 @@ Statuses: ✅ verified · ⏳ to be measured once the data arrives · ⚠️ nee
 | R51 | The mirror of the schedule substitution exists and is worthless: 1,117 departures of 2,085,047 have a taxi at or below 60 s (19 exactly zero, 369 negative), **674 of them at LSZH**. They carry 0.33% of the squared error, under a second of RMSE | our own measurement | 2026-09-08 | ✅ closed |
 | R52 | **Blending is a noise remover, not a model improver, on this board.** The same partner gained 2.2 s on a one-seed base (v21 318.16 -> v22 315.94) and lost 4.2 s on a two-seed base (v25 310.55 -> v26 314.71). A better partner lost too (v28 315.56). The local holdout said the opposite | board, 2026-09-08 | 2026-09-08 | 🔴 **seed-average, do not blend; the local blend gain was seed noise** |
 | R53 | Seed averaging transfers almost exactly: 6 s locally, **5.4 s on the board** (315.94 -> 310.55). A third seed adds nothing locally (347.82 against 347.22 for two) | board + holdout | 2026-09-08 | ✅ two seeds, then stop |
+| R54 | **The error map after the mixture is even.** Substituted rows fell from the dominant share to **9.9%**; the rest splits 51.1% across 343,438 rows below one hour (RMSE 249) and 48.9% across 981 rows above it. **24 rows above six hours carry 37.3%** | holdout, 3 seeds averaged, 347.82 | 2026-09-08 | ✅ both halves now matter; tuning the ordinary learner is worth something for the first time |
+| R55 | The long rows are **under**-predicted, not over: above six hours the median truth is 45,580 s against a median prediction of 37,970 | holdout | 2026-09-08 | 🔴 the opposite of what the capping experiment tested for |
+| R56 | The ordinary learner had never been tuned. Of six alternatives to the first-guess settings, five are worse and only a **slower rate over more rounds** helps, by 4.6 s, which is the seed noise floor | holdout, 2 seeds each | 2026-09-08 | ✅ kept as a named variant, not made the default |
+| R57 | The ordinary learner scores **420** on its own rows and **338** on the same rows inside the mixture | holdout | 2026-09-08 | ✅ independent evidence that the offset informs rows where it is not the answer |
+| R58 | The weight regressor's own settings do not matter: 300 rounds 350.66 against 600 rounds 350.53 | Hetzner holdout | 2026-09-08 | ✅ closed |
 
 ## Data quality (2026-09-01 audit)
 
