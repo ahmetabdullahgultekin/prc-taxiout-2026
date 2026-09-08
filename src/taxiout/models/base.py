@@ -268,6 +268,12 @@ _REGISTRY: dict[str, type | object] = {
     "mixture-wide-catboost": lambda: _mixture(
         "catboost", weight_mode="regression", weight_clip=(-0.25, 1.25)
     ),
+    # The same wide mixture with a depth-8 CatBoost inner rather than depth-10: depth-10
+    # is ~3x slower again and risks the memory cap on the full training set, and the
+    # orthogonal-algorithm question is answered at either depth.
+    "mixture-wide-catboost-d8": lambda: _mixture(
+        "catboost-d8", weight_mode="regression", weight_clip=(-0.25, 1.25)
+    ),
     "mixture-wide-segmented-xgboost": lambda: _mixture(
         "segmented-xgboost", weight_mode="regression", weight_clip=(-0.25, 1.25)
     ),
