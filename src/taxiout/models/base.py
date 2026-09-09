@@ -186,24 +186,33 @@ class CatBoost:
         self.learning_rate = learning_rate
 
     def fit_predict(self, fit, val, cols, y, rounds, seed):
+        import pandas as pd
         from catboost import CatBoostRegressor, Pool
 
         from taxiout.application import pipeline
 
-        cat_names = [
-            c for c in cols
-            if c in pipeline.CATEGORICAL or fit[c].dtype == pl.String
-        ]
-        as_str = [pl.col(c).cast(pl.String).fill_null("NA") for c in cat_names]
-        fit_pd = fit.select(cols).with_columns(as_str).to_pandas()
-        val_pd = val.select(cols).with_columns(as_str).to_pandas()
+        # Categoricals go in as integer codes addressed by column index, not as an
+        # object-string pandas frame. The string path built ~11 object-dtype columns over
+        # the 2M-row training set and ran the machine out of memory; the codes carry the
+        # same partition (a bijection with the strings), so CatBoost's ordered target
+        # statistics are unchanged, at a fraction of the memory. `_encode` emits -1 for an
+        # unknown or null level; +1 shifts that to a non-negative category.
+        x_fit, cat_idx, levels = _encode(fit, cols, pipeline.CATEGORICAL)
+        x_val, _, _ = _encode(val, cols, pipeline.CATEGORICAL, levels)
+
+        def frame(x: np.ndarray) -> pd.DataFrame:
+            df = pd.DataFrame(x, columns=cols, copy=False)
+            for i in cat_idx:
+                df[cols[i]] = (df[cols[i]] + 1.0).astype("int32")
+            return df
+
         model = CatBoostRegressor(
             iterations=rounds, learning_rate=self.learning_rate, depth=self.depth,
             loss_function="RMSE", random_seed=seed, verbose=False, thread_count=-1,
         )
-        model.fit(Pool(fit_pd, y, cat_features=cat_names))
+        model.fit(Pool(frame(x_fit), y, cat_features=cat_idx))
         return np.asarray(
-            model.predict(Pool(val_pd, cat_features=cat_names)), dtype=np.float64
+            model.predict(Pool(frame(x_val), cat_features=cat_idx)), dtype=np.float64
         )
 
 
