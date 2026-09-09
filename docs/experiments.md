@@ -1024,3 +1024,38 @@ Seven levers now, all board- or evidence-refuted: capping, tail-stretch, slower 
 offset push, a second algorithm, an external-weather signal, and label-error cleaning. The
 one structural find, the schedule-substitution mixture, is on the board at 310.55. The
 leader near 246 holds an edge this data's features do not carry.
+
+## The last lever: could raw trajectory recover the tail? It answers the wrong question
+
+The tail dominates the board, the tail is corrupted block times, so the final idea was to
+bypass the feed: derive the true taxi for the monster rows from raw ADS-B surface movement
+(off-stand to wheels-up) and predict that instead. It does not work, and the reason is
+structural rather than a question of data access.
+
+**The target is the feed's value, not the physical taxi.** The competition scores
+`TAXITIME_SEC_mvt = ATOT - AOBT` exactly as the airport feed reports it, corruption
+included. The proof is on the board already: the mixture predicts the schedule offset — the
+*corrupted* value — for substituted rows, and that is what took the score from 411 to 334.
+If the held-out truth were the true taxi, predicting a twelve-hour offset would have been
+catastrophic; it was the single largest gain instead. So the board's ground truth for a
+corrupted row is the corrupted number.
+
+The arithmetic makes it concrete. On the holdout the 24 rows above six hours have a truth
+median of 45,580 s (12.7 h), min 23,168, max 88,132 — the corrupted values themselves, and
+17 of the 24 are schedule-substituted so their truth is the offset by definition. If a
+perfect trajectory feed gave us their real taxi and we predicted it, with an oracle
+everywhere else, **those 24 rows alone would contribute an RMSE of ~470** — worse than the
+whole current submission. Predicting their actual (corrupted) truth contributes zero. This
+is the same wall v30 hit from the other side.
+
+A trajectory feed therefore recovers precisely the wrong quantity, and a corrupted feed
+artifact cannot be reconstructed from a clean physical trajectory in any case. Raw ADS-B
+access was not pursued: no level of access changes which quantity the board scores.
+
+**PRC is evidence-exhausted.** Nine levers — capping, tail-stretch, slower rate, offset
+push, a second algorithm, a cross-row provenance rule, an external-weather signal,
+label-error cleaning, and trajectory recovery — have each been refuted on the board or on
+the holdout, or shown to answer the wrong question. The one structural find, the
+schedule-substitution mixture, is on the board at **310.55**. The tail that decides the
+metric is a feed artifact: the schedule-substituted part is already read off correctly, and
+the remainder is corruption with no signal in any accessible feed. We hold here.
