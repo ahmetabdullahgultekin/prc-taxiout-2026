@@ -920,3 +920,39 @@ cross-row joins that would have been the strongest evidence are not constructibl
 data: there is no registration column, so "the same aircraft's previous leg" cannot be
 formed, and `TOBT`/`CTOT` are not present either. The one clean provenance rule is the one
 already in the model.
+
+## Settling the score: denoise and a second algorithm, both no-jump
+
+Two last shots after the structural search came up empty, chosen because they are the only
+categories the board had not already refuted: pure seed denoise (same model, more seeds),
+and a different algorithm (the transfer bet — an orthogonal learner can carry to the board
+even when it is not better on the holdout).
+
+| ver | named change | holdout | board |
+|---|---|---:|---:|
+| v31 | 4 seeds averaged rather than 2 (`mixture-wide-xgboost`) | - | **311.75** |
+| v32 | CatBoost inner rather than XGBoost (`mixture-wide-catboost-d8`) | 359.44 | not built |
+
+**v31, more seeds.** Seed averaging is the one lever the log had seen transfer (5.4 s on
+the board from one seed to two). Two to four did not: 311.75 against the champion's 310.55,
+a fifth of the seed floor and on the wrong side of it. The champion's particular two-seed
+draw was slightly lucky; four seeds regressed to the stabler mean. No harm, no gain.
+
+**v32, CatBoost.** The case for it was that a different algorithm is an *orthogonal*
+predictor, the category that transfers when tuning does not. Two things closed it. First,
+the premise did not survive checking: CatBoost's holdout edge (348.71 vs 357.80) was the
+inner learner alone on the retired three-airport holdout; **inside the mixture on the
+current holdout it is 359.44 against XGBoost's 357.55**, i.e. tied to slightly worse, and
+its only remaining route — blending — the board already refuted (v26, v28). Second, it
+could not be built within the memory a shared production box can spare: even with the
+categoricals fed as integer codes rather than an object-string frame (a real improvement,
+kept), CatBoost's own training footprint on two million rows — quantisation and the
+categorical-combination statistics over 1,899 stands — exceeds an 8 GB cgroup, and giving
+it more is not safe on a box that serves five other services.
+
+So PRC settles here. The mixture is the one structural find and it is on the board; the
+schedule substitution is the only clean provenance rule and it is in the mixture; every
+lever since — capping, stretching, a slower rate, an offset push, a second algorithm — has
+been a tuning move the 2026 board declined. **Best 310.55, mid-field.** The podium sits
+around 267, a gap of a different kind: the leader reached it in ten submissions, the mark
+of a structural rule in a column this data does not carry rather than of grinding the board.
