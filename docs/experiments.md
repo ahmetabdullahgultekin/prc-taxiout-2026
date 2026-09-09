@@ -956,3 +956,32 @@ lever since — capping, stretching, a slower rate, an offset push, a second alg
 been a tuning move the 2026 board declined. **Best 310.55, mid-field.** The podium sits
 around 267, a gap of a different kind: the leader reached it in ten submissions, the mark
 of a structural rule in a column this data does not carry rather than of grinding the board.
+
+## Are the monsters an external-data signal? No.
+
+The last hypothesis before settling: the >6 h monsters are de-icing, severe weather or
+ground-stop (ATFM) events — an external signal the internal timestamp search could never
+find, and the kind of engineered external feature a leader's edge might live in. The
+holdout is the sharp test, being exactly January (the de-icing season) and July (not).
+
+| group | n | Jan | Jul | temp C | freezing | snow | de-ice proxy | arr ATFM delay |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| all rows | 344,419 | 45% | | 15.7 | .004 | .004 | .007 | 3.0 |
+| unexplained > 2 h | 52 | 17 | 35 | 18.2 | .038 | .019 | .058 | 2.3 |
+| **> 6 h monsters** | **24** | **7** | **17** | **20.7** | **.000** | **.000** | **.000** | **1.2** |
+
+It fails in the sharpest possible way: the monsters are **more common in July than
+January** (29 % January against a 45 % baseline), the > 6 h ones sit at **20.7 °C with zero
+freezing, snow or de-icing and below-average ATFM delay**. A twelve-hour taxi at twenty
+degrees in July is a corrupted block time, not a weather event — no aircraft taxis for
+twelve hours. The handful of 2-to-4 hour rows do carry a raised de-icing rate (.058 against
+.007), but that weather is already in the model, and it is not where the error is: the > 6 h
+rows are.
+
+The external route was checked one more way. The 2025 challenge winner (`sincere-glacier`)
+is a different problem — fuel burn — and its features are physics-based (OpenAP, ISA
+atmosphere, energy rates), with nothing that transfers to taxi-out; the 2026 ranking is
+still open, so no method is published. The competition's usable external feeds — IEM METAR,
+EUROCONTROL ATFM, OurAirports — are already ingested, and OPDI was recorded as a negative
+result. The monsters are label errors in the block field, and no accessible external feed
+explains a label error. Settled: best 310.55.
