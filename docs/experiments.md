@@ -985,3 +985,42 @@ still open, so no method is published. The competition's usable external feeds â
 EUROCONTROL ATFM, OurAirports â€” are already ingested, and OPDI was recorded as a negative
 result. The monsters are label errors in the block field, and no accessible external feed
 explains a label error. Settled: best 310.55.
+
+## Cleaning the label errors from training: a real bulk gain that the board rejects
+
+The monsters are corrupted block times, so they are corrupted training targets. The 10-17
+rows with a taxi above six hours and no substitution and no weather sit in the ordinary
+learner's data, and their squared distance to the schedule offset saturates the mixture's
+weight regressor (the sample weight is min(gap^2, 1e10)). Dropping them, keeping the
+substituted rows, is a clean signal-cleaning move, distinct from E03 (which dropped the
+whole > 2 h tail, pre-mixture) and from the refuted tail push (which forced predictions up).
+
+On the holdout it did exactly what the mechanism predicted:
+
+| training set | overall | bulk (344,270 rows, taxi <= 2 h) |
+|---|--:|--:|
+| full | 353.26 | 267.29 |
+| drop 10 rows > 6 h, not substituted | 351.27 | **257.44 (-9.9)** |
+| drop 102 rows > 2 h, not substituted | 361.25 | 257.78 |
+
+A ten-second gain on the bulk from removing ten rows, because the weight regressor stops
+being dominated by them. Overall barely moved, though, and the reason is the whole story:
+removing the rows also made the tail predictions worse, and the two nearly cancelled.
+
+| ver | change from v25 (310.55) | holdout overall | board |
+|---|---|--:|--:|
+| v33 | drop non-substituted rows with taxi > 6 h (`--drop-impossible-sec 21600`, 17 rows) | 351.27 | **324.22 (+13.7)** |
+
+The board settles it against the bulk. Seventeen dropped rows cost **13.7 seconds**. The
+metric is dominated by a few hundred tail rows carrying 40-60 % of the squared error, so
+even corrupted rows earn their place by teaching the model to emit large values in that
+region; removing them degrades the tail by more than the cleaner weight model recovers on
+the bulk. This is E03's lesson again, now measured on the board and after the mixture: **the
+ranking is decided on the tail, not the bulk, so a bulk gain does not transfer.** It also
+closes the "tail is shared noise, compete on the bulk" hypothesis: the board is sharply
+sensitive to our own tail predictions.
+
+Seven levers now, all board- or evidence-refuted: capping, tail-stretch, slower rate,
+offset push, a second algorithm, an external-weather signal, and label-error cleaning. The
+one structural find, the schedule-substitution mixture, is on the board at 310.55. The
+leader near 246 holds an edge this data's features do not carry.
