@@ -50,6 +50,48 @@ def test_fixture_reproduces_the_ranking_set_shape(raw_dir: Path) -> None:
     assert dep["MVT_TIME_UTC_mvt"].null_count() == 0, "DEP take-off time must be filled"
 
 
+def test_fixture_carries_both_shapes_of_stand_identifier(raw_dir: Path) -> None:
+    """Stands are lettered at some airports and bare numbers at others, in both sets.
+
+    The real data splits this way: Frankfurt, Schiphol and Paris label every stand with a
+    pier letter and a number, Munich, Heathrow and Barcelona use numbers alone. A fixture
+    with only numeric stands would leave `stand_pier` null everywhere and the pier
+    features would go untested while every test still passed. The fixture generated only
+    numeric stands until this was noticed.
+    """
+    # Grouped on apt_mvt, not ADEP_mvt: on an arrival row ADEP names where the aircraft
+    # came from, which is the mistake this project already made once.
+    mvt = pipeline.prepare_movements(
+        pl.read_parquet(sorted(raw_dir.glob("training_*.parquet"))[0])
+    )
+    shares = (
+        mvt.with_columns(pier=pl.col("STAND_mvt").str.extract(r"^([A-Za-z]+)"))
+        .group_by(pipeline.APT)
+        .agg(lettered=pl.col("pier").is_not_null().mean())
+    )["lettered"].to_list()
+    assert any(s > 0.9 for s in shares), "no airport uses lettered stands"
+    assert any(s < 0.1 for s in shares), "no airport uses purely numeric stands"
+
+
+def test_pier_and_number_are_extracted_from_the_stand(raw_dir: Path) -> None:
+    """The two geometry features really are produced, and carry what they claim to."""
+    inputs = pipeline.load_inputs(raw_dir)
+    feats = pipeline.build_features(inputs)
+    assert {"stand_pier", "stand_number"} <= set(feats.columns)
+
+    lettered = feats.filter(pl.col("stand_pier").is_not_null())
+    assert lettered.height > 0, "stand_pier is null everywhere"
+    # A lettered stand keeps its number: A11 gives pier A and number 11.
+    sample = lettered.select("STAND_mvt", "stand_pier", "stand_number").head(50)
+    for stand, pier, number in sample.iter_rows():
+        assert stand.startswith(pier)
+        assert str(number) in stand
+    # A bare numeric stand has no pier but still has a number.
+    numeric = feats.filter(pl.col("stand_pier").is_null() & pl.col("STAND_mvt").is_not_null())
+    if numeric.height:
+        assert numeric["stand_number"].null_count() == 0
+
+
 def test_features_are_producible_on_the_ranking_set(raw_dir: Path) -> None:
     """Every feature produced in training must also be producible on the ranking set.
 
@@ -86,21 +128,21 @@ def test_holdout_mirrors_the_ranking_set_shape(raw_dir: Path) -> None:
     month_num = pl.col("MVT_TIME_UTC_mvt").dt.month()
     assert set(split.val.select(month_num.unique()).to_series().to_list()) == {1, 7}
 
+    # Both ranking months hold every airport the fixture has. Until 2026-09-04 July was
+    # three airports wide and this assertion was the reverse of what it is now; the
+    # shape is checked against the real file in test_holdout_mirrors_ranking.py.
     july_apt = set(
         split.val.filter(month_num == 7)[pipeline.APT].unique().to_list()
     )
     january_apt = set(split.val.filter(month_num == 1)[pipeline.APT].unique().to_list())
-    assert july_apt <= set(pipeline.JULY_AIRPORTS), f"extra airports in July: {july_apt}"
-    assert len(january_apt) > len(july_apt), "January must be the wider month"
+    assert july_apt == january_apt, f"the two ranking months must match: {july_apt ^ january_apt}"
 
     # the rows must not overlap
     shared = set(split.fit["MVT_ID_mvt"].to_list()) & set(split.val["MVT_ID_mvt"].to_list())
     assert shared == set(), "the same movement cannot be in training and in validation"
 
-    # July airports that are not in validation must stay in training
-    july_in_fit = set(split.fit.filter(month_num == 7)[pipeline.APT].unique().to_list())
-    assert july_in_fit, "the other July airports must be in training"
-    assert not (july_in_fit & july_apt)
+    # Nothing from a ranking month may leak into training, at any airport.
+    assert split.fit.filter(month_num.is_in(pipeline.HOLDOUT_MONTHS)).height == 0
 
 
 def test_reference_is_fitted_without_the_validation_months(raw_dir: Path) -> None:

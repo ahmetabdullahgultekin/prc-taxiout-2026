@@ -15,10 +15,10 @@ paper.
 from __future__ import annotations
 
 import argparse
-import os
 import time
 from pathlib import Path
 
+from taxiout import config
 from taxiout.application import pipeline
 from taxiout.features import groups
 
@@ -39,7 +39,7 @@ def markdown_table(rows: list[dict], baseline: float) -> str:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="feature family ablation")
-    ap.add_argument("--data-dir", default=os.environ.get("TAXIOUT_DATA_DIR", "D:/prc-taxiout-2026"))
+    ap.add_argument("--data-dir", default=str(config.DATA_DIR))
     ap.add_argument("--rounds", type=int, default=1200)
     ap.add_argument("--seeds", type=int, default=1, help="number of models to average over seeds")
     ap.add_argument("--causal", action="store_true")
@@ -64,22 +64,22 @@ def main() -> None:
     seeds = tuple(range(1, args.seeds + 1))
     residual = not args.raw_target
 
-    configs: list[tuple[str, set[str]]] = [("full model", set())]
+    variants: list[tuple[str, set[str]]] = [("full model", set())]
     assigned = groups.assign(cols)
     for name in groups.GROUPS:
         if assigned[name]:  # skip a family that was not produced in this run
-            configs.append((f"− {name}", {name}))
+            variants.append((f"− {name}", {name}))
 
     rows, baseline = [], None
-    for config, drop in configs:
+    for label, drop in variants:
         used = groups.select(cols, drop)
         pred = pipeline.train_predict(split, used, args.rounds, residual, seeds)
         scores = pipeline.evaluate(split, pred)
         if baseline is None:
             baseline = scores["total"]
-        rows.append({"config": config, "n_features": len(used), **scores})
+        rows.append({"config": label, "n_features": len(used), **scores})
         delta = scores["total"] - baseline
-        print(f"  {config:<28} n={len(used):>3}  RMSE={scores['total']:8.2f}  "
+        print(f"  {label:<28} n={len(used):>3}  RMSE={scores['total']:8.2f}  "
               f"({delta:+.2f})   [{time.time() - t0:,.0f} s]")
 
     mode = "causal (block-anchored)" if args.causal else "retrospective (departure-anchored)"

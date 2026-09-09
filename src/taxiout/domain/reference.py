@@ -31,13 +31,15 @@ from __future__ import annotations
 
 import polars as pl
 
-TAXI = "TAXITIME_SEC_mvt"
+from taxiout.domain.schema import Col, Phase
+
+TAXI = Col.TARGET
 # The airport the movement happened at (added by `pipeline.prepare_movements`).
 # Identical to `ADEP_mvt` here, since the reference is built from departures only, but
 # one canonical name across the pipeline avoids the confusion that caused a real bug.
 APT = "apt_mvt"
-STAND = "STAND_mvt"
-RWY = "RUNWAY_mvt"
+STAND = Col.STAND
+RWY = Col.RUNWAY
 
 PERCENTILE = 0.10
 MIN_BELOW = 10  # ATXOT p.15: at least ten flights at or below the P10
@@ -84,7 +86,7 @@ def fit_reference(fit: pl.DataFrame) -> dict[str, pl.DataFrame]:
     board would later take back.
     """
     clean = fit.filter(
-        (pl.col("PHASE_mvt") == "DEP")
+        (pl.col(Col.PHASE) == Phase.DEPARTURE)
         & pl.col(TAXI).is_not_null()
         & (pl.col(TAXI) > 0)
         & (pl.col(TAXI) <= MAX_TAXI_SEC)

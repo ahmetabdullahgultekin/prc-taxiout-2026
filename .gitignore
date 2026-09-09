@@ -1,6 +1,8 @@
 # data and models live on the D: drive and never enter the repository
 data/
 *.parquet
+*.csv
+*.xlsx
 *.pkl
 *.joblib
 *.txt.gz
@@ -38,3 +40,9 @@ docs/paper/*.run.xml
 
 # crash dumps
 *.stackdump
+
+# CatBoost writes a training log directory next to the working directory
+catboost_info/
+
+# scratch pages saved while reading the literature
+*.html

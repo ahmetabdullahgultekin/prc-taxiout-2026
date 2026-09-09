@@ -2,8 +2,24 @@
 
 ## What we are doing
 
-We predict the taxi-out time, in seconds, of **departure** movements at 11 European airports.
-The metric is **RMSE**. The ranking set is January + July 2026. Deadline **2026-10-11 23:59:59 CET**.
+We predict the taxi-out time, in seconds, of **departure** movements at **10** European
+airports. The competition page says eleven and the data holds ten; the data is right
+(`docs/facts.md` R01). The metric is **RMSE**.
+
+The ranking set is January and July 2026 at all ten, **344,841 scored departures**. It was
+not always: until 2026-09-04 July held only three airports and the set was 215,876 rows.
+The organisers replaced it without announcing it and reset the leaderboard, so:
+
+* **Never write the shape of the ranking set into the code.** Read it from the file.
+  `tests/integration/test_holdout_mirrors_ranking.py` fails if the holdout stops matching.
+* `scripts/watch_board.py` runs on a timer and compares the API's `usedPairs` with our own
+  `submitting.parquet`. If it ever disagrees, everything local is stale.
+
+**Three submissions per team per day**, resetting at 00:00 UTC. This is published nowhere;
+we found it by hitting `DAILY_LIMIT_REACHED`. Plan each day around three answers.
+
+Deadline **2026-10-11**. The site says 23:59:59 CET on a date when Europe is still on CEST,
+so treat it as **21:59:59 UTC** and finish a day early.
 
 Target: top 3. The prize is not won on RMSE alone, the jury also assesses the repository and
 the documentation (see `docs/facts.md` F14).

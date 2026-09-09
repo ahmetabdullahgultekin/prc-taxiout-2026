@@ -23,13 +23,15 @@ from __future__ import annotations
 
 import polars as pl
 
-MVT = "MVT_TIME_UTC_mvt"
+from taxiout.domain.schema import Col
+
+MVT = Col.MVT_TIME
 # The airport the movement happened at; added by `pipeline.prepare_movements`.
 # NOT `ADEP_mvt`, which on an arrival row names where the aircraft came from.
 APT = "apt_mvt"
-ADES = "ADES_mvt"
-STAND = "STAND_mvt"
-PHASE = "PHASE_mvt"
+ADES = Col.ADES
+STAND = Col.STAND
+PHASE = Col.PHASE
 
 # Number of bearing sectors. Twelve gives 30-degree slices: a coarse stand-in for the
 # real SID groupings, but one that needs no hand tuning per airport.
@@ -80,7 +82,7 @@ def sector_congestion(dep: pl.DataFrame, anchor: str = MVT) -> pl.DataFrame:
     from taxiout.features.congestion import _counts_in_window
 
     time_cols = list(dict.fromkeys([anchor, MVT]))
-    keys = dep.select("MVT_ID_mvt", APT, "departure_sector", *time_cols).sort(anchor)
+    keys = dep.select(Col.MVT_ID, APT, "departure_sector", *time_cols).sort(anchor)
     out = keys
     for w in SECTOR_WINDOWS_MIN:
         out = _counts_in_window(
@@ -98,20 +100,20 @@ def atfm_pressure(dep: pl.DataFrame, anchor: str = MVT) -> pl.DataFrame:
     """
     cols = dep.columns
     exprs = []
-    if "IOBT_flt" in cols and "LOBT_flt" in cols:
+    if Col.IOBT in cols and Col.LOBT in cols:
         exprs.append(
-            (pl.col("LOBT_flt") - pl.col("IOBT_flt")).dt.total_seconds()
+            (pl.col(Col.LOBT) - pl.col(Col.IOBT)).dt.total_seconds()
             .cast(pl.Float32).alias("atfm_drift_sec")
         )
-    if "LOBT_flt" in cols:
+    if Col.LOBT in cols:
         exprs.append(
-            (pl.col(anchor) - pl.col("LOBT_flt")).dt.total_seconds()
+            (pl.col(anchor) - pl.col(Col.LOBT)).dt.total_seconds()
             .cast(pl.Float32).alias("lobt_anchor_gap_sec")
         )
-    if "ADES_FILED_flt" in cols and ADES in cols:
+    if Col.ADES_FILED in cols and ADES in cols:
         # A filed destination different from the actual one means the flight diverted.
         exprs.append(
-            (pl.col("ADES_FILED_flt") != pl.col(ADES)).alias("diverted")
+            (pl.col(Col.ADES_FILED) != pl.col(ADES)).alias("diverted")
         )
     return dep.with_columns(exprs) if exprs else dep
 
@@ -125,16 +127,16 @@ def stand_turnaround(
     """
     arr = (
         mvt.filter((pl.col(PHASE) == "ARR") & pl.col(STAND).is_not_null())
-        .select(APT, STAND, _arr_block=pl.col("BLOCK_TIME_UTC_mvt"))
+        .select(APT, STAND, _arr_block=pl.col(Col.BLOCK_TIME))
         .filter(pl.col("_arr_block").is_not_null())
         .sort("_arr_block")
     )
     if arr.height == 0:
-        return dep.select("MVT_ID_mvt").with_columns(
+        return dep.select(Col.MVT_ID).with_columns(
             stand_turnaround_sec=pl.lit(None, dtype=pl.Float32)
         )
     return (
-        dep.select("MVT_ID_mvt", APT, STAND, _anchor=pl.col(anchor))
+        dep.select(Col.MVT_ID, APT, STAND, _anchor=pl.col(anchor))
         .sort("_anchor")
         .join_asof(
             arr, left_on="_anchor", right_on="_arr_block", by=[APT, STAND],
@@ -144,7 +146,7 @@ def stand_turnaround(
             stand_turnaround_sec=(pl.col("_anchor") - pl.col("_arr_block")).dt.total_seconds()
             .cast(pl.Float32)
         )
-        .select("MVT_ID_mvt", "stand_turnaround_sec")
+        .select(Col.MVT_ID, "stand_turnaround_sec")
     )
 
 
@@ -159,5 +161,5 @@ def build(
     out = atfm_pressure(dep, anchor)
     if coords is not None and ADES in out.columns:
         out = attach_bearing(out, coords)
-        out = out.join(sector_congestion(out, anchor), on="MVT_ID_mvt", how="left")
-    return out.join(stand_turnaround(mvt, out, anchor), on="MVT_ID_mvt", how="left")
+        out = out.join(sector_congestion(out, anchor), on=Col.MVT_ID, how="left")
+    return out.join(stand_turnaround(mvt, out, anchor), on=Col.MVT_ID, how="left")

@@ -45,14 +45,16 @@ from __future__ import annotations
 
 import polars as pl
 
-MVT = "MVT_TIME_UTC_mvt"
+from taxiout.domain.schema import Col
+
+MVT = Col.MVT_TIME
 # The airport the movement happened at; added by `pipeline.prepare_movements`.
 # NOT `ADEP_mvt`, which is the flight's origin and names, on an arrival row, the
 # airport the aircraft came from.
 APT = "apt_mvt"
-RWY = "RUNWAY_mvt"
-PHASE = "PHASE_mvt"
-BLOCK = "BLOCK_TIME_UTC_mvt"
+RWY = Col.RUNWAY
+PHASE = Col.PHASE
+BLOCK = Col.BLOCK_TIME
 
 # Look-back and look-forward horizons, in minutes. The model picks what it needs.
 WINDOWS_MIN = (5, 10, 15, 30, 60)
@@ -178,7 +180,7 @@ def airport_features(
     arr = mvt.filter(pl.col(PHASE) == "ARR").select(APT, MVT).sort(MVT)
     # `anchor` and MVT can be the same column; selecting it twice is an error in polars.
     time_cols = list(dict.fromkeys([anchor, MVT]))
-    dep_all = dep.select("MVT_ID_mvt", APT, *time_cols).sort(anchor)
+    dep_all = dep.select(Col.MVT_ID, APT, *time_cols).sort(anchor)
 
     out = dep_all
     for w in WINDOWS_MIN:
@@ -215,12 +217,12 @@ def taxi_in_pressure(
     this a live indicator rather than a historical average.
     """
     arr = (
-        mvt.filter((pl.col(PHASE) == "ARR") & pl.col("TAXITIME_SEC_mvt").is_not_null())
-        .select(APT, MVT, "TAXITIME_SEC_mvt")
+        mvt.filter((pl.col(PHASE) == "ARR") & pl.col(Col.TARGET).is_not_null())
+        .select(APT, MVT, Col.TARGET)
         .sort(MVT)
     )
     if arr.height == 0:
-        return dep.select("MVT_ID_mvt").with_columns(
+        return dep.select(Col.MVT_ID).with_columns(
             arr_taxi_median_sec=pl.lit(None, dtype=pl.Float32),
             arr_taxi_count=pl.lit(0, dtype=pl.Int32),
         )
@@ -229,16 +231,16 @@ def taxi_in_pressure(
     binned = (
         arr.group_by_dynamic(MVT, every="10m", period=f"{minutes}m", group_by=APT)
         .agg(
-            arr_taxi_median_sec=pl.col("TAXITIME_SEC_mvt").median().cast(pl.Float32),
+            arr_taxi_median_sec=pl.col(Col.TARGET).median().cast(pl.Float32),
             arr_taxi_count=pl.len().cast(pl.Int32),
         )
         .sort(MVT)
     )
     return (
-        dep.select("MVT_ID_mvt", APT, _anchor=pl.col(anchor))
+        dep.select(Col.MVT_ID, APT, _anchor=pl.col(anchor))
         .sort("_anchor")
         .join_asof(binned, left_on="_anchor", right_on=MVT, by=APT, strategy="backward")
-        .select("MVT_ID_mvt", "arr_taxi_median_sec", "arr_taxi_count")
+        .select(Col.MVT_ID, "arr_taxi_median_sec", "arr_taxi_count")
     )
 
 
@@ -266,7 +268,7 @@ def runway_configuration(
         )
     )
     return (
-        dep.select("MVT_ID_mvt", APT, _anchor=pl.col(anchor))
+        dep.select(Col.MVT_ID, APT, _anchor=pl.col(anchor))
         .with_columns(_bin=pl.col("_anchor").dt.truncate(f"{minutes}m"))
         .join(config, on=[APT, "_bin"], how="left")
         .drop(APT, "_anchor", "_bin")
@@ -290,5 +292,5 @@ def build(mvt: pl.DataFrame, causal: bool = False) -> pl.DataFrame:
         taxi_in_pressure(mvt, dep, anchor=anchor),
         runway_configuration(mvt, dep, anchor=anchor),
     ):
-        out = out.join(part, on="MVT_ID_mvt", how="left")
+        out = out.join(part, on=Col.MVT_ID, how="left")
     return out
