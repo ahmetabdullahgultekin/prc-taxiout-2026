@@ -43,6 +43,11 @@ def main() -> None:
                     help="comma separated, from taxiout.models: lightgbm, "
                          "lightgbm-nocat, xgboost, catboost")
     ap.add_argument("--raw-target", action="store_true")
+    ap.add_argument("--drop-impossible-sec", type=float, default=None,
+                    help="drop NON-substituted training rows whose taxi exceeds this "
+                         "(physically-impossible label errors, e.g. 21600 = 6h). The "
+                         "substituted rows are kept: their long 'taxi' is the schedule "
+                         "offset the mixture reads, not an error.")
     ap.add_argument("--drop-groups", nargs="*", default=[],
                     help="feature families to drop, for ablation")
     ap.add_argument("--version", type=int, default=None,
@@ -109,6 +114,21 @@ def main() -> None:
         print("  training and loses at prediction time. Look at it before going on.")
     cols = groups.select(cols, set(args.drop_groups))
     print(f"using {len(cols)} features")
+
+    if args.drop_impossible_sec is not None:
+        # A handful of training rows carry a taxi of many hours with an ordinary block
+        # time: corrupted labels, not real taxis (they are warm, dry July flights, not
+        # de-icing). Left in, their squared distance to the schedule offset saturates the
+        # mixture's weight regressor and distorts the weight it fits for ordinary rows.
+        # Substituted rows are kept: their long value IS the schedule offset, by design.
+        from taxiout.models.mixture import OFFSET, TOLERANCE_SEC
+        off = pl.col(OFFSET).cast(pl.Float64)
+        substituted = off.is_finite() & ((pl.col(TARGET) - off).abs() <= TOLERANCE_SEC)
+        impossible = (pl.col(TARGET) > args.drop_impossible_sec) & ~substituted
+        before = fit.height
+        fit = fit.filter(~impossible)
+        print(f"dropped {before - fit.height} physically-impossible training rows "
+              f"(taxi > {args.drop_impossible_sec:,.0f}s, not substituted)")
 
     split = pipeline.Split(fit=fit, val=rank_feats, columns=cols)
     learners = tuple(s.strip() for s in args.learners.split(",") if s.strip())
